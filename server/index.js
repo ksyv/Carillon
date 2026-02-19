@@ -29,7 +29,7 @@ const auth = (roles = []) => (req, res, next) => {
     } catch (e) { res.status(400).send('Token invalide'); }
 };
 
-// Routes Auth
+// --- Routes Auth ---
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
@@ -47,18 +47,42 @@ app.post('/api/admin-init', async (req, res) => {
     res.json(user);
 });
 
-// Routes Enfants
+// --- Routes Utilisateurs (Admin) ---
+app.get('/api/users', auth(['admin']), async (req, res) => {
+    // On renvoie les utilisateurs sans les mots de passe
+    const users = await User.find({}, '-password');
+    res.json(users);
+});
+
+app.post('/api/users', auth(['admin']), async (req, res) => {
+    try {
+        const hash = await bcrypt.hash(req.body.password, 10);
+        const user = new User({ username: req.body.username, password: hash, role: req.body.role });
+        await user.save();
+        res.json({ _id: user._id, username: user.username, role: user.role });
+    } catch (e) {
+        res.status(400).send('Erreur création utilisateur (nom déjà pris ?)');
+    }
+});
+
+app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// --- Routes Enfants ---
 app.get('/api/children', auth(), async (req, res) => {
     const children = await Child.find({ active: true }).sort({ lastName: 1, firstName: 1 });
     res.json(children);
 });
+
 app.post('/api/children', auth(['admin']), async (req, res) => {
     const child = new Child(req.body);
     await child.save();
     res.json(child);
 });
 
-// Routes Pointage
+// --- Routes Pointage ---
 app.get('/api/attendance', auth(), async (req, res) => {
     const { date, sessionType } = req.query;
     const list = await Attendance.find({ date, sessionType }).populate('child');
@@ -82,11 +106,26 @@ app.put('/api/attendance/checkout/:id', auth(), async (req, res) => {
     limit.setHours(18, 30, 0, 0);
     const isLate = now > limit;
 
-    const att = await Attendance.findByIdAndUpdate(req.params.id, { checkOut: now, isLate }, { new: true });
+    const att = await Attendance.findByIdAndUpdate(req.params.id, { checkOut: now, isLate }, { new: true }).populate('child');
     res.json(att);
 });
 
-// Route Rapport
+// Annuler un départ (missclick "DÉPART")
+app.put('/api/attendance/undo-checkout/:id', auth(), async (req, res) => {
+    const updated = await Attendance.findByIdAndUpdate(req.params.id, { 
+        checkOut: null, 
+        isLate: false 
+    }, { new: true }).populate('child');
+    res.json(updated);
+});
+
+// Supprimer totalement un pointage (missclick "Ajouter un enfant")
+app.delete('/api/attendance/:id', auth(), async (req, res) => {
+    await Attendance.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// --- Route Rapport ---
 app.get('/api/report', auth(['admin']), async (req, res) => {
     const { date } = req.query;
     const children = await Child.find({ active: true }).sort({ lastName: 1 });
