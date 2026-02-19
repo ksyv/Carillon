@@ -1,0 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* On redéfinit la police par défaut */
+  --font-sans: 'Montserrat', sans-serif;
+  
+  /* Les couleurs extraites du logo de Carignan */
+  --color-car-dark: #3a3a3a;
+  --color-car-blue: #5484a4;
+  --color-car-yellow: #dcb059;
+  --color-car-teal: #4fa09d;
+  --color-car-pink: #c65b77;
+  --color-car-green: #a0b944;
+  --color-car-purple: #7b2c5f;
+}
+
+body {
+  font-family: 'Montserrat', sans-serif;
+  background-color: #f8fafc; /* Un gris très très clair pour le fond */
+  -webkit-font-smoothing: antialiased;
+}
