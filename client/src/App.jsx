@@ -3,12 +3,12 @@ import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, CheckCircle, Search } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users } from 'lucide-react';
 
 // --- CONFIG ---
-const API_URL = '/api'; // Grâce au proxy Vite
+const API_URL = '/api'; // Proxy Vite
 
-// Intercepteur pour ajouter le token
+// Intercepteur Token
 axios.interceptors.request.use(req => {
   const token = localStorage.getItem('token');
   if (token) req.headers.Authorization = `Bearer ${token}`;
@@ -21,7 +21,6 @@ axios.interceptors.request.use(req => {
 const Login = ({ setAuth }) => {
   const [creds, setCreds] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
-  // Pas de useNavigate ici car on est hors du Router dans le composant App principal lors de l'appel initial
   
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -94,8 +93,12 @@ const Dashboard = () => {
         {role === 'admin' && (
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <h3 className="font-bold mb-3 flex items-center gap-2"><FileText size={18}/> Administration</h3>
-            <button onClick={() => navigate('/report')} className="w-full bg-gray-100 p-3 rounded-lg text-left mb-2">📊 Rapports Journaliers</button>
-            <button onClick={() => alert("Pour créer des enfants, utilise Postman sur /api/children pour l'instant !")} className="w-full bg-gray-100 p-3 rounded-lg text-left">👶 Gérer les enfants</button>
+            <button onClick={() => navigate('/report')} className="w-full bg-gray-100 p-3 rounded-lg text-left mb-2 flex items-center gap-2">
+                📊 Rapports Journaliers
+            </button>
+            <button onClick={() => navigate('/admin/children')} className="w-full bg-gray-100 p-3 rounded-lg text-left flex items-center gap-2">
+                <Users size={18}/> Gérer les enfants (Ajout/Suppr)
+            </button>
           </div>
         )}
       </main>
@@ -103,10 +106,74 @@ const Dashboard = () => {
   );
 };
 
-// 3. SESSION / LISTE DE PRÉSENCE
+// 3. GESTION DES ENFANTS (NOUVEAU !)
+const ChildrenManager = () => {
+    const [children, setChildren] = useState([]);
+    const [newChild, setNewChild] = useState({ firstName: '', lastName: '' });
+    const navigate = useNavigate();
+
+    useEffect(() => { loadChildren(); }, []);
+
+    const loadChildren = async () => {
+        const { data } = await axios.get(`${API_URL}/children`);
+        setChildren(data);
+    };
+
+    const handleAdd = async (e) => {
+        e.preventDefault();
+        if(!newChild.lastName || !newChild.firstName) return;
+        try {
+            await axios.post(`${API_URL}/children`, newChild);
+            setNewChild({ firstName: '', lastName: '' });
+            loadChildren(); // Recharge la liste
+        } catch (e) { alert('Erreur ajout'); }
+    };
+
+    // Note: Pour l'instant on fait un "Soft Delete" via l'update si on voulait, 
+    // mais ici on ne met pas de bouton supprimer pour éviter les accidents en prod.
+    // Ajoutons juste l'ajout pour le MVP.
+
+    return (
+        <div className="min-h-screen bg-light p-4">
+            <button onClick={() => navigate('/')} className="mb-4 text-gray-500">← Retour Accueil</button>
+            <h1 className="text-2xl font-bold mb-6">Gestion des Enfants ({children.length})</h1>
+
+            {/* Formulaire Ajout */}
+            <form onSubmit={handleAdd} className="bg-white p-4 rounded-xl shadow-sm mb-6 flex gap-2">
+                <input 
+                    className="border p-2 rounded w-1/2" 
+                    placeholder="Nom" 
+                    value={newChild.lastName}
+                    onChange={e => setNewChild({...newChild, lastName: e.target.value.toUpperCase()})}
+                />
+                <input 
+                    className="border p-2 rounded w-1/2" 
+                    placeholder="Prénom" 
+                    value={newChild.firstName}
+                    onChange={e => setNewChild({...newChild, firstName: e.target.value})}
+                />
+                <button type="submit" className="bg-primary text-white p-2 rounded shadow">
+                    <Plus />
+                </button>
+            </form>
+
+            {/* Liste */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                {children.map(child => (
+                    <div key={child._id} className="p-4 border-b flex justify-between items-center">
+                        <span className="font-bold text-dark">{child.lastName} {child.firstName}</span>
+                        <span className="text-xs text-gray-400">Actif</span>
+                    </div>
+                ))}
+                {children.length === 0 && <div className="p-4 text-center text-gray-400">Aucun enfant. Ajoutez-en un !</div>}
+            </div>
+        </div>
+    );
+};
+
+// 4. SESSION / LISTE DE PRÉSENCE
 const SessionView = () => {
     const { date, type } = useParams();
-    
     const [children, setChildren] = useState([]); 
     const [attendance, setAttendance] = useState([]); 
     const [search, setSearch] = useState('');
@@ -227,7 +294,7 @@ const SessionView = () => {
     );
 };
 
-// 4. RAPPORT (Admin)
+// 5. RAPPORT (Admin)
 const Report = () => {
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [data, setData] = useState([]);
@@ -283,6 +350,7 @@ function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/session/:date/:type" element={<SessionView />} />
         <Route path="/report" element={<Report />} />
+        <Route path="/admin/children" element={<ChildrenManager />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
