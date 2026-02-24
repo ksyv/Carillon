@@ -82,6 +82,19 @@ app.post('/api/children', auth(['admin']), async (req, res) => {
     res.json(child);
 });
 
+// Modifier un enfant (Correction de nom/prénom)
+app.put('/api/children/:id', auth(['admin']), async (req, res) => {
+    const { firstName, lastName } = req.body;
+    const updated = await Child.findByIdAndUpdate(req.params.id, { firstName, lastName }, { new: true });
+    res.json(updated);
+});
+
+// Supprimer un enfant (Soft Delete = on le rend inactif pour garder l'historique)
+app.delete('/api/children/:id', auth(['admin']), async (req, res) => {
+    await Child.findByIdAndUpdate(req.params.id, { active: false });
+    res.json({ success: true });
+});
+
 // --- Routes Pointage ---
 app.get('/api/attendance', auth(), async (req, res) => {
     const { date, sessionType } = req.query;

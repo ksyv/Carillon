@@ -3,7 +3,7 @@ import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X} from 'lucide-react';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -350,15 +350,40 @@ const UserManager = () => {
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
     const [newChild, setNewChild] = useState({ firstName: '', lastName: '' });
+    // Nouveaux states pour l'édition
+    const [editingId, setEditingId] = useState(null);
+    const [editForm, setEditForm] = useState({ firstName: '', lastName: '' });
+    
     const navigate = useNavigate();
 
-    useEffect(() => { axios.get(`${API_URL}/children`).then(res => setChildren(res.data)); }, []);
+    useEffect(() => { loadChildren(); }, []);
+    
+    const loadChildren = () => axios.get(`${API_URL}/children`).then(res => setChildren(res.data));
 
     const handleAdd = async (e) => {
         e.preventDefault();
         await axios.post(`${API_URL}/children`, newChild);
         setNewChild({ firstName: '', lastName: '' });
-        axios.get(`${API_URL}/children`).then(res => setChildren(res.data));
+        loadChildren();
+    };
+
+    // --- NOUVELLES ACTIONS ---
+    const handleDelete = async (id, nom) => {
+        if(window.confirm(`Retirer ${nom} de la liste ?\n(Son historique sera conservé dans les anciens rapports)`)) {
+            await axios.delete(`${API_URL}/children/${id}`);
+            loadChildren();
+        }
+    };
+
+    const startEdit = (child) => {
+        setEditingId(child._id);
+        setEditForm({ firstName: child.firstName, lastName: child.lastName });
+    };
+
+    const saveEdit = async (id) => {
+        await axios.put(`${API_URL}/children/${id}`, editForm);
+        setEditingId(null);
+        loadChildren();
     };
 
     return (
@@ -378,11 +403,39 @@ const ChildrenManager = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {children.map(child => (
-                        <div key={child._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center">
-                            <span className="font-black text-car-dark text-xl">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                            <span className="bg-car-green/10 text-car-green text-xs font-black px-4 py-2 rounded-xl tracking-widest">ACTIF</span>
+                        <div key={child._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center transition-all hover:shadow-md">
+                            
+                            {/* MODE EDITION */}
+                            {editingId === child._id ? (
+                                <div className="flex-1 flex items-center gap-2 mr-4">
+                                    <input className="bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-black text-car-dark w-full uppercase text-sm" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value.toUpperCase()})} />
+                                    <input className="bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-full text-sm" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />
+                                </div>
+                            ) : (
+                            /* MODE LECTURE */
+                                <div>
+                                    <span className="font-black text-car-dark text-xl block">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                    <span className="bg-car-green/10 text-car-green text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-block">ACTIF</span>
+                                </div>
+                            )}
+
+                            {/* BOUTONS D'ACTION */}
+                            <div className="flex items-center gap-2">
+                                {editingId === child._id ? (
+                                    <>
+                                        <button onClick={() => saveEdit(child._id)} className="bg-car-green text-white p-2 rounded-xl hover:-translate-y-0.5 transition-all shadow-md shadow-car-green/20"><Check size={20}/></button>
+                                        <button onClick={() => setEditingId(null)} className="bg-slate-100 text-slate-500 p-2 rounded-xl hover:bg-slate-200 transition-all"><X size={20}/></button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button onClick={() => startEdit(child)} className="text-slate-400 hover:text-car-blue p-2 bg-slate-50 rounded-xl transition-colors" title="Modifier"><Pencil size={20}/></button>
+                                        <button onClick={() => handleDelete(child._id, `${child.firstName} ${child.lastName}`)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-xl transition-colors" title="Supprimer"><Trash2 size={20}/></button>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     ))}
+                    {children.length === 0 && <div className="col-span-full p-10 text-center text-slate-400 font-bold">Aucun enfant dans la base.</div>}
                 </div>
             </div>
         </div>
