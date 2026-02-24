@@ -154,14 +154,14 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
         const am = atts.find(a => a.child.toString() == c._id && a.sessionType === 'MATIN');
         const pm = atts.find(a => a.child.toString() == c._id && a.sessionType === 'SOIR');
         
-        let supplement = false;
-        if (pm) {
-             // Si marqué en retard OU checkOut > 18h30
-             if (pm.isLate) supplement = true;
-             if (pm.checkOut && new Date(pm.checkOut) > new Date(new Date(pm.checkOut).setHours(18,35,0,0))) supplement = true;
-        }
-
-        return { child: c, matin: !!am, soir: !!pm, supplement };
+        return { 
+            child: c, 
+            matin: !!am, 
+            soir: !!pm, 
+            checkOut: pm ? pm.checkOut : null,
+            isLate: pm ? pm.isLate : false,
+            pmId: pm ? pm._id : null // Indispensable pour que le bouton d'annulation marche
+        };
     }).filter(r => r.matin || r.soir);
     
     res.json(report);

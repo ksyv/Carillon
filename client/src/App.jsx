@@ -466,33 +466,47 @@ const ChildrenManager = () => {
 // 6. RAPPORT
 const Report = () => {
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const [sessionType, setSessionType] = useState('SOIR');
     const [reportData, setReportData] = useState([]);
     const navigate = useNavigate();
 
-    useEffect(() => {
-        axios.get(`${API_URL}/attendance?date=${date}&sessionType=${sessionType}`)
-            .then(res => setReportData(res.data));
-    }, [date, sessionType]);
+    useEffect(() => { loadReport(); }, [date]);
+
+    const loadReport = () => {
+        axios.get(`${API_URL}/report?date=${date}`).then(res => setReportData(res.data));
+    };
+
+    // Nouvelle fonction pour retirer le supplément depuis le rapport !
+    const handleRemoveLate = async (id) => {
+        if(window.confirm("Supprimer le supplément de retard pour cet enfant ?")) {
+            await axios.put(`${API_URL}/attendance/remove-late/${id}`);
+            loadReport();
+        }
+    };
 
     const exportPDF = () => {
         const doc = new jsPDF();
-        const tableColumn = ["Nom", "Prénom", "Heure de départ", "Supplément"];
+        const tableColumn = ["Nom", "Prénom", "Matin", "Soir", "Supplément"];
         
-        // MODIF 3 : L'heure de départ dans le PDF
-        const tableRows = reportData.map(record => {
-            const departTime = record.checkOut ? format(new Date(record.checkOut), 'HH:mm') : 'OUI';
-            const isLateText = record.isLate ? 'OUI' : 'NON';
+        const tableRows = reportData.map(row => {
+            const matinText = row.matin ? 'OUI' : '-';
+            let soirText = '-';
+            if (row.checkOut) {
+                soirText = format(new Date(row.checkOut), 'HH:mm'); // Heure de départ
+            } else if (row.soir) {
+                soirText = 'OUI'; // Présent mais pas encore parti
+            }
+            
             return [
-                record.child.lastName,
-                record.child.firstName,
-                departTime,
-                sessionType === 'SOIR' ? isLateText : '-'
+                row.child.lastName,
+                row.child.firstName,
+                matinText,
+                soirText,
+                row.isLate ? 'OUI' : '-'
             ];
         });
 
         doc.setFontSize(18);
-        doc.text(`Rapport ${sessionType} - ${format(new Date(date), 'dd/MM/yyyy')}`, 14, 22);
+        doc.text(`Rapport Journalier - ${format(new Date(date), 'dd/MM/yyyy')}`, 14, 22);
         
         autoTable(doc, {
             startY: 35,
@@ -505,7 +519,7 @@ const Report = () => {
             halign: 'center'
         });
 
-        doc.save(`carillon_${sessionType}_${date}.pdf`);
+        doc.save(`carillon_rapport_${date}.pdf`);
     };
 
     return (
@@ -523,10 +537,6 @@ const Report = () => {
 
                 <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex gap-4 mb-8">
                     <input type="date" className="bg-slate-50 p-4 rounded-2xl outline-none font-bold text-car-dark flex-1 cursor-pointer" value={date} onChange={e => setDate(e.target.value)} />
-                    <select className="bg-slate-50 p-4 rounded-2xl outline-none font-bold text-car-dark flex-1 cursor-pointer appearance-none" value={sessionType} onChange={e => setSessionType(e.target.value)}>
-                        <option value="MATIN">Matin</option>
-                        <option value="SOIR">Soir</option>
-                    </select>
                 </div>
 
                 <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -534,33 +544,36 @@ const Report = () => {
                         <thead>
                             <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-xs tracking-wider">
                                 <th className="p-5 border-b border-slate-100">Nom</th>
-                                <th className="p-5 border-b border-slate-100 text-center">Présence / Départ</th>
-                                {sessionType === 'SOIR' && <th className="p-5 border-b border-slate-100 text-center">Supplément 19h</th>}
+                                <th className="p-5 border-b border-slate-100 text-center">Matin</th>
+                                <th className="p-5 border-b border-slate-100 text-center">Soir</th>
+                                <th className="p-5 border-b border-slate-100 text-center">Supplément 19h</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {reportData.map(record => (
-                                <tr key={record._id} className="hover:bg-slate-50/50 transition-colors group">
+                            {reportData.map(row => (
+                                <tr key={row.child._id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-5 border-b border-slate-100">
-                                        <span className="font-black text-car-dark">{record.child.lastName}</span> <span className="font-medium text-slate-500">{record.child.firstName}</span>
+                                        <span className="font-black text-car-dark">{row.child.lastName}</span> <span className="font-medium text-slate-500">{row.child.firstName}</span>
                                     </td>
                                     <td className="p-5 border-b border-slate-100 text-center">
-                                        {/* MODIF 3 : L'heure de départ dans la vue web */}
-                                        {record.checkOut ? (
-                                            <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">{format(new Date(record.checkOut), 'HH:mm')}</span>
-                                        ) : (
-                                            <CheckCircle className="text-car-green mx-auto" size={24}/>
-                                        )}
+                                        {row.matin ? <CheckCircle className="text-car-yellow mx-auto" size={24}/> : <span className="text-slate-300 font-bold">-</span>}
                                     </td>
-                                    {sessionType === 'SOIR' && (
-                                        <td className="p-5 border-b border-slate-100 text-center">
-                                            {record.isLate ? <span className="bg-car-pink text-white font-bold px-3 py-1 rounded-lg text-xs tracking-widest">OUI</span> : <span className="text-slate-300 font-bold">-</span>}
-                                        </td>
-                                    )}
+                                    <td className="p-5 border-b border-slate-100 text-center">
+                                        {row.checkOut ? (
+                                            <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">{format(new Date(row.checkOut), 'HH:mm')}</span>
+                                        ) : row.soir ? (
+                                            <CheckCircle className="text-car-blue mx-auto" size={24}/>
+                                        ) : <span className="text-slate-300 font-bold">-</span>}
+                                    </td>
+                                    <td className="p-5 border-b border-slate-100 text-center">
+                                        {row.isLate ? (
+                                            <button onClick={() => handleRemoveLate(row.pmId)} className="text-xs font-bold text-white bg-car-pink hover:bg-red-500 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-sm" title="Cliquez pour annuler ce supplément"> +19h</button>
+                                        ) : <span className="text-slate-300 font-bold">-</span>}
+                                    </td>
                                 </tr>
                             ))}
                             {reportData.length === 0 && (
-                                <tr><td colSpan="3" className="p-10 text-center text-slate-400 font-bold">Aucune donnée pour cette date.</td></tr>
+                                <tr><td colSpan="4" className="p-10 text-center text-slate-400 font-bold">Aucune donnée pour cette date.</td></tr>
                             )}
                         </tbody>
                     </table>
