@@ -191,24 +191,25 @@ const SessionView = () => {
 
     // ACTIONS
     const handleCheckIn = async (childId) => {
-        const { data } = await axios.post(`${API_URL}/attendance/checkin`, { childId, date, sessionType: type });
-        setAttendance([data, ...attendance]); setSearch('');
+        await axios.post(`${API_URL}/attendance/checkin`, { childId, date, sessionType: type });
+        loadData(); 
+        setSearch('');
     };
 
     const handleCheckOut = async (id) => {
-        const { data } = await axios.put(`${API_URL}/attendance/checkout/${id}`);
-        setAttendance(attendance.map(a => a._id === id ? data : a));
+        await axios.put(`${API_URL}/attendance/checkout/${id}`);
+        loadData();
     };
 
     const handleUndoCheckOut = async (id) => {
-        const { data } = await axios.put(`${API_URL}/attendance/undo-checkout/${id}`);
-        setAttendance(attendance.map(a => a._id === id ? data : a));
+        await axios.put(`${API_URL}/attendance/undo-checkout/${id}`);
+        loadData();
     };
 
     const handleDeleteCheckIn = async (id) => {
         if(window.confirm("Annuler la présence ?")) {
             await axios.delete(`${API_URL}/attendance/${id}`);
-            setAttendance(attendance.filter(a => a._id !== id));
+            loadData();
         }
     };
 
