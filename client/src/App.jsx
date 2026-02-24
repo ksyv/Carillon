@@ -179,15 +179,15 @@ const SessionView = () => {
         return children.filter(c => !presentIds.includes(c._id) && (c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase())));
     }, [children, search, presentIds]);
 
+    // MODIF 2 : Tri alphabétique strict (on ne repousse plus les "checkOut" en bas)
     const sortedAttendance = useMemo(() => {
         return [...attendance].sort((a, b) => {
-            if (a.checkOut && !b.checkOut) return 1;
-            if (!a.checkOut && b.checkOut) return -1;
             return a.child.lastName.localeCompare(b.child.lastName);
         });
     }, [attendance]);
 
     const activeCount = attendance.filter(a => !a.checkOut).length;
+    const totalCount = attendance.length; // Le total pointé aujourd'hui
 
     // ACTIONS
     const handleCheckIn = async (childId) => {
@@ -218,8 +218,9 @@ const SessionView = () => {
             <div className="bg-white shadow-sm z-20">
                 <div className="p-4 flex justify-between items-center">
                     <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
+                    {/* MODIF 1 : Affichage Présents / Total */}
                     <div className={`bg-${themeColor}/10 text-${themeColor} px-5 py-2 rounded-full font-black text-sm tracking-widest`}>
-                        {type} • {activeCount} PRÉSENTS
+                        {type} • {activeCount} / {totalCount} PRÉSENTS
                     </div>
                 </div>
                 <div className="p-4 bg-white border-b border-slate-100">
