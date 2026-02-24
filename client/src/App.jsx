@@ -165,40 +165,39 @@ const SessionView = () => {
     const isMatin = type === 'MATIN';
     const themeColor = isMatin ? 'car-yellow' : 'car-blue';
 
-    useEffect(() => { loadData(); }, [date, type]);
+    useEffect(() => { 
+        loadData(); 
+        const interval = setInterval(() => loadData(), 5000);
+        return () => clearInterval(interval);
+    }, [date, type]);
 
     const loadData = async () => {
         const [kidsRes, attRes] = await Promise.all([axios.get(`${API_URL}/children`), axios.get(`${API_URL}/attendance?date=${date}&sessionType=${type}`)]);
         setChildren(kidsRes.data); setAttendance(attRes.data);
     };
 
-    const presentIds = useMemo(() => attendance.map(a => a.child._id), [attendance]);
-    
-    const filteredChildren = useMemo(() => {
+    // MODIF 4 : La recherche inclut désormais TOUS les enfants
+    const filteredSearch = useMemo(() => {
         if (search.length < 2) return [];
-        return children.filter(c => !presentIds.includes(c._id) && (c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase())));
-    }, [children, search, presentIds]);
+        return children.filter(c => c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase()));
+    }, [children, search]);
 
-    // MODIF 2 : Tri alphabétique strict (on ne repousse plus les "checkOut" en bas)
     const sortedAttendance = useMemo(() => {
-        return [...attendance].sort((a, b) => {
-            return a.child.lastName.localeCompare(b.child.lastName);
-        });
+        return [...attendance].sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
     }, [attendance]);
 
     const activeCount = attendance.filter(a => !a.checkOut).length;
-    const totalCount = attendance.length; // Le total pointé aujourd'hui
+    const totalCount = attendance.length;
 
     // ACTIONS
     const handleCheckIn = async (childId) => {
         await axios.post(`${API_URL}/attendance/checkin`, { childId, date, sessionType: type });
-        loadData(); 
-        setSearch('');
+        loadData(); setSearch('');
     };
 
     const handleCheckOut = async (id) => {
         await axios.put(`${API_URL}/attendance/checkout/${id}`);
-        loadData();
+        loadData(); setSearch('');
     };
 
     const handleUndoCheckOut = async (id) => {
@@ -213,13 +212,20 @@ const SessionView = () => {
         }
     };
 
+    // MODIF 2 : Nouvelle fonction pour annuler le retard
+    const handleRemoveLate = async (id) => {
+        if(window.confirm("Supprimer le supplément de retard pour cet enfant ?")) {
+            await axios.put(`${API_URL}/attendance/remove-late/${id}`);
+            loadData();
+        }
+    };
+
     return (
         <div className="h-screen flex flex-col bg-slate-50">
             {/* HEADER */}
             <div className="bg-white shadow-sm z-20">
                 <div className="p-4 flex justify-between items-center">
                     <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
-                    {/* MODIF 1 : Affichage Présents / Total */}
                     <div className={`bg-${themeColor}/10 text-${themeColor} px-5 py-2 rounded-full font-black text-sm tracking-widest`}>
                         {type} • {activeCount} / {totalCount} PRÉSENTS
                     </div>
@@ -228,22 +234,36 @@ const SessionView = () => {
                     <div className="relative max-w-4xl mx-auto">
                         <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
                         <input type="text" className={`w-full pl-14 p-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-${themeColor} outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg`}
-                            placeholder="Taper un nom pour l'ajouter..." value={search} onChange={e => setSearch(e.target.value)} />
+                            placeholder="Rechercher pour pointer une arrivée ou un départ..." value={search} onChange={e => setSearch(e.target.value)} />
                     </div>
                 </div>
             </div>
 
-            {/* AUTOCOMPLETION */}
+            {/* AUTOCOMPLETION AVANCÉE */}
             {search.length >= 2 && (
                 <div className="bg-white/95 backdrop-blur-xl shadow-2xl max-h-80 overflow-y-auto absolute w-full top-36 z-30 border-b border-slate-200">
                     <div className="max-w-4xl mx-auto">
-                        {filteredChildren.map(child => (
-                            <div key={child._id} onClick={() => handleCheckIn(child._id)} className="p-5 border-b border-slate-50 flex justify-between items-center hover:bg-slate-50 cursor-pointer transition-colors group">
-                                <span className="font-black text-xl text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                <span className={`bg-${themeColor} text-white text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity tracking-wider`}>+ AJOUTER</span>
-                            </div>
-                        ))}
-                        {filteredChildren.length === 0 && <div className="p-8 text-center text-slate-400 font-bold">Aucun enfant trouvé.</div>}
+                        {filteredSearch.map(child => {
+                            const attendanceRecord = attendance.find(a => a.child._id === child._id);
+                            const isPresent = !!attendanceRecord;
+                            const isGone = isPresent && !!attendanceRecord.checkOut;
+
+                            return (
+                                <div key={child._id} 
+                                    onClick={() => {
+                                        if (!isPresent) handleCheckIn(child._id);
+                                        else if (!isGone && !isMatin) handleCheckOut(attendanceRecord._id);
+                                    }} 
+                                    className="p-5 border-b border-slate-50 flex justify-between items-center hover:bg-slate-50 cursor-pointer transition-colors group">
+                                    <span className="font-black text-xl text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                    
+                                    {!isPresent && <span className={`bg-${themeColor} text-white text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity tracking-wider`}>+ AJOUTER</span>}
+                                    {isPresent && !isGone && !isMatin && <span className="bg-car-dark text-white text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity tracking-wider">DÉPART</span>}
+                                    {isGone && <span className="text-slate-400 text-xs font-bold px-4 py-2 rounded-xl">Déjà parti</span>}
+                                </div>
+                            );
+                        })}
+                        {filteredSearch.length === 0 && <div className="p-8 text-center text-slate-400 font-bold">Aucun enfant trouvé.</div>}
                     </div>
                 </div>
             )}
@@ -260,7 +280,12 @@ const SessionView = () => {
                                 </div>
                                 <div className="flex items-center gap-2 mt-2">
                                     {isGone && <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">Parti à {format(new Date(record.checkOut), 'HH:mm')}</span>}
-                                    {record.isLate && <span className="text-xs font-bold text-white bg-car-pink px-3 py-1 rounded-lg">⚠️ +19h</span>}
+                                    {/* MODIF 2 : Bouton cliquable pour annuler le retard */}
+                                    {record.isLate && (
+                                        <button onClick={() => handleRemoveLate(record._id)} className="text-xs font-bold text-white bg-car-pink hover:bg-red-500 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-sm" title="Cliquez pour annuler ce supplément">
+                                             +19h
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                             
@@ -279,12 +304,6 @@ const SessionView = () => {
                         </div>
                     );
                 })}
-                {attendance.length === 0 && (
-                    <div className="text-center mt-32">
-                        <div className="bg-slate-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6"><Users className="text-slate-300 w-10 h-10"/></div>
-                        <p className="text-slate-400 font-bold text-lg">La liste est vide.</p>
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -447,38 +466,34 @@ const ChildrenManager = () => {
 // 6. RAPPORT
 const Report = () => {
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const [data, setData] = useState([]);
+    const [sessionType, setSessionType] = useState('SOIR');
+    const [reportData, setReportData] = useState([]);
     const navigate = useNavigate();
 
-    useEffect(() => { axios.get(`${API_URL}/report?date=${date}`).then(res => setData(res.data)); }, [date]);
+    useEffect(() => {
+        axios.get(`${API_URL}/attendance?date=${date}&sessionType=${sessionType}`)
+            .then(res => setReportData(res.data));
+    }, [date, sessionType]);
 
-    // Fonction de génération du PDF
     const exportPDF = () => {
         const doc = new jsPDF();
+        const tableColumn = ["Nom", "Prénom", "Heure de départ", "Supplément"];
         
-        // Titre du document
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(18);
-        doc.setTextColor(58, 58, 58); // car-dark
-        doc.text(`Rapport Périscolaire - Carignan-de-Bordeaux`, 14, 20);
-        
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Date : ${format(new Date(date), 'dd MMMM yyyy', { locale: fr })}`, 14, 28);
-
-        // Préparation des colonnes et lignes
-        const tableColumn = ["Enfant", "Matin", "Soir", "Supplément 19h"];
-        const tableRows = [];
-
-        data.forEach(row => {
-            const enfant = `${row.child.lastName} ${row.child.firstName}`;
-            const matin = row.matin ? 'OUI' : '-';
-            const soir = row.soir ? 'OUI' : '-';
-            const supp = row.supplement ? 'OUI' : '-';
-            tableRows.push([enfant, matin, soir, supp]);
+        // MODIF 3 : L'heure de départ dans le PDF
+        const tableRows = reportData.map(record => {
+            const departTime = record.checkOut ? format(new Date(record.checkOut), 'HH:mm') : 'OUI';
+            const isLateText = record.isLate ? 'OUI' : 'NON';
+            return [
+                record.child.lastName,
+                record.child.firstName,
+                departTime,
+                sessionType === 'SOIR' ? isLateText : '-'
+            ];
         });
 
-        // Génération du tableau avec les couleurs de la charte
+        doc.setFontSize(18);
+        doc.text(`Rapport ${sessionType} - ${format(new Date(date), 'dd/MM/yyyy')}`, 14, 22);
+        
         autoTable(doc, {
             startY: 35,
             head: [tableColumn],
@@ -490,56 +505,67 @@ const Report = () => {
             halign: 'center'
         });
 
-        // Sauvegarde le fichier
-        doc.save(`Rapport_Carillon_${date}.pdf`);
+        doc.save(`carillon_${sessionType}_${date}.pdf`);
     };
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
             <div className="max-w-4xl mx-auto">
-                <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors no-print">← Retour Accueil</button>
+                <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
                 
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 no-print">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
                     <div className="flex items-center gap-4">
-                        <div className="bg-car-teal/10 p-4 rounded-2xl"><FileText className="text-car-teal w-8 h-8"/></div>
-                        <h1 className="text-4xl font-black text-car-dark">Rapport</h1>
+                        <div className="bg-car-blue/10 p-4 rounded-2xl"><FileText className="text-car-blue w-8 h-8"/></div>
+                        <h1 className="text-4xl font-black text-car-dark">Rapports</h1>
                     </div>
-                    
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="bg-white border border-slate-200 p-4 rounded-2xl font-black text-car-dark outline-none focus:ring-4 focus:ring-car-teal/20 shadow-sm flex-1 md:flex-none" />
-                        
-                        {/* NOUVEAU BOUTON PDF */}
-                        <button onClick={exportPDF} className="bg-car-blue text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-blue/30 hover:-translate-y-1 active:scale-95 transition-all flex justify-center items-center gap-2">
-                            <Download size={22} strokeWidth={2.5}/> PDF
-                        </button>
-                    </div>
+                    <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20"><Download size={20}/> PDF</button>
                 </div>
-                
+
+                <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex gap-4 mb-8">
+                    <input type="date" className="bg-slate-50 p-4 rounded-2xl outline-none font-bold text-car-dark flex-1 cursor-pointer" value={date} onChange={e => setDate(e.target.value)} />
+                    <select className="bg-slate-50 p-4 rounded-2xl outline-none font-bold text-car-dark flex-1 cursor-pointer appearance-none" value={sessionType} onChange={e => setSessionType(e.target.value)}>
+                        <option value="MATIN">Matin</option>
+                        <option value="SOIR">Soir</option>
+                    </select>
+                </div>
+
                 <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
                     <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                            <tr>
-                                <th className="p-6 font-black text-slate-400 tracking-widest text-xs uppercase">Enfant</th>
-                                <th className="p-6 font-black text-slate-400 tracking-widest text-xs uppercase text-center">Matin</th>
-                                <th className="p-6 font-black text-slate-400 tracking-widest text-xs uppercase text-center">Soir</th>
-                                <th className="p-6 font-black text-car-pink tracking-widest text-xs uppercase text-center">Supp. 19h</th>
+                        <thead>
+                            <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-xs tracking-wider">
+                                <th className="p-5 border-b border-slate-100">Nom</th>
+                                <th className="p-5 border-b border-slate-100 text-center">Présence / Départ</th>
+                                {sessionType === 'SOIR' && <th className="p-5 border-b border-slate-100 text-center">Supplément 19h</th>}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {data.map((row, i) => (
-                                <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-6 font-black text-car-dark text-lg">{row.child.lastName} <span className="font-medium text-slate-500">{row.child.firstName}</span></td>
-                                    <td className="p-6 text-center">{row.matin ? <span className="text-car-teal font-black">X</span> : <span className="text-slate-200">-</span>}</td>
-                                    <td className="p-6 text-center">{row.soir ? <span className="text-car-teal font-black">X</span> : <span className="text-slate-200">-</span>}</td>
-                                    <td className="p-6 text-center font-black text-car-pink">{row.supplement ? 'OUI' : <span className="text-slate-200">-</span>}</td>
+                        <tbody>
+                            {reportData.map(record => (
+                                <tr key={record._id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <td className="p-5 border-b border-slate-100">
+                                        <span className="font-black text-car-dark">{record.child.lastName}</span> <span className="font-medium text-slate-500">{record.child.firstName}</span>
+                                    </td>
+                                    <td className="p-5 border-b border-slate-100 text-center">
+                                        {/* MODIF 3 : L'heure de départ dans la vue web */}
+                                        {record.checkOut ? (
+                                            <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">{format(new Date(record.checkOut), 'HH:mm')}</span>
+                                        ) : (
+                                            <CheckCircle className="text-car-green mx-auto" size={24}/>
+                                        )}
+                                    </td>
+                                    {sessionType === 'SOIR' && (
+                                        <td className="p-5 border-b border-slate-100 text-center">
+                                            {record.isLate ? <span className="bg-car-pink text-white font-bold px-3 py-1 rounded-lg text-xs tracking-widest">OUI</span> : <span className="text-slate-300 font-bold">-</span>}
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
-                            {data.length === 0 && <tr><td colSpan="4" className="p-10 text-center text-slate-400 font-bold">Aucune présence à cette date.</td></tr>}
+                            {reportData.length === 0 && (
+                                <tr><td colSpan="3" className="p-10 text-center text-slate-400 font-bold">Aucune donnée pour cette date.</td></tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
             </div>
-            <style>{`@media print { .no-print { display: none; } body { background: white; } }`}</style>
         </div>
     );
 };
