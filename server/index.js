@@ -116,11 +116,17 @@ app.put('/api/attendance/checkout/:id', auth(), async (req, res) => {
     const now = new Date();
     // Logique 18h30
     const limit = new Date();
-    limit.setHours(18, 30, 0, 0);
+    limit.setHours(18, 35, 0, 0);
     const isLate = now > limit;
 
     const att = await Attendance.findByIdAndUpdate(req.params.id, { checkOut: now, isLate }, { new: true }).populate('child');
     res.json(att);
+});
+
+// Retirer manuellement le supplément de retard
+app.put('/api/attendance/remove-late/:id', auth(['staff', 'admin']), async (req, res) => {
+    const updated = await Attendance.findByIdAndUpdate(req.params.id, { isLate: false }, { new: true }).populate('child');
+    res.json(updated);
 });
 
 // Annuler un départ (missclick "DÉPART")
@@ -152,7 +158,7 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
         if (pm) {
              // Si marqué en retard OU checkOut > 18h30
              if (pm.isLate) supplement = true;
-             if (pm.checkOut && new Date(pm.checkOut) > new Date(new Date(pm.checkOut).setHours(18,30,0,0))) supplement = true;
+             if (pm.checkOut && new Date(pm.checkOut) > new Date(new Date(pm.checkOut).setHours(18,35,0,0))) supplement = true;
         }
 
         return { child: c, matin: !!am, soir: !!pm, supplement };
