@@ -14,7 +14,11 @@ app.use(express.json());
 app.use(cors());
 
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB Connected'))
+  .then(async () => {
+      console.log('MongoDB Connected');
+      // MIGRATION AUTOMATIQUE : Met à jour les enfants existants
+      await Child.updateMany({ category: { $exists: false } }, { $set: { category: 'Maternelle' } });
+  })
   .catch(err => console.log(err));
 
 // Middleware Auth
@@ -35,14 +39,16 @@ app.post('/api/login', async (req, res) => {
     const user = await User.findOne({ username });
     if (!user || !(await bcrypt.compare(password, user.password))) 
         return res.status(400).send('Identifiants incorrects');
-    const token = jwt.sign({ _id: user._id, role: user.role }, process.env.JWT_SECRET);
-    res.json({ token, role: user.role });
+    
+    // NOUVEAU : On inclut l'accès aux catégories
+    const token = jwt.sign({ _id: user._id, role: user.role, categoryAccess: user.categoryAccess || 'Tous' }, process.env.JWT_SECRET);
+    res.json({ token, role: user.role, categoryAccess: user.categoryAccess || 'Tous' });
 });
 
 // Route Initiale pour créer l'admin (A supprimer ou sécuriser après usage)
 app.post('/api/admin-init', async (req, res) => {
     const hash = await bcrypt.hash(req.body.password, 10);
-    const user = new User({ username: req.body.username, password: hash, role: 'admin' });
+    const user = new User({ username: req.body.username, password: hash, role: 'admin', categoryAccess: 'Tous' });
     await user.save();
     res.json(user);
 });
@@ -57,9 +63,14 @@ app.get('/api/users', auth(['admin']), async (req, res) => {
 app.post('/api/users', auth(['admin']), async (req, res) => {
     try {
         const hash = await bcrypt.hash(req.body.password, 10);
-        const user = new User({ username: req.body.username, password: hash, role: req.body.role });
+        const user = new User({ 
+            username: req.body.username, 
+            password: hash, 
+            role: req.body.role,
+            categoryAccess: req.body.categoryAccess || 'Tous' // NOUVEAU
+        });
         await user.save();
-        res.json({ _id: user._id, username: user.username, role: user.role });
+        res.json({ _id: user._id, username: user.username, role: user.role, categoryAccess: user.categoryAccess });
     } catch (e) {
         res.status(400).send('Erreur création utilisateur (nom déjà pris ?)');
     }
@@ -84,8 +95,9 @@ app.post('/api/children', auth(['admin']), async (req, res) => {
 
 // Modifier un enfant (Correction de nom/prénom)
 app.put('/api/children/:id', auth(['admin']), async (req, res) => {
-    const { firstName, lastName } = req.body;
-    const updated = await Child.findByIdAndUpdate(req.params.id, { firstName, lastName }, { new: true });
+    // NOUVEAU : On récupère aussi la category
+    const { firstName, lastName, category } = req.body;
+    const updated = await Child.findByIdAndUpdate(req.params.id, { firstName, lastName, category }, { new: true });
     res.json(updated);
 });
 
@@ -114,7 +126,7 @@ app.post('/api/attendance/checkin', auth(), async (req, res) => {
 
 app.put('/api/attendance/checkout/:id', auth(), async (req, res) => {
     const now = new Date();
-    // Logique 18h30
+    // Logique 18h35
     const limit = new Date();
     limit.setHours(18, 35, 0, 0);
     const isLate = now > limit;
@@ -166,6 +178,7 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
     
     res.json(report);
 });
+
 // --- DEPLOIEMENT PRODUCTION ---
 const path = require('path');
 if (process.env.NODE_ENV === 'production') {
