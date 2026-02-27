@@ -300,12 +300,12 @@ const Dashboard = () => {
                 </button>
                 <button onClick={() => navigate('/admin/planned-notes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
-                    <div><h3 className="font-black text-car-dark text-lg">Planning</h3><p className="text-xs text-slate-500 font-medium mt-1">Notes récurrentes</p></div>
+                    <div><h3 className="font-black text-car-dark text-lg">Notes plannifiées</h3><p className="text-xs text-slate-500 font-medium mt-1">& notes récurrentes</p></div>
                 </button>
                 {/* NOUVEAU BOUTON : FACTURATION ALTERNÉE */}
                 <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Banknote size={24} strokeWidth={2.5}/></div>
-                    <div><h3 className="font-black text-car-dark text-lg">Facturation</h3><p className="text-xs text-slate-500 font-medium mt-1">Parents séparés</p></div>
+                    <div><h3 className="font-black text-car-dark text-lg">Info des Facturés</h3><p className="text-xs text-slate-500 font-medium mt-1">Payeurs séparés</p></div>
                 </button>
             </div>
           </section>
