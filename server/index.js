@@ -8,7 +8,8 @@ require('dotenv').config();
 const User = require('./models/User');
 const Child = require('./models/Child');
 const Attendance = require('./models/Attendance');
-const PlannedNote = require('./models/PlannedNote'); // NOUVEAU MODÈLE !
+const PlannedNote = require('./models/PlannedNote');
+const Billing = require('./models/Billing'); // NOUVEAU MODÈLE FACTURATION
 
 const app = express();
 app.use(express.json());
@@ -42,16 +43,6 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign({ _id: user._id, role: user.role, categoryAccess: user.categoryAccess || 'Tous' }, process.env.JWT_SECRET);
     res.json({ token, role: user.role, categoryAccess: user.categoryAccess || 'Tous' });
 });
-
-/*
-// Route Initiale pour créer l'admin (A supprimer ou sécuriser après usage)
-app.post('/api/admin-init', async (req, res) => {
-    const hash = await bcrypt.hash(req.body.password, 10);
-    const user = new User({ username: req.body.username, password: hash, role: 'admin', categoryAccess: 'Tous' });
-    await user.save();
-    res.json(user);
-});
-*/
 
 // --- Routes Utilisateurs (Admin) ---
 app.get('/api/users', auth(['admin']), async (req, res) => {
@@ -130,7 +121,6 @@ app.put('/api/attendance/checkout/:id', auth(), async (req, res) => {
     res.json(att);
 });
 
-// Post-it éphémère du jour
 app.put('/api/attendance/note/:id', auth(), async (req, res) => {
     const { note } = req.body;
     const updated = await Attendance.findByIdAndUpdate(req.params.id, { note }, { new: true }).populate('child');
@@ -155,24 +145,19 @@ app.delete('/api/attendance/:id', auth(), async (req, res) => {
     res.json({ success: true });
 });
 
-// --- NOUVEAU : Routes Notes Planifiées ---
-
-// Obtenir TOUTES les notes planifiées pour UNE DATE (Pour la liste d'appel)
+// --- Routes Notes Planifiées ---
 app.get('/api/planned-notes/date', auth(), async (req, res) => {
-    const { date } = req.query; // ex: "2024-03-25"
+    const { date } = req.query;
     if (!date) return res.json([]);
-    // Cherche toutes les notes dont le tableau 'dates' contient cette date précise
     const notes = await PlannedNote.find({ dates: date });
     res.json(notes);
 });
 
-// Obtenir les notes d'un seul enfant (Pour le panel Admin)
 app.get('/api/planned-notes/child/:childId', auth(['admin']), async (req, res) => {
     const notes = await PlannedNote.find({ child: req.params.childId });
     res.json(notes);
 });
 
-// Créer une note planifiée (Admin)
 app.post('/api/planned-notes', auth(['admin']), async (req, res) => {
     const { childId, note, dates } = req.body;
     const plannedNote = new PlannedNote({ child: childId, note, dates });
@@ -180,21 +165,46 @@ app.post('/api/planned-notes', auth(['admin']), async (req, res) => {
     res.json(plannedNote);
 });
 
-// Supprimer une note planifiée (Admin)
 app.delete('/api/planned-notes/:id', auth(['admin']), async (req, res) => {
     await PlannedNote.findByIdAndDelete(req.params.id);
     res.json({ success: true });
 });
 
-// --- Route Rapport ---
+
+// --- NOUVEAU : Routes Facturation Alternée ---
+app.get('/api/billing/child/:childId', auth(['admin']), async (req, res) => {
+    const rules = await Billing.find({ child: req.params.childId });
+    res.json(rules);
+});
+
+app.post('/api/billing', auth(['admin']), async (req, res) => {
+    const { childId, billTo, dates } = req.body;
+    const rule = new Billing({ child: childId, billTo, dates });
+    await rule.save();
+    res.json(rule);
+});
+
+app.delete('/api/billing/:id', auth(['admin']), async (req, res) => {
+    await Billing.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+
+// --- Route Rapport (MODIFIÉE POUR INCLURE LA FACTURATION) ---
 app.get('/api/report', auth(['admin']), async (req, res) => {
     const { date } = req.query;
     const children = await Child.find({ active: true }).sort({ lastName: 1 });
     const atts = await Attendance.find({ date });
     
+    // On va chercher toutes les règles de facturation qui tombent sur cette date
+    const billingsForDate = await Billing.find({ dates: date });
+    
     const report = children.map(c => {
         const am = atts.find(a => a.child.toString() == c._id && a.sessionType === 'MATIN');
         const pm = atts.find(a => a.child.toString() == c._id && a.sessionType === 'SOIR');
+        
+        // Est-ce qu'on a une instruction de facturation pour cet enfant aujourd'hui ?
+        const billingRule = billingsForDate.find(b => b.child.toString() == c._id);
         
         return { 
             child: c, 
@@ -202,7 +212,8 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
             soir: !!pm, 
             checkOut: pm ? pm.checkOut : null,
             isLate: pm ? pm.isLate : false,
-            pmId: pm ? pm._id : null
+            pmId: pm ? pm._id : null,
+            billTo: billingRule ? billingRule.billTo : '' // L'info remonte toute seule !
         };
     }).filter(r => r.matin || r.soir);
     
