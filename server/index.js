@@ -15,9 +15,7 @@ app.use(cors());
 
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
-      console.log('MongoDB Connected');
-      // MIGRATION AUTOMATIQUE : Met à jour les enfants existants
-      await Child.updateMany({ category: { $exists: false } }, { $set: { category: 'Maternelle' } });
+      console.log('MongoDB Connected');;
   })
   .catch(err => console.log(err));
 
@@ -44,14 +42,15 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign({ _id: user._id, role: user.role, categoryAccess: user.categoryAccess || 'Tous' }, process.env.JWT_SECRET);
     res.json({ token, role: user.role, categoryAccess: user.categoryAccess || 'Tous' });
 });
-
+/*
 // Route Initiale pour créer l'admin (A supprimer ou sécuriser après usage)
-app.post('/api/admin-init', async (req, res) => {
+//app.post('/api/admin-init', async (req, res) => {
     const hash = await bcrypt.hash(req.body.password, 10);
     const user = new User({ username: req.body.username, password: hash, role: 'admin', categoryAccess: 'Tous' });
     await user.save();
     res.json(user);
 });
+*/
 
 // --- Routes Utilisateurs (Admin) ---
 app.get('/api/users', auth(['admin']), async (req, res) => {
