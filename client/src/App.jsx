@@ -3,7 +3,7 @@ import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X} from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter} from 'lucide-react';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -30,6 +30,20 @@ const LogoTexte = ({ className = "text-3xl" }) => (
     </div>
 );
 
+// Composant pour le filtre de catégorie (utilisé dans Pointage et Rapports)
+const CategoryFilter = ({ value, onChange, access }) => {
+    if (access !== 'Tous') return null; // Si l'user est restreint, on ne lui montre pas le filtre
+
+    return (
+        <div className="flex bg-slate-100 rounded-xl p-1 items-center">
+            <Filter size={16} className="text-slate-400 mx-2" />
+            <button onClick={() => onChange('Tous')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${value === 'Tous' ? 'bg-white text-car-dark shadow-sm' : 'text-slate-500 hover:text-car-dark'}`}>Tous</button>
+            <button onClick={() => onChange('Maternelle')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${value === 'Maternelle' ? 'bg-car-yellow text-white shadow-sm' : 'text-slate-500 hover:text-car-yellow'}`}>Mat.</button>
+            <button onClick={() => onChange('Élémentaire')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${value === 'Élémentaire' ? 'bg-car-blue text-white shadow-sm' : 'text-slate-500 hover:text-car-blue'}`}>Élém.</button>
+        </div>
+    );
+};
+
 // 1. LOGIN
 const Login = ({ setAuth }) => {
   const [creds, setCreds] = useState({ username: '', password: '' });
@@ -41,13 +55,13 @@ const Login = ({ setAuth }) => {
       const { data } = await axios.post(`${API_URL}/login`, creds);
       localStorage.setItem('token', data.token);
       localStorage.setItem('role', data.role);
-      setAuth({ token: data.token, role: data.role });
+      localStorage.setItem('categoryAccess', data.categoryAccess); // Sauvegarde de l'accès aux catégories
+      setAuth({ token: data.token, role: data.role, categoryAccess: data.categoryAccess });
     } catch (err) { setError('Identifiants incorrects'); }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 relative overflow-hidden">
-      {/* Formes décoratives en fond inspirées des couleurs */}
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-car-blue/10 rounded-full blur-3xl"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-car-pink/10 rounded-full blur-3xl"></div>
       
@@ -80,6 +94,7 @@ const Login = ({ setAuth }) => {
 const Dashboard = () => {
   const navigate = useNavigate();
   const role = localStorage.getItem('role');
+  const access = localStorage.getItem('categoryAccess') || 'Tous';
   
   const getSuggestedSlot = () => new Date().getHours() < 13 ? 'MATIN' : 'SOIR';
   const handleLogout = () => { localStorage.clear(); window.location.href = '/'; };
@@ -89,6 +104,7 @@ const Dashboard = () => {
       <header className="bg-white px-6 py-4 shadow-sm flex justify-between items-center sticky top-0 z-10">
         <LogoTexte className="text-2xl" />
         <div className="flex items-center gap-4">
+            {access !== 'Tous' && <span className="text-xs font-black text-car-teal bg-car-teal/10 px-4 py-1.5 rounded-full uppercase tracking-widest">{access}</span>}
             <span className="text-xs font-black text-car-purple bg-car-purple/10 px-4 py-1.5 rounded-full uppercase tracking-widest">{role}</span>
             <button onClick={handleLogout} className="text-slate-400 hover:text-car-pink transition-colors p-2"><LogOut size={22} /></button>
         </div>
@@ -162,6 +178,9 @@ const SessionView = () => {
     const [search, setSearch] = useState('');
     const navigate = useNavigate();
 
+    const access = localStorage.getItem('categoryAccess') || 'Tous';
+    const [categoryFilter, setCategoryFilter] = useState(access); // Maternelle, Élémentaire, ou Tous
+
     const isMatin = type === 'MATIN';
     const themeColor = isMatin ? 'car-yellow' : 'car-blue';
 
@@ -176,18 +195,27 @@ const SessionView = () => {
         setChildren(kidsRes.data); setAttendance(attRes.data);
     };
 
-    // MODIF 4 : La recherche inclut désormais TOUS les enfants
+    // Filtre des enfants selon la recherche ET la catégorie sélectionnée
     const filteredSearch = useMemo(() => {
         if (search.length < 2) return [];
-        return children.filter(c => c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase()));
-    }, [children, search]);
+        return children.filter(c => {
+            const matchSearch = c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase());
+            const matchCategory = categoryFilter === 'Tous' || c.category === categoryFilter;
+            return matchSearch && matchCategory;
+        });
+    }, [children, search, categoryFilter]);
+
+    // Filtrer la liste des présents affichée selon la catégorie sélectionnée
+    const filteredAttendance = useMemo(() => {
+        return attendance.filter(a => categoryFilter === 'Tous' || a.child.category === categoryFilter);
+    }, [attendance, categoryFilter]);
 
     const sortedAttendance = useMemo(() => {
-        return [...attendance].sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
-    }, [attendance]);
+        return [...filteredAttendance].sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
+    }, [filteredAttendance]);
 
-    const activeCount = attendance.filter(a => !a.checkOut).length;
-    const totalCount = attendance.length;
+    const activeCount = filteredAttendance.filter(a => !a.checkOut).length;
+    const totalCount = filteredAttendance.length;
 
     // ACTIONS
     const handleCheckIn = async (childId) => {
@@ -212,7 +240,6 @@ const SessionView = () => {
         }
     };
 
-    // MODIF 2 : Nouvelle fonction pour annuler le retard
     const handleRemoveLate = async (id) => {
         if(window.confirm("Supprimer le supplément de retard pour cet enfant ?")) {
             await axios.put(`${API_URL}/attendance/remove-late/${id}`);
@@ -224,9 +251,12 @@ const SessionView = () => {
         <div className="h-screen flex flex-col bg-slate-50">
             {/* HEADER */}
             <div className="bg-white shadow-sm z-20">
-                <div className="p-4 flex justify-between items-center">
-                    <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
-                    <div className={`bg-${themeColor}/10 text-${themeColor} px-5 py-2 rounded-full font-black text-sm tracking-widest`}>
+                <div className="p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors w-full sm:w-auto text-left">← Retour</button>
+                    
+                    <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} access={access} />
+
+                    <div className={`bg-${themeColor}/10 text-${themeColor} px-5 py-2 rounded-full font-black text-sm tracking-widest w-full sm:w-auto text-center`}>
                         {type} • {activeCount} / {totalCount} PRÉSENTS
                     </div>
                 </div>
@@ -241,7 +271,7 @@ const SessionView = () => {
 
             {/* AUTOCOMPLETION AVANCÉE */}
             {search.length >= 2 && (
-                <div className="bg-white/95 backdrop-blur-xl shadow-2xl max-h-80 overflow-y-auto absolute w-full top-36 z-30 border-b border-slate-200">
+                <div className="bg-white/95 backdrop-blur-xl shadow-2xl max-h-80 overflow-y-auto absolute w-full top-[220px] sm:top-36 z-30 border-b border-slate-200">
                     <div className="max-w-4xl mx-auto">
                         {filteredSearch.map(child => {
                             const attendanceRecord = attendance.find(a => a.child._id === child._id);
@@ -263,7 +293,7 @@ const SessionView = () => {
                                 </div>
                             );
                         })}
-                        {filteredSearch.length === 0 && <div className="p-8 text-center text-slate-400 font-bold">Aucun enfant trouvé.</div>}
+                        {filteredSearch.length === 0 && <div className="p-8 text-center text-slate-400 font-bold">Aucun enfant trouvé dans cette catégorie.</div>}
                     </div>
                 </div>
             )}
@@ -280,11 +310,8 @@ const SessionView = () => {
                                 </div>
                                 <div className="flex items-center gap-2 mt-2">
                                     {isGone && <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">Parti à {format(new Date(record.checkOut), 'HH:mm')}</span>}
-                                    {/* MODIF 2 : Bouton cliquable pour annuler le retard */}
                                     {record.isLate && (
-                                        <button onClick={() => handleRemoveLate(record._id)} className="text-xs font-bold text-white bg-car-pink hover:bg-red-500 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-sm" title="Cliquez pour annuler ce supplément">
-                                             +19h
-                                        </button>
+                                        <button onClick={() => handleRemoveLate(record._id)} className="text-xs font-bold text-white bg-car-pink hover:bg-red-500 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-sm" title="Cliquez pour annuler ce supplément"> +19h</button>
                                     )}
                                 </div>
                             </div>
@@ -312,7 +339,7 @@ const SessionView = () => {
 // 4. ADMIN USERS
 const UserManager = () => {
     const [users, setUsers] = useState([]);
-    const [newUser, setNewUser] = useState({ username: '', password: '', role: 'staff' });
+    const [newUser, setNewUser] = useState({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
     const navigate = useNavigate();
 
     useEffect(() => { loadUsers(); }, []);
@@ -322,7 +349,7 @@ const UserManager = () => {
         e.preventDefault();
         try {
             await axios.post(`${API_URL}/users`, newUser);
-            setNewUser({ username: '', password: '', role: 'staff' });
+            setNewUser({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
             loadUsers();
         } catch (e) { alert("Erreur."); }
     };
@@ -336,12 +363,18 @@ const UserManager = () => {
                     <h1 className="text-4xl font-black text-car-dark">Équipe & Accès</h1>
                 </div>
 
-                <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 grid grid-cols-1 md:grid-cols-5 gap-4">
                     <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-purple/20 outline-none font-bold text-car-dark" placeholder="Nom d'utilisateur" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} required/>
                     <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-purple/20 outline-none font-bold text-car-dark" placeholder="Mot de passe" type="text" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} required/>
                     <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-purple/20" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
-                        <option value="staff">Staff (Animateur)</option>
-                        <option value="admin">Admin (Directeur)</option>
+                        <option value="staff">Staff (Anim)</option>
+                        <option value="admin">Admin (Dir)</option>
+                    </select>
+                    {/* Nouveau select pour l'accès */}
+                    <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-purple/20" value={newUser.categoryAccess} onChange={e => setNewUser({...newUser, categoryAccess: e.target.value})}>
+                        <option value="Tous">Accès: Tous</option>
+                        <option value="Maternelle">Accès: Maternelle</option>
+                        <option value="Élémentaire">Accès: Élémentaire</option>
                     </select>
                     <button type="submit" className="bg-car-purple text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-purple/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><UserPlus size={22}/> CRÉER</button>
                 </form>
@@ -355,7 +388,10 @@ const UserManager = () => {
                                 </div>
                                 <div>
                                     <span className="font-black text-car-dark text-xl block">{u.username}</span>
-                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{u.role}</span>
+                                    <div className="flex gap-2 mt-1">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{u.role}</span>
+                                        <span className="text-xs font-bold text-car-teal bg-car-teal/10 px-2 py-0.5 rounded-md uppercase tracking-widest">{u.categoryAccess || 'Tous'}</span>
+                                    </div>
                                 </div>
                             </div>
                             <button onClick={async () => { if(window.confirm("Supprimer ?")) { await axios.delete(`${API_URL}/users/${u._id}`); loadUsers(); } }} className="text-slate-300 hover:text-car-pink p-2 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
@@ -370,27 +406,23 @@ const UserManager = () => {
 // 5. ADMIN ENFANTS
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
-    const [newChild, setNewChild] = useState({ firstName: '', lastName: '' });
-    // Nouveaux states pour l'édition
+    const [newChild, setNewChild] = useState({ firstName: '', lastName: '', category: 'Maternelle' });
     const [editingId, setEditingId] = useState(null);
-    const [editForm, setEditForm] = useState({ firstName: '', lastName: '' });
-    
+    const [editForm, setEditForm] = useState({ firstName: '', lastName: '', category: 'Maternelle' });
     const navigate = useNavigate();
 
     useEffect(() => { loadChildren(); }, []);
-    
     const loadChildren = () => axios.get(`${API_URL}/children`).then(res => setChildren(res.data));
 
     const handleAdd = async (e) => {
         e.preventDefault();
         await axios.post(`${API_URL}/children`, newChild);
-        setNewChild({ firstName: '', lastName: '' });
+        setNewChild({ firstName: '', lastName: '', category: 'Maternelle' });
         loadChildren();
     };
 
-    // --- NOUVELLES ACTIONS ---
     const handleDelete = async (id, nom) => {
-        if(window.confirm(`Retirer ${nom} de la liste ?\n(Son historique sera conservé dans les anciens rapports)`)) {
+        if(window.confirm(`Retirer ${nom} ?`)) {
             await axios.delete(`${API_URL}/children/${id}`);
             loadChildren();
         }
@@ -398,7 +430,7 @@ const ChildrenManager = () => {
 
     const startEdit = (child) => {
         setEditingId(child._id);
-        setEditForm({ firstName: child.firstName, lastName: child.lastName });
+        setEditForm({ firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle' });
     };
 
     const saveEdit = async (id) => {
@@ -417,46 +449,52 @@ const ChildrenManager = () => {
                 </div>
 
                 <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col md:flex-row gap-4">
-                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-black text-car-dark placeholder:font-bold placeholder:text-slate-400 flex-1 uppercase" placeholder="NOM DE FAMILLE" value={newChild.lastName} onChange={e => setNewChild({...newChild, lastName: e.target.value.toUpperCase()})} required/>
+                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-black text-car-dark placeholder:font-bold placeholder:text-slate-400 flex-1 uppercase" placeholder="NOM" value={newChild.lastName} onChange={e => setNewChild({...newChild, lastName: e.target.value.toUpperCase()})} required/>
                     <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-bold text-car-dark placeholder:text-slate-400 flex-1" placeholder="Prénom" value={newChild.firstName} onChange={e => setNewChild({...newChild, firstName: e.target.value})} required/>
+                    {/* Select Category */}
+                    <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-green/20" value={newChild.category} onChange={e => setNewChild({...newChild, category: e.target.value})}>
+                        <option value="Maternelle">Maternelle</option>
+                        <option value="Élémentaire">Élémentaire</option>
+                    </select>
                     <button type="submit" className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-green/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><Plus strokeWidth={3}/> AJOUTER</button>
                 </form>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {children.map(child => (
                         <div key={child._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center transition-all hover:shadow-md">
-                            
-                            {/* MODE EDITION */}
                             {editingId === child._id ? (
-                                <div className="flex-1 flex items-center gap-2 mr-4">
+                                <div className="flex-1 flex flex-col gap-2 mr-4">
                                     <input className="bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-black text-car-dark w-full uppercase text-sm" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value.toUpperCase()})} />
                                     <input className="bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-full text-sm" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />
+                                    <select className="bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-full text-sm" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})}>
+                                        <option value="Maternelle">Maternelle</option>
+                                        <option value="Élémentaire">Élémentaire</option>
+                                    </select>
                                 </div>
                             ) : (
-                            /* MODE LECTURE */
                                 <div>
                                     <span className="font-black text-car-dark text-xl block">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                    <span className="bg-car-green/10 text-car-green text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-block">ACTIF</span>
+                                    <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-block ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
+                                        {child.category || 'Maternelle'}
+                                    </span>
                                 </div>
                             )}
 
-                            {/* BOUTONS D'ACTION */}
                             <div className="flex items-center gap-2">
                                 {editingId === child._id ? (
                                     <>
-                                        <button onClick={() => saveEdit(child._id)} className="bg-car-green text-white p-2 rounded-xl hover:-translate-y-0.5 transition-all shadow-md shadow-car-green/20"><Check size={20}/></button>
-                                        <button onClick={() => setEditingId(null)} className="bg-slate-100 text-slate-500 p-2 rounded-xl hover:bg-slate-200 transition-all"><X size={20}/></button>
+                                        <button onClick={() => saveEdit(child._id)} className="bg-car-green text-white p-2 rounded-xl shadow-md"><Check size={20}/></button>
+                                        <button onClick={() => setEditingId(null)} className="bg-slate-100 text-slate-500 p-2 rounded-xl"><X size={20}/></button>
                                     </>
                                 ) : (
                                     <>
-                                        <button onClick={() => startEdit(child)} className="text-slate-400 hover:text-car-blue p-2 bg-slate-50 rounded-xl transition-colors" title="Modifier"><Pencil size={20}/></button>
-                                        <button onClick={() => handleDelete(child._id, `${child.firstName} ${child.lastName}`)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-xl transition-colors" title="Supprimer"><Trash2 size={20}/></button>
+                                        <button onClick={() => startEdit(child)} className="text-slate-400 hover:text-car-blue p-2 bg-slate-50 rounded-xl"><Pencil size={20}/></button>
+                                        <button onClick={() => handleDelete(child._id, `${child.firstName} ${child.lastName}`)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-xl"><Trash2 size={20}/></button>
                                     </>
                                 )}
                             </div>
                         </div>
                     ))}
-                    {children.length === 0 && <div className="col-span-full p-10 text-center text-slate-400 font-bold">Aucun enfant dans la base.</div>}
                 </div>
             </div>
         </div>
@@ -468,57 +506,51 @@ const Report = () => {
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [reportData, setReportData] = useState([]);
     const navigate = useNavigate();
+    
+    const access = localStorage.getItem('categoryAccess') || 'Tous';
+    const [categoryFilter, setCategoryFilter] = useState(access);
 
     useEffect(() => { loadReport(); }, [date]);
 
-    const loadReport = () => {
-        axios.get(`${API_URL}/report?date=${date}`).then(res => setReportData(res.data));
-    };
+    const loadReport = () => axios.get(`${API_URL}/report?date=${date}`).then(res => setReportData(res.data));
 
-    // Nouvelle fonction pour retirer le supplément depuis le rapport !
     const handleRemoveLate = async (id) => {
-        if(window.confirm("Supprimer le supplément de retard pour cet enfant ?")) {
+        if(window.confirm("Supprimer le supplément ?")) {
             await axios.put(`${API_URL}/attendance/remove-late/${id}`);
             loadReport();
         }
     };
 
+    // Filtre des données du rapport selon la catégorie sélectionnée
+    const filteredReportData = useMemo(() => {
+        return reportData.filter(r => categoryFilter === 'Tous' || r.child.category === categoryFilter);
+    }, [reportData, categoryFilter]);
+
     const exportPDF = () => {
         const doc = new jsPDF();
-        const tableColumn = ["Nom", "Prénom", "Matin", "Soir", "Supplément"];
+        const tableColumn = ["Nom", "Prénom", "Catégorie", "Matin", "Soir", "Suppl."];
         
-        const tableRows = reportData.map(row => {
+        const tableRows = filteredReportData.map(row => {
             const matinText = row.matin ? 'OUI' : '-';
             let soirText = '-';
-            if (row.checkOut) {
-                soirText = format(new Date(row.checkOut), 'HH:mm'); // Heure de départ
-            } else if (row.soir) {
-                soirText = 'OUI'; // Présent mais pas encore parti
-            }
+            if (row.checkOut) soirText = format(new Date(row.checkOut), 'HH:mm');
+            else if (row.soir) soirText = 'OUI';
             
-            return [
-                row.child.lastName,
-                row.child.firstName,
-                matinText,
-                soirText,
-                row.isLate ? 'OUI' : '-'
-            ];
+            return [row.child.lastName, row.child.firstName, row.child.category || 'Maternelle', matinText, soirText, row.isLate ? 'OUI' : '-'];
         });
 
-        // --- CALCUL DES TOTAUX POUR LE PDF ---
-        const totalMatin = reportData.filter(r => r.matin).length;
-        const totalSoir = reportData.filter(r => r.soir || r.checkOut).length;
-        const totalLate = reportData.filter(r => r.isLate).length;
+        const totalMatin = filteredReportData.filter(r => r.matin).length;
+        const totalSoir = filteredReportData.filter(r => r.soir || r.checkOut).length;
+        const totalLate = filteredReportData.filter(r => r.isLate).length;
 
         doc.setFontSize(18);
-        doc.text(`Rapport Journalier - ${format(new Date(date), 'dd/MM/yyyy')}`, 14, 22);
+        doc.text(`Rapport Journalier - ${format(new Date(date), 'dd/MM/yyyy')} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`, 14, 22);
         
         autoTable(doc, {
             startY: 35,
             head: [tableColumn],
             body: tableRows,
-            // Ajout du pied de page dans le PDF
-            foot: [["TOTAL", "", totalMatin.toString(), totalSoir.toString(), totalLate.toString()]],
+            foot: [["TOTAL", "", "", totalMatin.toString(), totalSoir.toString(), totalLate.toString()]],
             footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
             theme: 'grid',
             headStyles: { fillColor: [84, 132, 164], textColor: 255, fontStyle: 'bold' },
@@ -530,10 +562,9 @@ const Report = () => {
         doc.save(`carillon_rapport_${date}.pdf`);
     };
 
-    // --- CALCUL DES TOTAUX POUR LA VUE WEB ---
-    const totalMatin = reportData.filter(r => r.matin).length;
-    const totalSoir = reportData.filter(r => r.soir || r.checkOut).length;
-    const totalLate = reportData.filter(r => r.isLate).length;
+    const totalMatin = filteredReportData.filter(r => r.matin).length;
+    const totalSoir = filteredReportData.filter(r => r.soir || r.checkOut).length;
+    const totalLate = filteredReportData.filter(r => r.isLate).length;
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
@@ -548,8 +579,9 @@ const Report = () => {
                     <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20"><Download size={20}/> PDF</button>
                 </div>
 
-                <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex gap-4 mb-8">
+                <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 mb-8">
                     <input type="date" className="bg-slate-50 p-4 rounded-2xl outline-none font-bold text-car-dark flex-1 cursor-pointer" value={date} onChange={e => setDate(e.target.value)} />
+                    <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} access={access} />
                 </div>
 
                 <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -557,16 +589,20 @@ const Report = () => {
                         <thead>
                             <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-xs tracking-wider">
                                 <th className="p-5 border-b border-slate-100">Nom</th>
+                                <th className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">Catégorie</th>
                                 <th className="p-5 border-b border-slate-100 text-center">Matin</th>
                                 <th className="p-5 border-b border-slate-100 text-center">Soir</th>
-                                <th className="p-5 border-b border-slate-100 text-center">Supplément 19h</th>
+                                <th className="p-5 border-b border-slate-100 text-center">19h</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {reportData.map(row => (
+                            {filteredReportData.map(row => (
                                 <tr key={row.child._id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-5 border-b border-slate-100">
                                         <span className="font-black text-car-dark">{row.child.lastName}</span> <span className="font-medium text-slate-500">{row.child.firstName}</span>
+                                    </td>
+                                    <td className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">
+                                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">{row.child.category || 'Maternelle'}</span>
                                     </td>
                                     <td className="p-5 border-b border-slate-100 text-center">
                                         {row.matin ? <CheckCircle className="text-car-yellow mx-auto" size={24}/> : <span className="text-slate-300 font-bold">-</span>}
@@ -580,20 +616,17 @@ const Report = () => {
                                     </td>
                                     <td className="p-5 border-b border-slate-100 text-center">
                                         {row.isLate ? (
-                                            <button onClick={() => handleRemoveLate(row.pmId)} className="text-xs font-bold text-white bg-car-pink hover:bg-red-500 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-sm" title="Cliquez pour annuler ce supplément"> +19h</button>
+                                            <button onClick={() => handleRemoveLate(row.pmId)} className="text-xs font-bold text-white bg-car-pink hover:bg-red-500 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-sm"> +19h</button>
                                         ) : <span className="text-slate-300 font-bold">-</span>}
                                     </td>
                                 </tr>
                             ))}
-                            {reportData.length === 0 && (
-                                <tr><td colSpan="4" className="p-10 text-center text-slate-400 font-bold">Aucune donnée pour cette date.</td></tr>
-                            )}
                         </tbody>
-                        {/* --- PIED DE TABLEAU AVEC LES TOTAUX --- */}
-                        {reportData.length > 0 && (
+                        {filteredReportData.length > 0 && (
                             <tfoot className="bg-slate-100/80 border-t-2 border-slate-200">
                                 <tr>
-                                    <td className="p-5 font-black text-car-dark text-right">TOTAL PRÉSENCES</td>
+                                    <td colSpan="2" className="p-5 font-black text-car-dark text-right sm:table-cell hidden">TOTAL PRÉSENCES</td>
+                                    <td className="p-5 font-black text-car-dark text-right sm:hidden">TOTAL</td>
                                     <td className="p-5 font-black text-car-dark text-center text-lg">{totalMatin}</td>
                                     <td className="p-5 font-black text-car-dark text-center text-lg">{totalSoir}</td>
                                     <td className="p-5 font-black text-car-pink text-center text-lg">{totalLate}</td>
