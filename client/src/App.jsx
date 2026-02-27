@@ -234,7 +234,6 @@ const Dashboard = () => {
                     <div className="bg-car-purple/10 p-4 rounded-2xl w-fit group-hover:bg-car-purple group-hover:text-white text-car-purple transition-colors"><Shield size={24} strokeWidth={2.5}/></div>
                     <div><h3 className="font-black text-car-dark text-lg">Équipe</h3><p className="text-xs text-slate-500 font-medium mt-1">Accès & Rôles</p></div>
                 </button>
-                {/* NOUVEAU BOUTON ADMIN POUR LES NOTES PLANIFIÉES */}
                 <button onClick={() => navigate('/admin/planned-notes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
                     <div><h3 className="font-black text-car-dark text-lg">Planning</h3><p className="text-xs text-slate-500 font-medium mt-1">Notes récurrentes</p></div>
@@ -254,7 +253,6 @@ const PlannedNotesManager = () => {
     const [selectedChild, setSelectedChild] = useState(null);
     const [plannedNotes, setPlannedNotes] = useState([]);
     
-    // Form state
     const [newNote, setNewNote] = useState('');
     const [selectedDates, setSelectedDates] = useState([]);
 
@@ -307,7 +305,6 @@ const PlannedNotesManager = () => {
             </div>
 
             <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
-                {/* RECHERCHE */}
                 <div className="relative">
                     <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
                     <input type="text" className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-pink/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg"
@@ -324,7 +321,6 @@ const PlannedNotesManager = () => {
                     )}
                 </div>
 
-                {/* GESTION DE L'ENFANT SÉLECTIONNÉ */}
                 {selectedChild && (
                     <div className="bg-slate-100 rounded-[2rem] p-2">
                         <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2 flex items-center gap-4">
@@ -335,7 +331,6 @@ const PlannedNotesManager = () => {
                             </div>
                         </div>
 
-                        {/* LISTE DES NOTES EXISTANTES */}
                         {plannedNotes.length > 0 && (
                             <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
                                 <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Notes existantes</h3>
@@ -353,7 +348,6 @@ const PlannedNotesManager = () => {
                             </div>
                         )}
 
-                        {/* FORMULAIRE NOUVELLE NOTE */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <form onSubmit={handleAddNote} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
                                 <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Ajouter une info</h3>
@@ -367,7 +361,6 @@ const PlannedNotesManager = () => {
                                 </button>
                             </form>
                             
-                            {/* LE CALENDRIER DRY */}
                             <InteractiveCalendar selectedDates={selectedDates} onChange={setSelectedDates} />
                         </div>
                     </div>
@@ -384,11 +377,8 @@ const SessionView = () => {
     const [attendance, setAttendance] = useState([]); 
     const [search, setSearch] = useState('');
     
-    // States originaux
     const [noteModal, setNoteModal] = useState({ show: false, attendanceId: null, text: '' });
     const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, text: '', name: '', color: '' });
-
-    // NOUVEAU : State pour stocker les notes planifiées du jour !
     const [plannedNotes, setPlannedNotes] = useState([]);
 
     const navigate = useNavigate();
@@ -408,7 +398,6 @@ const SessionView = () => {
     }, [date, type]);
 
     const loadData = async () => {
-        // NOUVEAU : On fetch aussi les notes planifiées pour la date actuelle
         const [kidsRes, attRes, notesRes] = await Promise.all([
             axios.get(`${API_URL}/children`), 
             axios.get(`${API_URL}/attendance?date=${date}&sessionType=${type}`),
@@ -439,7 +428,6 @@ const SessionView = () => {
     const activeCount = filteredAttendance.filter(a => !a.checkOut).length;
     const totalCount = filteredAttendance.length;
 
-    // ACTIONS
     const handleCheckIn = async (childId) => {
         await axios.post(`${API_URL}/attendance/checkin`, { childId, date, sessionType: type });
         loadData(); setSearch('');
@@ -538,7 +526,6 @@ const SessionView = () => {
             <div className="flex-1 overflow-y-auto p-4 space-y-4 max-w-4xl mx-auto w-full pb-20 mt-4">
                 {sortedAttendance.map(record => {
                     const isGone = !!record.checkOut;
-                    // NOUVEAU : Récupère les notes planifiées pour cet enfant spécifiquement
                     const childNotes = plannedNotes.filter(pn => pn.child === record.child._id);
 
                     return (
@@ -549,7 +536,6 @@ const SessionView = () => {
                                     {record.note && !isGone && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
                                 </div>
                                 
-                                {/* NOUVEAU : Affichage des notes planifiées SOUS le nom */}
                                 {!isGone && childNotes.length > 0 && (
                                     <div className="flex flex-col gap-1 mt-1">
                                         {childNotes.map(pn => (
@@ -591,7 +577,6 @@ const SessionView = () => {
                 })}
             </div>
 
-            {/* Modales Post-it (inchangées) */}
             {noteModal.show && (
                 <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
@@ -625,7 +610,73 @@ const SessionView = () => {
     );
 };
 
-// 5. ADMIN ENFANTS (inchangé)
+// 4. ADMIN USERS
+const UserManager = () => {
+    const [users, setUsers] = useState([]);
+    const [newUser, setNewUser] = useState({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
+    const navigate = useNavigate();
+
+    useEffect(() => { loadUsers(); }, []);
+    const loadUsers = async () => { const { data } = await axios.get(`${API_URL}/users`); setUsers(data); };
+
+    const handleAdd = async (e) => {
+        e.preventDefault();
+        try {
+            await axios.post(`${API_URL}/users`, newUser);
+            setNewUser({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
+            loadUsers();
+        } catch (e) { alert("Erreur."); }
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-50 p-6 md:p-10">
+            <div className="max-w-4xl mx-auto">
+                <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
+                <div className="flex items-center gap-4 mb-10">
+                    <div className="bg-car-purple/10 p-4 rounded-2xl"><Shield className="text-car-purple w-8 h-8"/></div>
+                    <h1 className="text-4xl font-black text-car-dark">Équipe & Accès</h1>
+                </div>
+
+                <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-purple/20 outline-none font-bold text-car-dark" placeholder="Nom d'utilisateur" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} required/>
+                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-purple/20 outline-none font-bold text-car-dark" placeholder="Mot de passe" type="text" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} required/>
+                    <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-purple/20" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                        <option value="staff">Staff (Anim)</option>
+                        <option value="admin">Admin (Dir)</option>
+                    </select>
+                    <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-purple/20" value={newUser.categoryAccess} onChange={e => setNewUser({...newUser, categoryAccess: e.target.value})}>
+                        <option value="Tous">Accès: Tous</option>
+                        <option value="Maternelle">Accès: Maternelle</option>
+                        <option value="Élémentaire">Accès: Élémentaire</option>
+                    </select>
+                    <button type="submit" className="bg-car-purple text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-purple/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><UserPlus size={22}/> CRÉER</button>
+                </form>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {users.map(u => (
+                        <div key={u._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <div className={`p-3 rounded-2xl ${u.role === 'admin' ? 'bg-car-purple/10 text-car-purple' : 'bg-slate-100 text-slate-400'}`}>
+                                    {u.role === 'admin' ? <Shield size={24}/> : <Users size={24}/>}
+                                </div>
+                                <div>
+                                    <span className="font-black text-car-dark text-xl block">{u.username}</span>
+                                    <div className="flex gap-2 mt-1">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{u.role}</span>
+                                        <span className="text-xs font-bold text-car-teal bg-car-teal/10 px-2 py-0.5 rounded-md uppercase tracking-widest">{u.categoryAccess || 'Tous'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={async () => { if(window.confirm("Supprimer ?")) { await axios.delete(`${API_URL}/users/${u._id}`); loadUsers(); } }} className="text-slate-300 hover:text-car-pink p-2 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// 5. ADMIN ENFANTS
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
     const [newChild, setNewChild] = useState({ firstName: '', lastName: '', category: 'Maternelle' });
@@ -722,7 +773,7 @@ const ChildrenManager = () => {
     );
 };
 
-// 6. RAPPORT (inchangé)
+// 6. RAPPORT
 const Report = () => {
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [reportData, setReportData] = useState([]);
@@ -872,7 +923,6 @@ export default function App() {
         <Route path="/report" element={<Report />} />
         <Route path="/admin/children" element={<ChildrenManager />} />
         <Route path="/admin/users" element={<UserManager />} />
-        {/* NOUVELLE ROUTE POUR LE PLANNING */}
         <Route path="/admin/planned-notes" element={<PlannedNotesManager />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
