@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, getDay } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, getDay, getISOWeek, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon} from 'lucide-react';
 
@@ -42,7 +42,7 @@ const CategoryFilter = ({ value, onChange, access }) => {
     );
 };
 
-// COMPOSANT CALENDRIER DRY (Réutilisable pour notes et facturation)
+// COMPOSANT CALENDRIER DRY (Boosté avec Semaines Paires/Impaires)
 const InteractiveCalendar = ({ selectedDates, onChange }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -70,6 +70,48 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
         }
     };
 
+    // Sélection intelligente par semaine entière (bouton en début de ligne)
+    const toggleWeek = (weekStartDay) => {
+        // On récupère les 7 jours à partir du lundi de cette ligne
+        const end = endOfWeek(weekStartDay, { weekStartsOn: 1 });
+        const weekDays = eachDayOfInterval({ start: weekStartDay, end: end });
+        
+        // On ne garde que les jours qui appartiennent au mois affiché pour éviter les débordements bizarres
+        const targetDaysStr = weekDays
+            .filter(d => isSameMonth(d, currentMonth))
+            .map(d => format(d, 'yyyy-MM-dd'));
+
+        if(targetDaysStr.length === 0) return;
+
+        const allSelected = targetDaysStr.every(d => selectedDates.includes(d));
+        if (allSelected) {
+            onChange(selectedDates.filter(d => !targetDaysStr.includes(d)));
+        } else {
+            const newSet = new Set([...selectedDates, ...targetDaysStr]);
+            onChange(Array.from(newSet));
+        }
+    };
+
+    // Sélection Semaines Paires / Impaires pour le mois entier
+    const toggleParity = (isEven) => {
+        const start = startOfMonth(currentMonth);
+        const end = endOfMonth(start);
+        const daysInMonth = eachDayOfInterval({ start, end });
+        
+        const targetDaysStr = daysInMonth.filter(d => {
+            const weekNum = getISOWeek(d);
+            return isEven ? weekNum % 2 === 0 : weekNum % 2 !== 0;
+        }).map(d => format(d, 'yyyy-MM-dd'));
+
+        const allSelected = targetDaysStr.every(d => selectedDates.includes(d));
+        if (allSelected) {
+            onChange(selectedDates.filter(d => !targetDaysStr.includes(d)));
+        } else {
+            const newSet = new Set([...selectedDates, ...targetDaysStr]);
+            onChange(Array.from(newSet));
+        }
+    };
+
     const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
     const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
 
@@ -81,49 +123,91 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
 
     const weekDays = [{label: 'Lun', idx: 1}, {label: 'Mar', idx: 2}, {label: 'Mer', idx: 3}, {label: 'Jeu', idx: 4}, {label: 'Ven', idx: 5}, {label: 'Sam', idx: 6}, {label: 'Dim', idx: 0}];
 
+    // On découpe les jours par semaines (tableaux de 7 jours) pour pouvoir afficher le bouton en début de ligne
+    const weeks = [];
+    let currentWeek = [];
+    days.forEach((day, i) => {
+        currentWeek.push(day);
+        if ((i + 1) % 7 === 0) {
+            weeks.push(currentWeek);
+            currentWeek = [];
+        }
+    });
+
     return (
         <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-6">
-                <button type="button" onClick={prevMonth} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-500 transition-colors"><ChevronLeft/></button>
-                <h3 className="font-black text-car-dark text-lg capitalize">{format(currentMonth, 'MMMM yyyy', { locale: fr })}</h3>
-                <button type="button" onClick={nextMonth} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-500 transition-colors"><ChevronRight/></button>
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                <div className="flex items-center gap-2">
+                    <button type="button" onClick={prevMonth} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-500 transition-colors"><ChevronLeft/></button>
+                    <h3 className="font-black text-car-dark text-lg capitalize w-32 text-center">{format(currentMonth, 'MMMM yyyy', { locale: fr })}</h3>
+                    <button type="button" onClick={nextMonth} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-500 transition-colors"><ChevronRight/></button>
+                </div>
+                
+                {/* NOUVEAUX BOUTONS PAIRE / IMPAIRE */}
+                <div className="flex gap-2">
+                    <button type="button" onClick={() => toggleParity(true)} className="text-xs font-bold bg-car-purple/10 text-car-purple hover:bg-car-purple hover:text-white px-3 py-1.5 rounded-lg transition-colors">
+                        Sem. Paires
+                    </button>
+                    <button type="button" onClick={() => toggleParity(false)} className="text-xs font-bold bg-car-teal/10 text-car-teal hover:bg-car-teal hover:text-white px-3 py-1.5 rounded-lg transition-colors">
+                        Sem. Impaires
+                    </button>
+                </div>
             </div>
             
-            <div className="grid grid-cols-7 gap-2 mb-2">
+            {/* EN TÊTE DES JOURS (Avec une colonne vide pour le bouton de semaine) */}
+            <div className="grid grid-cols-8 gap-1 sm:gap-2 mb-2">
+                <div></div> {/* Colonne vide au dessus des boutons de semaine */}
                 {weekDays.map(wd => (
                     <button 
                         key={wd.label} type="button" 
                         onClick={() => toggleWeekdayInMonth(wd.idx)}
-                        className="text-center font-bold text-xs text-car-blue bg-car-blue/10 hover:bg-car-blue hover:text-white rounded-lg py-2 transition-colors cursor-pointer"
-                        title="Sélectionner tout le mois"
+                        className="text-center font-bold text-xs sm:text-sm text-car-blue bg-car-blue/10 hover:bg-car-blue hover:text-white rounded-lg py-2 transition-colors cursor-pointer"
+                        title={`Sélectionner tous les ${wd.label}`}
                     >
                         {wd.label}
                     </button>
                 ))}
             </div>
             
-            <div className="grid grid-cols-7 gap-2">
-                {days.map(day => {
-                    const dateStr = format(day, 'yyyy-MM-dd');
-                    const isSelected = selectedDates.includes(dateStr);
-                    const isCurrentMonth = isSameMonth(day, monthStart);
-                    
-                    return (
-                        <div 
-                            key={dateStr}
-                            onClick={() => isCurrentMonth && toggleDate(dateStr)}
-                            className={`
-                                aspect-square flex items-center justify-center rounded-xl text-sm font-bold cursor-pointer transition-all
-                                ${!isCurrentMonth ? 'text-slate-300 opacity-50 cursor-not-allowed' : ''}
-                                ${isCurrentMonth && !isSelected ? 'bg-slate-50 text-slate-600 hover:bg-slate-200 hover:-translate-y-0.5' : ''}
-                                ${isCurrentMonth && isSelected ? 'bg-car-teal text-white shadow-md shadow-car-teal/30 hover:bg-teal-600 hover:scale-105' : ''}
-                            `}
+            {/* CORPS DU CALENDRIER LIGNE PAR LIGNE */}
+            <div className="space-y-1 sm:space-y-2">
+                {weeks.map((week, index) => (
+                    <div key={index} className="grid grid-cols-8 gap-1 sm:gap-2">
+                        {/* Bouton pour sélectionner toute la semaine */}
+                        <button 
+                            type="button" 
+                            onClick={() => toggleWeek(week[0])}
+                            className="aspect-square flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-colors"
+                            title="Sélectionner cette semaine"
                         >
-                            {format(day, 'd')}
-                        </div>
-                    );
-                })}
+                            W
+                        </button>
+                        
+                        {/* Jours de la semaine */}
+                        {week.map(day => {
+                            const dateStr = format(day, 'yyyy-MM-dd');
+                            const isSelected = selectedDates.includes(dateStr);
+                            const isCurrentMonth = isSameMonth(day, monthStart);
+                            
+                            return (
+                                <div 
+                                    key={dateStr}
+                                    onClick={() => isCurrentMonth && toggleDate(dateStr)}
+                                    className={`
+                                        aspect-square flex items-center justify-center rounded-xl text-sm font-bold cursor-pointer transition-all
+                                        ${!isCurrentMonth ? 'text-slate-300 opacity-30 cursor-not-allowed bg-transparent' : ''}
+                                        ${isCurrentMonth && !isSelected ? 'bg-slate-50 text-slate-600 hover:bg-slate-200 hover:-translate-y-0.5' : ''}
+                                        ${isCurrentMonth && isSelected ? 'bg-car-teal text-white shadow-md shadow-car-teal/30 hover:bg-teal-600 hover:scale-105' : ''}
+                                    `}
+                                >
+                                    {format(day, 'd')}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ))}
             </div>
+            
             <div className="mt-4 text-center">
                 <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">{selectedDates.length} date(s) sélectionnée(s) au total</span>
             </div>
@@ -236,7 +320,7 @@ const Dashboard = () => {
                 </button>
                 <button onClick={() => navigate('/admin/planned-notes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
-                    <div><h3 className="font-black text-car-dark text-lg">Notes programmées</h3><p className="text-xs text-slate-500 font-medium mt-1">& notes récurrentes</p></div>
+                    <div><h3 className="font-black text-car-dark text-lg">Planning</h3><p className="text-xs text-slate-500 font-medium mt-1">Notes récurrentes</p></div>
                 </button>
             </div>
           </section>
@@ -348,7 +432,7 @@ const PlannedNotesManager = () => {
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <form onSubmit={handleAddNote} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
                                 <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Ajouter une info</h3>
                                 <textarea 
