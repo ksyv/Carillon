@@ -505,6 +505,11 @@ const Report = () => {
             ];
         });
 
+        // --- CALCUL DES TOTAUX POUR LE PDF ---
+        const totalMatin = reportData.filter(r => r.matin).length;
+        const totalSoir = reportData.filter(r => r.soir || r.checkOut).length;
+        const totalLate = reportData.filter(r => r.isLate).length;
+
         doc.setFontSize(18);
         doc.text(`Rapport Journalier - ${format(new Date(date), 'dd/MM/yyyy')}`, 14, 22);
         
@@ -512,6 +517,9 @@ const Report = () => {
             startY: 35,
             head: [tableColumn],
             body: tableRows,
+            // Ajout du pied de page dans le PDF
+            foot: [["TOTAL", "", totalMatin.toString(), totalSoir.toString(), totalLate.toString()]],
+            footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
             theme: 'grid',
             headStyles: { fillColor: [84, 132, 164], textColor: 255, fontStyle: 'bold' },
             styles: { font: 'helvetica', fontSize: 10, textColor: [58, 58, 58] },
@@ -521,6 +529,11 @@ const Report = () => {
 
         doc.save(`carillon_rapport_${date}.pdf`);
     };
+
+    // --- CALCUL DES TOTAUX POUR LA VUE WEB ---
+    const totalMatin = reportData.filter(r => r.matin).length;
+    const totalSoir = reportData.filter(r => r.soir || r.checkOut).length;
+    const totalLate = reportData.filter(r => r.isLate).length;
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
@@ -576,6 +589,17 @@ const Report = () => {
                                 <tr><td colSpan="4" className="p-10 text-center text-slate-400 font-bold">Aucune donnée pour cette date.</td></tr>
                             )}
                         </tbody>
+                        {/* --- PIED DE TABLEAU AVEC LES TOTAUX --- */}
+                        {reportData.length > 0 && (
+                            <tfoot className="bg-slate-100/80 border-t-2 border-slate-200">
+                                <tr>
+                                    <td className="p-5 font-black text-car-dark text-right">TOTAL PRÉSENCES</td>
+                                    <td className="p-5 font-black text-car-dark text-center text-lg">{totalMatin}</td>
+                                    <td className="p-5 font-black text-car-dark text-center text-lg">{totalSoir}</td>
+                                    <td className="p-5 font-black text-car-pink text-center text-lg">{totalLate}</td>
+                                </tr>
+                            </tfoot>
+                        )}
                     </table>
                 </div>
             </div>
