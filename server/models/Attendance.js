@@ -5,7 +5,8 @@ const AttendanceSchema = new mongoose.Schema({
   child: { type: mongoose.Schema.Types.ObjectId, ref: 'Child', required: true },
   checkIn: { type: Date, default: Date.now },
   checkOut: { type: Date }, // Null = présent
-  isLate: { type: Boolean, default: false } // > 18h30
+  isLate: { type: Boolean, default: false }, // > 18h30
+  note: { type: String }
 });
 // Un seul pointage par créneau par jour par enfant
 AttendanceSchema.index({ date: 1, sessionType: 1, child: 1 }, { unique: true });

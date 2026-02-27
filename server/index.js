@@ -15,7 +15,7 @@ app.use(cors());
 
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
-      console.log('MongoDB Connected');;
+      console.log('MongoDB Connected');
   })
   .catch(err => console.log(err));
 
@@ -38,23 +38,12 @@ app.post('/api/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password))) 
         return res.status(400).send('Identifiants incorrects');
     
-    // NOUVEAU : On inclut l'accès aux catégories
     const token = jwt.sign({ _id: user._id, role: user.role, categoryAccess: user.categoryAccess || 'Tous' }, process.env.JWT_SECRET);
     res.json({ token, role: user.role, categoryAccess: user.categoryAccess || 'Tous' });
 });
-/*
-// Route Initiale pour créer l'admin (A supprimer ou sécuriser après usage)
-//app.post('/api/admin-init', async (req, res) => {
-    const hash = await bcrypt.hash(req.body.password, 10);
-    const user = new User({ username: req.body.username, password: hash, role: 'admin', categoryAccess: 'Tous' });
-    await user.save();
-    res.json(user);
-});
-*/
 
 // --- Routes Utilisateurs (Admin) ---
 app.get('/api/users', auth(['admin']), async (req, res) => {
-    // On renvoie les utilisateurs sans les mots de passe
     const users = await User.find({}, '-password');
     res.json(users);
 });
@@ -66,7 +55,7 @@ app.post('/api/users', auth(['admin']), async (req, res) => {
             username: req.body.username, 
             password: hash, 
             role: req.body.role,
-            categoryAccess: req.body.categoryAccess || 'Tous' // NOUVEAU
+            categoryAccess: req.body.categoryAccess || 'Tous'
         });
         await user.save();
         res.json({ _id: user._id, username: user.username, role: user.role, categoryAccess: user.categoryAccess });
@@ -92,15 +81,12 @@ app.post('/api/children', auth(['admin']), async (req, res) => {
     res.json(child);
 });
 
-// Modifier un enfant (Correction de nom/prénom)
 app.put('/api/children/:id', auth(['admin']), async (req, res) => {
-    // NOUVEAU : On récupère aussi la category
     const { firstName, lastName, category } = req.body;
     const updated = await Child.findByIdAndUpdate(req.params.id, { firstName, lastName, category }, { new: true });
     res.json(updated);
 });
 
-// Supprimer un enfant (Soft Delete = on le rend inactif pour garder l'historique)
 app.delete('/api/children/:id', auth(['admin']), async (req, res) => {
     await Child.findByIdAndUpdate(req.params.id, { active: false });
     res.json({ success: true });
@@ -125,7 +111,6 @@ app.post('/api/attendance/checkin', auth(), async (req, res) => {
 
 app.put('/api/attendance/checkout/:id', auth(), async (req, res) => {
     const now = new Date();
-    // Logique 18h35
     const limit = new Date();
     limit.setHours(18, 35, 0, 0);
     const isLate = now > limit;
@@ -134,13 +119,18 @@ app.put('/api/attendance/checkout/:id', auth(), async (req, res) => {
     res.json(att);
 });
 
-// Retirer manuellement le supplément de retard
+// NOUVEAU : Sauvegarder ou modifier un Post-it éphémère
+app.put('/api/attendance/note/:id', auth(), async (req, res) => {
+    const { note } = req.body;
+    const updated = await Attendance.findByIdAndUpdate(req.params.id, { note }, { new: true }).populate('child');
+    res.json(updated);
+});
+
 app.put('/api/attendance/remove-late/:id', auth(['staff', 'admin']), async (req, res) => {
     const updated = await Attendance.findByIdAndUpdate(req.params.id, { isLate: false }, { new: true }).populate('child');
     res.json(updated);
 });
 
-// Annuler un départ (missclick "DÉPART")
 app.put('/api/attendance/undo-checkout/:id', auth(), async (req, res) => {
     const updated = await Attendance.findByIdAndUpdate(req.params.id, { 
         checkOut: null, 
@@ -149,7 +139,6 @@ app.put('/api/attendance/undo-checkout/:id', auth(), async (req, res) => {
     res.json(updated);
 });
 
-// Supprimer totalement un pointage (missclick "Ajouter un enfant")
 app.delete('/api/attendance/:id', auth(), async (req, res) => {
     await Attendance.findByIdAndDelete(req.params.id);
     res.json({ success: true });
@@ -171,7 +160,7 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
             soir: !!pm, 
             checkOut: pm ? pm.checkOut : null,
             isLate: pm ? pm.isLate : false,
-            pmId: pm ? pm._id : null // Indispensable pour que le bouton d'annulation marche
+            pmId: pm ? pm._id : null
         };
     }).filter(r => r.matin || r.soir);
     

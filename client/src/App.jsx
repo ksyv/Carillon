@@ -3,7 +3,7 @@ import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter} from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote} from 'lucide-react';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -30,9 +30,8 @@ const LogoTexte = ({ className = "text-3xl" }) => (
     </div>
 );
 
-// Composant pour le filtre de catégorie (utilisé dans Pointage et Rapports)
 const CategoryFilter = ({ value, onChange, access }) => {
-    if (access !== 'Tous') return null; // Si l'user est restreint, on ne lui montre pas le filtre
+    if (access !== 'Tous') return null;
 
     return (
         <div className="flex bg-slate-100 rounded-xl p-1 items-center">
@@ -55,7 +54,7 @@ const Login = ({ setAuth }) => {
       const { data } = await axios.post(`${API_URL}/login`, creds);
       localStorage.setItem('token', data.token);
       localStorage.setItem('role', data.role);
-      localStorage.setItem('categoryAccess', data.categoryAccess); // Sauvegarde de l'accès aux catégories
+      localStorage.setItem('categoryAccess', data.categoryAccess);
       setAuth({ token: data.token, role: data.role, categoryAccess: data.categoryAccess });
     } catch (err) { setError('Identifiants incorrects'); }
   };
@@ -111,8 +110,6 @@ const Dashboard = () => {
       </header>
       
       <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-10 mt-4">
-        
-        {/* SECTION POINTAGE */}
         <section>
             <div className="flex items-center gap-3 mb-6 ml-2">
                 <div className="h-2 w-2 rounded-full bg-car-teal"></div>
@@ -141,7 +138,6 @@ const Dashboard = () => {
             </div>
         </section>
 
-        {/* SECTION ADMIN */}
         {role === 'admin' && (
           <section className="pt-6 border-t border-slate-200 border-dashed">
             <div className="flex items-center gap-3 mb-6 ml-2">
@@ -176,13 +172,21 @@ const SessionView = () => {
     const [children, setChildren] = useState([]); 
     const [attendance, setAttendance] = useState([]); 
     const [search, setSearch] = useState('');
+    
+    // States pour le Post-it
+    const [noteModal, setNoteModal] = useState({ show: false, attendanceId: null, text: '' });
+    const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, text: '', name: '', color: '' });
+
     const navigate = useNavigate();
 
     const access = localStorage.getItem('categoryAccess') || 'Tous';
-    const [categoryFilter, setCategoryFilter] = useState(access); // Maternelle, Élémentaire, ou Tous
+    const [categoryFilter, setCategoryFilter] = useState(access);
 
     const isMatin = type === 'MATIN';
     const themeColor = isMatin ? 'car-yellow' : 'car-blue';
+
+    // Couleurs du logo Carillon pour les post-it aléatoires
+    const postItColors = ['bg-car-blue', 'bg-car-yellow', 'bg-car-teal', 'bg-car-pink', 'bg-car-green'];
 
     useEffect(() => { 
         loadData(); 
@@ -195,7 +199,6 @@ const SessionView = () => {
         setChildren(kidsRes.data); setAttendance(attRes.data);
     };
 
-    // Filtre des enfants selon la recherche ET la catégorie sélectionnée
     const filteredSearch = useMemo(() => {
         if (search.length < 2) return [];
         return children.filter(c => {
@@ -205,7 +208,6 @@ const SessionView = () => {
         });
     }, [children, search, categoryFilter]);
 
-    // Filtrer la liste des présents affichée selon la catégorie sélectionnée
     const filteredAttendance = useMemo(() => {
         return attendance.filter(a => categoryFilter === 'Tous' || a.child.category === categoryFilter);
     }, [attendance, categoryFilter]);
@@ -228,6 +230,24 @@ const SessionView = () => {
         loadData(); setSearch('');
     };
 
+    // Logique du bouton Départ (qui vérifie d'abord la note)
+    const handleDepartureClick = (record) => {
+        if (record.note) {
+            // Si l'enfant a une note, on affiche la modale au lieu de le faire partir
+            const randomColor = postItColors[Math.floor(Math.random() * postItColors.length)];
+            setReadNoteModal({ 
+                show: true, 
+                attendanceId: record._id, 
+                text: record.note, 
+                name: `${record.child.firstName} ${record.child.lastName}`,
+                color: randomColor
+            });
+        } else {
+            // Pas de note, départ normal
+            handleCheckOut(record._id);
+        }
+    };
+
     const handleUndoCheckOut = async (id) => {
         await axios.put(`${API_URL}/attendance/undo-checkout/${id}`);
         loadData();
@@ -240,22 +260,20 @@ const SessionView = () => {
         }
     };
 
-    const handleRemoveLate = async (id) => {
-        if(window.confirm("Supprimer le supplément de retard pour cet enfant ?")) {
-            await axios.put(`${API_URL}/attendance/remove-late/${id}`);
-            loadData();
-        }
+    // Enregistrement d'une note
+    const saveNote = async () => {
+        await axios.put(`${API_URL}/attendance/note/${noteModal.attendanceId}`, { note: noteModal.text });
+        setNoteModal({ show: false, attendanceId: null, text: '' });
+        loadData();
     };
 
     return (
-        <div className="h-screen flex flex-col bg-slate-50">
+        <div className="h-screen flex flex-col bg-slate-50 relative">
             {/* HEADER */}
             <div className="bg-white shadow-sm z-20">
                 <div className="p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors w-full sm:w-auto text-left">← Retour</button>
-                    
                     <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} access={access} />
-
                     <div className={`bg-${themeColor}/10 text-${themeColor} px-5 py-2 rounded-full font-black text-sm tracking-widest w-full sm:w-auto text-center`}>
                         {type} • {activeCount} / {totalCount} PRÉSENTS
                     </div>
@@ -269,7 +287,7 @@ const SessionView = () => {
                 </div>
             </div>
 
-            {/* AUTOCOMPLETION AVANCÉE */}
+            {/* AUTOCOMPLETION */}
             {search.length >= 2 && (
                 <div className="bg-white/95 backdrop-blur-xl shadow-2xl max-h-80 overflow-y-auto absolute w-full top-[220px] sm:top-36 z-30 border-b border-slate-200">
                     <div className="max-w-4xl mx-auto">
@@ -282,7 +300,7 @@ const SessionView = () => {
                                 <div key={child._id} 
                                     onClick={() => {
                                         if (!isPresent) handleCheckIn(child._id);
-                                        else if (!isGone && !isMatin) handleCheckOut(attendanceRecord._id);
+                                        else if (!isGone && !isMatin) handleDepartureClick(attendanceRecord);
                                     }} 
                                     className="p-5 border-b border-slate-50 flex justify-between items-center hover:bg-slate-50 cursor-pointer transition-colors group">
                                     <span className="font-black text-xl text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
@@ -293,7 +311,6 @@ const SessionView = () => {
                                 </div>
                             );
                         })}
-                        {filteredSearch.length === 0 && <div className="p-8 text-center text-slate-400 font-bold">Aucun enfant trouvé dans cette catégorie.</div>}
                     </div>
                 </div>
             )}
@@ -303,23 +320,33 @@ const SessionView = () => {
                 {sortedAttendance.map(record => {
                     const isGone = !!record.checkOut;
                     return (
-                        <div key={record._id} className={`p-5 rounded-3xl flex justify-between items-center transition-all ${isGone ? 'bg-white/50 border border-slate-200' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100'}`}>
-                            <div>
-                                <div className={`font-black text-xl ${isGone ? 'text-slate-400 line-through decoration-slate-300' : 'text-car-dark'}`}>
+                        <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-white/50 border border-slate-200' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100'}`}>
+                            <div className="w-full sm:w-auto">
+                                <div className={`font-black text-xl flex items-center gap-2 ${isGone ? 'text-slate-400 line-through decoration-slate-300' : 'text-car-dark'}`}>
                                     {record.child.lastName} <span className="font-medium">{record.child.firstName}</span>
+                                    {/* Icône Post-it visible si une note existe */}
+                                    {record.note && !isGone && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
                                 </div>
                                 <div className="flex items-center gap-2 mt-2">
                                     {isGone && <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">Parti à {format(new Date(record.checkOut), 'HH:mm')}</span>}
-                                    {record.isLate && (
-                                        <button onClick={() => handleRemoveLate(record._id)} className="text-xs font-bold text-white bg-car-pink hover:bg-red-500 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-sm" title="Cliquez pour annuler ce supplément"> +19h</button>
-                                    )}
+                                    {record.isLate && <span className="text-xs font-bold text-white bg-car-pink px-3 py-1 rounded-lg"> +19h</span>}
                                 </div>
                             </div>
                             
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                                {/* Bouton Ajouter/Modifier un Post-it */}
+                                {!isGone && (
+                                    <button onClick={() => setNoteModal({ show: true, attendanceId: record._id, text: record.note || '' })} className={`p-3 rounded-2xl transition-colors ${record.note ? 'bg-car-yellow/20 text-car-yellow hover:bg-car-yellow/30' : 'bg-slate-50 text-slate-400 hover:text-car-yellow hover:bg-slate-100'}`} title="Ajouter une note">
+                                        <StickyNote size={22}/>
+                                    </button>
+                                )}
+
                                 {!isMatin && (
                                     !isGone ? (
-                                        <button onClick={() => handleCheckOut(record._id)} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black active:scale-95 transition-all shadow-lg shadow-car-dark/20">DÉPART</button>
+                                        <button onClick={() => handleDepartureClick(record)} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black active:scale-95 transition-all shadow-lg shadow-car-dark/20 relative">
+                                            DÉPART
+                                            {record.note && <div className="absolute -top-2 -right-2 bg-car-pink w-4 h-4 rounded-full border-2 border-white animate-bounce"></div>}
+                                        </button>
                                     ) : (
                                         <button onClick={() => handleUndoCheckOut(record._id)} className="bg-slate-100 text-slate-500 p-3 rounded-2xl hover:bg-slate-200 transition-colors" title="Annuler le départ"><RotateCcw size={22}/></button>
                                     )
@@ -332,6 +359,56 @@ const SessionView = () => {
                     );
                 })}
             </div>
+
+            {/* MODALE ECRITURE DE NOTE */}
+            {noteModal.show && (
+                <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-black text-car-dark">Note / Info</h3>
+                            <button onClick={() => setNoteModal({...noteModal, show: false})} className="text-slate-400 hover:text-car-dark"><X size={24}/></button>
+                        </div>
+                        <textarea 
+                            className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl focus:border-car-yellow outline-none min-h-[150px] font-medium text-car-dark"
+                            placeholder="Ex: S'est fait mal au genou..."
+                            value={noteModal.text}
+                            onChange={(e) => setNoteModal({...noteModal, text: e.target.value})}
+                            autoFocus
+                        ></textarea>
+                        <p className="text-xs text-slate-400 font-bold mt-2 mb-6">Cette note apparaîtra au moment du départ et sera effacée ce soir.</p>
+                        <button onClick={saveNote} className="w-full bg-car-yellow text-white font-black p-4 rounded-2xl hover:-translate-y-1 transition-all shadow-lg shadow-car-yellow/20">
+                            SAUVEGARDER
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* MODALE LECTURE DE NOTE (AU DEPART) */}
+            {readNoteModal.show && (
+                <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className={`${readNoteModal.color} rounded-[2rem] p-8 w-full max-w-md shadow-2xl transform rotate-1 scale-105 transition-transform`}>
+                        <div className="flex items-center gap-3 mb-6">
+                            <StickyNote className="text-white/80" size={32}/>
+                            <h3 className="text-3xl font-black text-white">À transmettre !</h3>
+                        </div>
+                        <p className="text-white/90 font-bold text-lg mb-2 uppercase tracking-widest">{readNoteModal.name}</p>
+                        <div className="bg-white/10 p-6 rounded-2xl text-white font-medium text-xl leading-relaxed mb-8 backdrop-blur-md">
+                            {readNoteModal.text}
+                        </div>
+                        <button 
+                            onClick={() => {
+                                handleCheckOut(readNoteModal.attendanceId);
+                                setReadNoteModal({ show: false, attendanceId: null, text: '', name: '', color: '' });
+                            }} 
+                            className="w-full bg-white text-car-dark font-black p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl flex justify-center items-center gap-2">
+                            <CheckCircle size={24}/> J'AI TRANSMIS, VALIDER DÉPART
+                        </button>
+                        <button onClick={() => setReadNoteModal({...readNoteModal, show: false})} className="w-full mt-4 text-white/80 font-bold p-2 hover:text-white transition-colors">
+                            Annuler, ne pas faire partir
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -370,7 +447,6 @@ const UserManager = () => {
                         <option value="staff">Staff (Anim)</option>
                         <option value="admin">Admin (Dir)</option>
                     </select>
-                    {/* Nouveau select pour l'accès */}
                     <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-purple/20" value={newUser.categoryAccess} onChange={e => setNewUser({...newUser, categoryAccess: e.target.value})}>
                         <option value="Tous">Accès: Tous</option>
                         <option value="Maternelle">Accès: Maternelle</option>
@@ -451,7 +527,6 @@ const ChildrenManager = () => {
                 <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col md:flex-row gap-4">
                     <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-black text-car-dark placeholder:font-bold placeholder:text-slate-400 flex-1 uppercase" placeholder="NOM" value={newChild.lastName} onChange={e => setNewChild({...newChild, lastName: e.target.value.toUpperCase()})} required/>
                     <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-bold text-car-dark placeholder:text-slate-400 flex-1" placeholder="Prénom" value={newChild.firstName} onChange={e => setNewChild({...newChild, firstName: e.target.value})} required/>
-                    {/* Select Category */}
                     <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-green/20" value={newChild.category} onChange={e => setNewChild({...newChild, category: e.target.value})}>
                         <option value="Maternelle">Maternelle</option>
                         <option value="Élémentaire">Élémentaire</option>
@@ -521,7 +596,6 @@ const Report = () => {
         }
     };
 
-    // Filtre des données du rapport selon la catégorie sélectionnée
     const filteredReportData = useMemo(() => {
         return reportData.filter(r => categoryFilter === 'Tous' || r.child.category === categoryFilter);
     }, [reportData, categoryFilter]);
