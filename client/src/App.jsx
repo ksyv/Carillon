@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, getDay, getISOWeek, endOfDay } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, getDay, getISOWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon} from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Banknote} from 'lucide-react';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -42,7 +42,7 @@ const CategoryFilter = ({ value, onChange, access }) => {
     );
 };
 
-// COMPOSANT CALENDRIER DRY (Boosté avec Semaines Paires/Impaires)
+// COMPOSANT CALENDRIER DRY (Réutilisable pour notes et facturation)
 const InteractiveCalendar = ({ selectedDates, onChange }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -54,7 +54,6 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
         }
     };
 
-    // Sélection intelligente par jour de la semaine dans le mois actuel
     const toggleWeekdayInMonth = (dayIndex) => {
         const start = startOfMonth(currentMonth);
         const end = endOfMonth(start);
@@ -70,13 +69,10 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
         }
     };
 
-    // Sélection intelligente par semaine entière (bouton en début de ligne)
     const toggleWeek = (weekStartDay) => {
-        // On récupère les 7 jours à partir du lundi de cette ligne
         const end = endOfWeek(weekStartDay, { weekStartsOn: 1 });
         const weekDays = eachDayOfInterval({ start: weekStartDay, end: end });
         
-        // On ne garde que les jours qui appartiennent au mois affiché pour éviter les débordements bizarres
         const targetDaysStr = weekDays
             .filter(d => isSameMonth(d, currentMonth))
             .map(d => format(d, 'yyyy-MM-dd'));
@@ -92,7 +88,6 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
         }
     };
 
-    // Sélection Semaines Paires / Impaires pour le mois entier
     const toggleParity = (isEven) => {
         const start = startOfMonth(currentMonth);
         const end = endOfMonth(start);
@@ -123,7 +118,6 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
 
     const weekDays = [{label: 'Lun', idx: 1}, {label: 'Mar', idx: 2}, {label: 'Mer', idx: 3}, {label: 'Jeu', idx: 4}, {label: 'Ven', idx: 5}, {label: 'Sam', idx: 6}, {label: 'Dim', idx: 0}];
 
-    // On découpe les jours par semaines (tableaux de 7 jours) pour pouvoir afficher le bouton en début de ligne
     const weeks = [];
     let currentWeek = [];
     days.forEach((day, i) => {
@@ -143,7 +137,6 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
                     <button type="button" onClick={nextMonth} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-500 transition-colors"><ChevronRight/></button>
                 </div>
                 
-                {/* NOUVEAUX BOUTONS PAIRE / IMPAIRE */}
                 <div className="flex gap-2">
                     <button type="button" onClick={() => toggleParity(true)} className="text-xs font-bold bg-car-purple/10 text-car-purple hover:bg-car-purple hover:text-white px-3 py-1.5 rounded-lg transition-colors">
                         Sem. Paires
@@ -154,9 +147,8 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
                 </div>
             </div>
             
-            {/* EN TÊTE DES JOURS (Avec une colonne vide pour le bouton de semaine) */}
             <div className="grid grid-cols-8 gap-1 sm:gap-2 mb-2">
-                <div></div> {/* Colonne vide au dessus des boutons de semaine */}
+                <div></div>
                 {weekDays.map(wd => (
                     <button 
                         key={wd.label} type="button" 
@@ -169,30 +161,22 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
                 ))}
             </div>
             
-            {/* CORPS DU CALENDRIER LIGNE PAR LIGNE */}
             <div className="space-y-1 sm:space-y-2">
                 {weeks.map((week, index) => (
                     <div key={index} className="grid grid-cols-8 gap-1 sm:gap-2">
-                        {/* Bouton pour sélectionner toute la semaine */}
                         <button 
-                            type="button" 
-                            onClick={() => toggleWeek(week[0])}
+                            type="button" onClick={() => toggleWeek(week[0])}
                             className="aspect-square flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-colors"
                             title="Sélectionner cette semaine"
-                        >
-                            W
-                        </button>
+                        >W</button>
                         
-                        {/* Jours de la semaine */}
                         {week.map(day => {
                             const dateStr = format(day, 'yyyy-MM-dd');
                             const isSelected = selectedDates.includes(dateStr);
                             const isCurrentMonth = isSameMonth(day, monthStart);
                             
                             return (
-                                <div 
-                                    key={dateStr}
-                                    onClick={() => isCurrentMonth && toggleDate(dateStr)}
+                                <div key={dateStr} onClick={() => isCurrentMonth && toggleDate(dateStr)}
                                     className={`
                                         aspect-square flex items-center justify-center rounded-xl text-sm font-bold cursor-pointer transition-all
                                         ${!isCurrentMonth ? 'text-slate-300 opacity-30 cursor-not-allowed bg-transparent' : ''}
@@ -237,11 +221,7 @@ const Login = ({ setAuth }) => {
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-car-pink/10 rounded-full blur-3xl"></div>
       
       <div className="bg-white/90 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] w-full max-w-sm border border-slate-100 relative z-10">
-        <div className="mb-8">
-            <LogoTexte className="text-4xl mb-2" />
-            <p className="text-center text-slate-400 font-semibold tracking-widest text-xs uppercase mt-2">Périscolaire</p>
-        </div>
-        
+        <div className="mb-8"><LogoTexte className="text-4xl mb-2" /><p className="text-center text-slate-400 font-semibold tracking-widest text-xs uppercase mt-2">Périscolaire</p></div>
         <form onSubmit={handleLogin} className="space-y-6">
           <div><input type="text" placeholder="Identifiant" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-car-teal/20 focus:border-car-teal transition-all outline-none text-car-dark font-medium placeholder:text-slate-400" value={creds.username} onChange={e => setCreds({...creds, username: e.target.value})} /></div>
           <div><input type="password" placeholder="Mot de passe" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-car-teal/20 focus:border-car-teal transition-all outline-none text-car-dark font-medium placeholder:text-slate-400" value={creds.password} onChange={e => setCreds({...creds, password: e.target.value})} /></div>
@@ -305,7 +285,7 @@ const Dashboard = () => {
                 <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Administration</h2>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <button onClick={() => navigate('/report')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-teal/10 p-4 rounded-2xl w-fit group-hover:bg-car-teal group-hover:text-white text-car-teal transition-colors"><FileText size={24} strokeWidth={2.5}/></div>
                     <div><h3 className="font-black text-car-dark text-lg">Rapports</h3><p className="text-xs text-slate-500 font-medium mt-1">Historique & PDF</p></div>
@@ -322,6 +302,11 @@ const Dashboard = () => {
                     <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
                     <div><h3 className="font-black text-car-dark text-lg">Planning</h3><p className="text-xs text-slate-500 font-medium mt-1">Notes récurrentes</p></div>
                 </button>
+                {/* NOUVEAU BOUTON : FACTURATION ALTERNÉE */}
+                <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                    <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Banknote size={24} strokeWidth={2.5}/></div>
+                    <div><h3 className="font-black text-car-dark text-lg">Facturation</h3><p className="text-xs text-slate-500 font-medium mt-1">Parents séparés</p></div>
+                </button>
             </div>
           </section>
         )}
@@ -330,7 +315,7 @@ const Dashboard = () => {
   );
 };
 
-// --- NOUVEAU MODULE ADMIN : NOTES PLANIFIÉES ---
+// --- MODULE ADMIN : NOTES PLANIFIÉES ---
 const PlannedNotesManager = () => {
     const [children, setChildren] = useState([]);
     const [search, setSearch] = useState('');
@@ -342,9 +327,7 @@ const PlannedNotesManager = () => {
 
     const navigate = useNavigate();
 
-    useEffect(() => {
-        axios.get(`${API_URL}/children`).then(res => setChildren(res.data));
-    }, []);
+    useEffect(() => { axios.get(`${API_URL}/children`).then(res => setChildren(res.data)); }, []);
 
     const filteredSearch = useMemo(() => {
         if (search.length < 2) return [];
@@ -352,9 +335,7 @@ const PlannedNotesManager = () => {
     }, [children, search]);
 
     const selectChild = async (child) => {
-        setSelectedChild(child);
-        setSearch('');
-        loadNotes(child._id);
+        setSelectedChild(child); setSearch(''); loadNotes(child._id);
     };
 
     const loadNotes = async (childId) => {
@@ -366,9 +347,7 @@ const PlannedNotesManager = () => {
         e.preventDefault();
         if(selectedDates.length === 0) return alert("Veuillez sélectionner au moins une date.");
         await axios.post(`${API_URL}/planned-notes`, { childId: selectedChild._id, note: newNote, dates: selectedDates });
-        setNewNote('');
-        setSelectedDates([]);
-        loadNotes(selectedChild._id);
+        setNewNote(''); setSelectedDates([]); loadNotes(selectedChild._id);
     };
 
     const handleDeleteNote = async (id) => {
@@ -382,18 +361,13 @@ const PlannedNotesManager = () => {
         <div className="min-h-screen bg-slate-50 flex flex-col">
             <div className="bg-white shadow-sm z-20 sticky top-0 p-4 border-b border-slate-100 flex items-center gap-4">
                 <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
-                <div className="flex items-center gap-2">
-                    <CalendarDays className="text-car-pink"/>
-                    <h1 className="font-black text-car-dark text-xl">Notes Planifiées</h1>
-                </div>
+                <div className="flex items-center gap-2"><CalendarDays className="text-car-pink"/><h1 className="font-black text-car-dark text-xl">Notes Planifiées</h1></div>
             </div>
 
             <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
                 <div className="relative">
                     <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
-                    <input type="text" className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-pink/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg"
-                        placeholder="Rechercher un enfant pour gérer son planning..." value={search} onChange={e => setSearch(e.target.value)} />
-                    
+                    <input type="text" className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-pink/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg" placeholder="Rechercher un enfant..." value={search} onChange={e => setSearch(e.target.value)} />
                     {search.length >= 2 && (
                         <div className="bg-white shadow-2xl rounded-2xl max-h-60 overflow-y-auto absolute w-full mt-2 z-30 border border-slate-100">
                             {filteredSearch.map(child => (
@@ -423,7 +397,7 @@ const PlannedNotesManager = () => {
                                         <div key={pn._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
                                             <div>
                                                 <div className="font-bold text-car-dark mb-1">{pn.note}</div>
-                                                <div className="text-xs text-slate-500 font-medium">Pour {pn.dates.length} date(s) enregistrée(s)</div>
+                                                <div className="text-xs text-slate-500 font-medium">Pour {pn.dates.length} date(s)</div>
                                             </div>
                                             <button onClick={() => handleDeleteNote(pn._id)} className="text-slate-300 hover:text-car-pink bg-white p-2 rounded-lg shadow-sm transition-colors"><Trash2 size={20}/></button>
                                         </div>
@@ -435,16 +409,9 @@ const PlannedNotesManager = () => {
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <form onSubmit={handleAddNote} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
                                 <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Ajouter une info</h3>
-                                <textarea 
-                                    className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-pink/20 outline-none font-medium text-car-dark resize-none flex-1 mb-4"
-                                    placeholder="Ex: Part avec Mamie à 16h30..."
-                                    value={newNote} onChange={e => setNewNote(e.target.value)} required
-                                ></textarea>
-                                <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2">
-                                    <Check size={20}/> ENREGISTRER NOTE
-                                </button>
+                                <textarea className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-pink/20 outline-none font-medium text-car-dark resize-none flex-1 mb-4" placeholder="Ex: Part avec Mamie à 16h30..." value={newNote} onChange={e => setNewNote(e.target.value)} required></textarea>
+                                <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2"><Check size={20}/> ENREGISTRER</button>
                             </form>
-                            
                             <InteractiveCalendar selectedDates={selectedDates} onChange={setSelectedDates} />
                         </div>
                     </div>
@@ -453,6 +420,115 @@ const PlannedNotesManager = () => {
         </div>
     );
 };
+
+
+// --- NOUVEAU MODULE ADMIN : FACTURATION ALTERNÉE (DRY total !) ---
+const BillingManager = () => {
+    const [children, setChildren] = useState([]);
+    const [search, setSearch] = useState('');
+    const [selectedChild, setSelectedChild] = useState(null);
+    const [billings, setBillings] = useState([]);
+    
+    const [billTo, setBillTo] = useState('');
+    const [selectedDates, setSelectedDates] = useState([]);
+
+    const navigate = useNavigate();
+
+    useEffect(() => { axios.get(`${API_URL}/children`).then(res => setChildren(res.data)); }, []);
+
+    const filteredSearch = useMemo(() => {
+        if (search.length < 2) return [];
+        return children.filter(c => c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase()));
+    }, [children, search]);
+
+    const selectChild = async (child) => {
+        setSelectedChild(child); setSearch(''); loadBillings(child._id);
+    };
+
+    const loadBillings = async (childId) => {
+        const { data } = await axios.get(`${API_URL}/billing/child/${childId}`);
+        setBillings(data);
+    };
+
+    const handleAddBilling = async (e) => {
+        e.preventDefault();
+        if(selectedDates.length === 0) return alert("Veuillez sélectionner au moins une date.");
+        await axios.post(`${API_URL}/billing`, { childId: selectedChild._id, billTo, dates: selectedDates });
+        setBillTo(''); setSelectedDates([]); loadBillings(selectedChild._id);
+    };
+
+    const handleDeleteBilling = async (id) => {
+        if(window.confirm("Supprimer cette règle de facturation ?")) {
+            await axios.delete(`${API_URL}/billing/${id}`);
+            loadBillings(selectedChild._id);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-50 flex flex-col">
+            <div className="bg-white shadow-sm z-20 sticky top-0 p-4 border-b border-slate-100 flex items-center gap-4">
+                <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
+                <div className="flex items-center gap-2"><Banknote className="text-car-blue"/><h1 className="font-black text-car-dark text-xl">Facturation Alternée</h1></div>
+            </div>
+
+            <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
+                <div className="relative">
+                    <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
+                    <input type="text" className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-blue/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg" placeholder="Rechercher un enfant..." value={search} onChange={e => setSearch(e.target.value)} />
+                    {search.length >= 2 && (
+                        <div className="bg-white shadow-2xl rounded-2xl max-h-60 overflow-y-auto absolute w-full mt-2 z-30 border border-slate-100">
+                            {filteredSearch.map(child => (
+                                <div key={child._id} onClick={() => selectChild(child)} className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
+                                    <span className="font-black text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {selectedChild && (
+                    <div className="bg-slate-100 rounded-[2rem] p-2">
+                        <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2 flex items-center gap-4">
+                            <div className="bg-car-blue/10 p-3 rounded-xl text-car-blue"><Users size={24}/></div>
+                            <div>
+                                <h2 className="text-2xl font-black text-car-dark">{selectedChild.lastName} {selectedChild.firstName}</h2>
+                                <span className="text-xs font-bold text-slate-400 uppercase">{selectedChild.category || 'Maternelle'}</span>
+                            </div>
+                        </div>
+
+                        {billings.length > 0 && (
+                            <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Règles actives</h3>
+                                <div className="space-y-3">
+                                    {billings.map(b => (
+                                        <div key={b._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                            <div>
+                                                <div className="font-bold text-car-blue mb-1">À facturer à : {b.billTo}</div>
+                                                <div className="text-xs text-slate-500 font-medium">Appliqué sur {b.dates.length} date(s)</div>
+                                            </div>
+                                            <button onClick={() => handleDeleteBilling(b._id)} className="text-slate-300 hover:text-car-pink bg-white p-2 rounded-lg shadow-sm transition-colors"><Trash2 size={20}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <form onSubmit={handleAddBilling} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Nouvelle Règle</h3>
+                                <input type="text" className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-blue/20 outline-none font-bold text-car-dark mb-4" placeholder="Nom à facturer (Ex: Maman, Papa...)" value={billTo} onChange={e => setBillTo(e.target.value)} required />
+                                <p className="text-xs text-slate-400 font-medium mb-4 flex-1">Sélectionnez les dates dans le calendrier à côté. Cette mention apparaîtra dans le rapport pour l'aide à la facturation.</p>
+                                <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2"><Check size={20}/> APPLIQUER</button>
+                            </form>
+                            <InteractiveCalendar selectedDates={selectedDates} onChange={setSelectedDates} />
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 
 // 3. SESSION / LISTE DE PRÉSENCE
 const SessionView = () => {
@@ -881,9 +957,10 @@ const Report = () => {
         return reportData.filter(r => categoryFilter === 'Tous' || r.child.category === categoryFilter);
     }, [reportData, categoryFilter]);
 
+    // NOUVEAU : On intègre la facturation dans le PDF
     const exportPDF = () => {
         const doc = new jsPDF();
-        const tableColumn = ["Nom", "Prénom", "Catégorie", "Matin", "Soir", "Suppl."];
+        const tableColumn = ["Nom", "Prénom", "Cat.", "Facture", "Matin", "Soir", "19h"];
         
         const tableRows = filteredReportData.map(row => {
             const matinText = row.matin ? 'OUI' : '-';
@@ -891,7 +968,15 @@ const Report = () => {
             if (row.checkOut) soirText = format(new Date(row.checkOut), 'HH:mm');
             else if (row.soir) soirText = 'OUI';
             
-            return [row.child.lastName, row.child.firstName, row.child.category || 'Maternelle', matinText, soirText, row.isLate ? 'OUI' : '-'];
+            return [
+                row.child.lastName, 
+                row.child.firstName, 
+                row.child.category === 'Élémentaire' ? 'Elem.' : 'Mat.', 
+                row.billTo || '-', // Ajout de l'info de facturation
+                matinText, 
+                soirText, 
+                row.isLate ? 'OUI' : '-'
+            ];
         });
 
         const totalMatin = filteredReportData.filter(r => r.matin).length;
@@ -905,7 +990,7 @@ const Report = () => {
             startY: 35,
             head: [tableColumn],
             body: tableRows,
-            foot: [["TOTAL", "", "", totalMatin.toString(), totalSoir.toString(), totalLate.toString()]],
+            foot: [["TOTAL", "", "", "", totalMatin.toString(), totalSoir.toString(), totalLate.toString()]],
             footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
             theme: 'grid',
             headStyles: { fillColor: [84, 132, 164], textColor: 255, fontStyle: 'bold' },
@@ -945,6 +1030,7 @@ const Report = () => {
                             <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-xs tracking-wider">
                                 <th className="p-5 border-b border-slate-100">Nom</th>
                                 <th className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">Catégorie</th>
+                                <th className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">Facturation</th>
                                 <th className="p-5 border-b border-slate-100 text-center">Matin</th>
                                 <th className="p-5 border-b border-slate-100 text-center">Soir</th>
                                 <th className="p-5 border-b border-slate-100 text-center">19h</th>
@@ -958,6 +1044,10 @@ const Report = () => {
                                     </td>
                                     <td className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">
                                         <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">{row.child.category || 'Maternelle'}</span>
+                                    </td>
+                                    {/* NOUVELLE COLONNE : FACTURATION */}
+                                    <td className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">
+                                        {row.billTo ? <span className="bg-car-blue/10 text-car-blue font-bold px-2 py-1 rounded-md text-xs uppercase tracking-widest">{row.billTo}</span> : <span className="text-slate-300">-</span>}
                                     </td>
                                     <td className="p-5 border-b border-slate-100 text-center">
                                         {row.matin ? <CheckCircle className="text-car-yellow mx-auto" size={24}/> : <span className="text-slate-300 font-bold">-</span>}
@@ -980,7 +1070,8 @@ const Report = () => {
                         {filteredReportData.length > 0 && (
                             <tfoot className="bg-slate-100/80 border-t-2 border-slate-200">
                                 <tr>
-                                    <td colSpan="2" className="p-5 font-black text-car-dark text-right sm:table-cell hidden">TOTAL PRÉSENCES</td>
+                                    {/* colSpan ajusté à 3 pour englober Nom, Catégorie et Facturation sur les grands écrans */}
+                                    <td colSpan="3" className="p-5 font-black text-car-dark text-right sm:table-cell hidden">TOTAL PRÉSENCES</td>
                                     <td className="p-5 font-black text-car-dark text-right sm:hidden">TOTAL</td>
                                     <td className="p-5 font-black text-car-dark text-center text-lg">{totalMatin}</td>
                                     <td className="p-5 font-black text-car-dark text-center text-lg">{totalSoir}</td>
@@ -1008,6 +1099,7 @@ export default function App() {
         <Route path="/admin/children" element={<ChildrenManager />} />
         <Route path="/admin/users" element={<UserManager />} />
         <Route path="/admin/planned-notes" element={<PlannedNotesManager />} />
+        <Route path="/admin/billing" element={<BillingManager />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
