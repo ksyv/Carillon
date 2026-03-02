@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, getDay, getISOWeek } from 'date-fns';
@@ -42,7 +42,7 @@ const CategoryFilter = ({ value, onChange, access }) => {
     );
 };
 
-// COMPOSANT CALENDRIER DRY (Réutilisable pour notes et facturation)
+// COMPOSANT CALENDRIER DRY
 const InteractiveCalendar = ({ selectedDates, onChange }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -540,7 +540,7 @@ const SessionView = () => {
     const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, text: '', name: '', color: '' });
     const [plannedNotes, setPlannedNotes] = useState([]);
 
-    // --- NOUVEAU : GESTION HORS-LIGNE ---
+    // --- GESTION HORS-LIGNE (Améliorée) ---
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [pendingSync, setPendingSync] = useState(0);
 
@@ -561,55 +561,34 @@ const SessionView = () => {
 
         try {
             await axios.post(`${API_URL}/attendance/sync`, { actions: queue });
-            localStorage.removeItem('syncQueue'); // On vide le tiroir !
+            localStorage.removeItem('syncQueue'); // On vide le tiroir
             setPendingSync(0);
-            loadData(); // On rafraîchit avec les vraies données du serveur
+            setIsOnline(true); // Le serveur a répondu !
+            loadData(); // Recharger avec les données toutes fraîches
         } catch (e) {
-            console.error("La synchro a échoué, on réessaiera plus tard.");
+            setIsOnline(false); // Le serveur ne répond pas
         }
     };
 
-    // Écouteurs pour savoir quand on perd/retrouve internet
-    useEffect(() => {
-        const handleOnline = () => { setIsOnline(true); syncOfflineActions(); };
-        const handleOffline = () => setIsOnline(false);
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        // Au démarrage, on compte combien d'actions sont en attente
-        const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
-        setPendingSync(queue.length);
-        if (navigator.onLine) syncOfflineActions();
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, []);
-
-    // --- CHARGEMENT DES DONNÉES (AVEC SECOURS LOCAL) ---
-    useEffect(() => { 
-        loadData(); 
-        const interval = setInterval(() => { if (navigator.onLine) loadData(); }, 5000);
-        return () => clearInterval(interval);
-    }, [date, type]);
+    // Chargement de secours depuis le LocalStorage
+    const loadLocalFallback = () => {
+        const cachedKids = localStorage.getItem('offline_children');
+        const cachedAtt = localStorage.getItem(`offline_attendance_${date}_${type}`);
+        const cachedNotes = localStorage.getItem(`offline_notes_${date}`);
+        
+        if (cachedKids) setChildren(JSON.parse(cachedKids));
+        if (cachedAtt) setAttendance(JSON.parse(cachedAtt));
+        if (cachedNotes) setPlannedNotes(JSON.parse(cachedNotes));
+    };
 
     const loadData = async () => {
-        // 1. Si on sait qu'on est hors ligne, on ne tente même pas la requête Axios (ça évite les erreurs rouges en console)
+        // 1. Si on sait via le navigateur qu'on est totalement hors-ligne, on ne tente pas de faire appel au serveur.
         if (!navigator.onLine) {
-            console.log("Lecture depuis la sauvegarde locale (Réseau coupé)");
-            const cachedKids = localStorage.getItem('offline_children');
-            const cachedAtt = localStorage.getItem(`offline_attendance_${date}_${type}`);
-            const cachedNotes = localStorage.getItem(`offline_notes_${date}`);
-            
-            if (cachedKids) setChildren(JSON.parse(cachedKids));
-            if (cachedAtt) setAttendance(JSON.parse(cachedAtt));
-            if (cachedNotes) setPlannedNotes(JSON.parse(cachedNotes));
-            return; // On arrête la fonction ici
+            setIsOnline(false);
+            loadLocalFallback();
+            return;
         }
 
-        // 2. Si on est en ligne, on fait comme d'habitude
         try {
             const [kidsRes, attRes, notesRes] = await Promise.all([
                 axios.get(`${API_URL}/children`), 
@@ -617,59 +596,93 @@ const SessionView = () => {
                 axios.get(`${API_URL}/planned-notes/date?date=${date}`)
             ]);
             
+            setIsOnline(true); // Le serveur répond correctement !
+            
             setChildren(kidsRes.data); 
             setAttendance(attRes.data);
             setPlannedNotes(notesRes.data);
 
-            // Sauvegarde de secours pour la prochaine fois qu'on perd le réseau
+            // Sauvegarde de secours
             localStorage.setItem('offline_children', JSON.stringify(kidsRes.data));
             localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(attRes.data));
             localStorage.setItem(`offline_notes_${date}`, JSON.stringify(notesRes.data));
             
-            // Mise à jour de l'indicateur
+            // Mise à jour de l'indicateur d'actions en attente
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             setPendingSync(queue.length);
 
         } catch (error) {
-            // Ça, c'est au cas où on a du WiFi mais que c'est le serveur qui a planté
-            console.warn("Erreur serveur : chargement de la sauvegarde.");
-            const cachedKids = localStorage.getItem('offline_children');
-            const cachedAtt = localStorage.getItem(`offline_attendance_${date}_${type}`);
-            const cachedNotes = localStorage.getItem(`offline_notes_${date}`);
-            
-            if (cachedKids) setChildren(JSON.parse(cachedKids));
-            if (cachedAtt) setAttendance(JSON.parse(cachedAtt));
-            if (cachedNotes) setPlannedNotes(JSON.parse(cachedNotes));
+            // Le WiFi est allumé, MAIS le serveur est injoignable (éteint, bloqué...)
+            setIsOnline(false); 
+            loadLocalFallback();
         }
     };
+
+    // --- BOUCLE PRINCIPALE (Remplace l'ancien setInterval) ---
+    useEffect(() => { 
+        let isMounted = true;
+        let timeoutId;
+
+        const loop = async () => {
+            if (!isMounted) return;
+            await loadData();
+            
+            // Vérifier s'il y a des choses à synchroniser
+            const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
+            if (navigator.onLine && queue.length > 0) {
+                await syncOfflineActions();
+            } else {
+                setPendingSync(queue.length);
+            }
+
+            // On relance la boucle
+            timeoutId = setTimeout(loop, 5000);
+        };
+
+        loop();
+
+        // Écouteurs système pour le réseau
+        const handleOnline = () => { setIsOnline(true); syncOfflineActions(); };
+        const handleOffline = () => { setIsOnline(false); };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            isMounted = false;
+            clearTimeout(timeoutId);
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [date, type]);
 
     // --- GESTIONNAIRE D'ACTIONS HORS-LIGNE ---
     const processAction = async (actionDef, optimisticUpdate) => {
         const timestamp = Date.now();
         const action = { ...actionDef, timestamp, date, sessionType: type };
 
-        // 1. On met à jour l'interface visuellement tout de suite (Optimiste)
+        // 1. Mise à jour "Optimiste" de l'interface
         setAttendance(prev => optimisticUpdate(prev, timestamp));
 
-        // 2. On met l'action dans la file d'attente
+        // 2. On stocke l'action
         const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
         queue.push(action);
         localStorage.setItem('syncQueue', JSON.stringify(queue));
         setPendingSync(queue.length);
 
-        // 3. On sauvegarde le nouvel état "optimiste" en local pour résister aux rafraîchissements
+        // 3. On sauvegarde la vue en cours pour résister au F5
         setAttendance(currentAtt => {
             localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(currentAtt));
             return currentAtt;
         });
 
-        // 4. Si on a du réseau, on lance la synchro tout de suite
+        // 4. Si on a du réseau (système), on tente une synchro
         if (navigator.onLine) {
             syncOfflineActions();
         }
     };
 
-    // --- ACTIONS DE POINTAGE MODIFIÉES ---
+    // --- ACTIONS DE POINTAGE ---
     const handleCheckIn = (childId) => {
         const childObj = children.find(c => c._id === childId);
         processAction(
