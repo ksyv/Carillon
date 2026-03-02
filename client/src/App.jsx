@@ -957,22 +957,22 @@ const Report = () => {
         return reportData.filter(r => categoryFilter === 'Tous' || r.child.category === categoryFilter);
     }, [reportData, categoryFilter]);
 
-    // NOUVEAU : On intègre la facturation dans le PDF
+    // On intègre la facturation dans le PDF et on retire l'heure exacte et la catégorie
     const exportPDF = () => {
         const doc = new jsPDF();
-        const tableColumn = ["Nom", "Prénom", "Cat.", "Facture", "Matin", "Soir", "19h"];
+        // Modification : Retrait de "Cat."
+        const tableColumn = ["Nom", "Prénom", "Facture", "Matin", "Soir", "19h"];
         
         const tableRows = filteredReportData.map(row => {
             const matinText = row.matin ? 'OUI' : '-';
-            let soirText = '-';
-            if (row.checkOut) soirText = format(new Date(row.checkOut), 'HH:mm');
-            else if (row.soir) soirText = 'OUI';
+            // Modification : On affiche 'OUI' s'il y a un pointage, peu importe l'heure
+            const soirText = (row.checkOut || row.soir) ? 'OUI' : '-';
             
             return [
                 row.child.lastName, 
                 row.child.firstName, 
-                row.child.category === 'Élémentaire' ? 'Elem.' : 'Mat.', 
-                row.billTo || '-', // Ajout de l'info de facturation
+                // Retrait de la ligne : row.child.category === 'Élémentaire' ? 'Elem.' : 'Mat.',
+                row.billTo || '-', 
                 matinText, 
                 soirText, 
                 row.isLate ? 'OUI' : '-'
@@ -990,7 +990,7 @@ const Report = () => {
             startY: 35,
             head: [tableColumn],
             body: tableRows,
-            foot: [["TOTAL", "", "", "", totalMatin.toString(), totalSoir.toString(), totalLate.toString()]],
+            foot: [["TOTAL", "", "", totalMatin.toString(), totalSoir.toString(), totalLate.toString()]],
             footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
             theme: 'grid',
             headStyles: { fillColor: [84, 132, 164], textColor: 255, fontStyle: 'bold' },
@@ -1021,6 +1021,7 @@ const Report = () => {
 
                 <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 mb-8">
                     <input type="date" className="bg-slate-50 p-4 rounded-2xl outline-none font-bold text-car-dark flex-1 cursor-pointer" value={date} onChange={e => setDate(e.target.value)} />
+                    {/* Le filtre de catégorie reste bien actif ici ! */}
                     <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} access={access} />
                 </div>
 
@@ -1029,7 +1030,7 @@ const Report = () => {
                         <thead>
                             <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-xs tracking-wider">
                                 <th className="p-5 border-b border-slate-100">Nom</th>
-                                <th className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">Catégorie</th>
+                                {/* Suppression de la colonne Catégorie */}
                                 <th className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">Facturation</th>
                                 <th className="p-5 border-b border-slate-100 text-center">Matin</th>
                                 <th className="p-5 border-b border-slate-100 text-center">Soir</th>
@@ -1042,10 +1043,7 @@ const Report = () => {
                                     <td className="p-5 border-b border-slate-100">
                                         <span className="font-black text-car-dark">{row.child.lastName}</span> <span className="font-medium text-slate-500">{row.child.firstName}</span>
                                     </td>
-                                    <td className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">
-                                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">{row.child.category || 'Maternelle'}</span>
-                                    </td>
-                                    {/* NOUVELLE COLONNE : FACTURATION */}
+                                    {/* Suppression de la cellule Catégorie */}
                                     <td className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">
                                         {row.billTo ? <span className="bg-car-blue/10 text-car-blue font-bold px-2 py-1 rounded-md text-xs uppercase tracking-widest">{row.billTo}</span> : <span className="text-slate-300">-</span>}
                                     </td>
@@ -1053,9 +1051,8 @@ const Report = () => {
                                         {row.matin ? <CheckCircle className="text-car-yellow mx-auto" size={24}/> : <span className="text-slate-300 font-bold">-</span>}
                                     </td>
                                     <td className="p-5 border-b border-slate-100 text-center">
-                                        {row.checkOut ? (
-                                            <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">{format(new Date(row.checkOut), 'HH:mm')}</span>
-                                        ) : row.soir ? (
+                                        {/* Modification : Plus de formatage d'heure, on vérifie juste si checkOut ou soir existent */}
+                                        {(row.checkOut || row.soir) ? (
                                             <CheckCircle className="text-car-blue mx-auto" size={24}/>
                                         ) : <span className="text-slate-300 font-bold">-</span>}
                                     </td>
@@ -1070,8 +1067,8 @@ const Report = () => {
                         {filteredReportData.length > 0 && (
                             <tfoot className="bg-slate-100/80 border-t-2 border-slate-200">
                                 <tr>
-                                    {/* colSpan ajusté à 3 pour englober Nom, Catégorie et Facturation sur les grands écrans */}
-                                    <td colSpan="3" className="p-5 font-black text-car-dark text-right sm:table-cell hidden">TOTAL PRÉSENCES</td>
+                                    {/* colSpan ajusté à 2 car on a enlevé une colonne */}
+                                    <td colSpan="2" className="p-5 font-black text-car-dark text-right sm:table-cell hidden">TOTAL PRÉSENCES</td>
                                     <td className="p-5 font-black text-car-dark text-right sm:hidden">TOTAL</td>
                                     <td className="p-5 font-black text-car-dark text-center text-lg">{totalMatin}</td>
                                     <td className="p-5 font-black text-car-dark text-center text-lg">{totalSoir}</td>
