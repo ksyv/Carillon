@@ -3,7 +3,7 @@ import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, getDay, getISOWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Banknote} from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Banknote, Wifi, WifiOff } from 'lucide-react';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -302,7 +302,6 @@ const Dashboard = () => {
                     <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
                     <div><h3 className="font-black text-car-dark text-lg">Notes plannifiées</h3><p className="text-xs text-slate-500 font-medium mt-1">& notes récurrentes</p></div>
                 </button>
-                {/* NOUVEAU BOUTON : FACTURATION ALTERNÉE */}
                 <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Banknote size={24} strokeWidth={2.5}/></div>
                     <div><h3 className="font-black text-car-dark text-lg">Info de Facturation</h3><p className="text-xs text-slate-500 font-medium mt-1">Payeurs séparés</p></div>
@@ -530,7 +529,7 @@ const BillingManager = () => {
 };
 
 
-// 3. SESSION / LISTE DE PRÉSENCE
+// 3. SESSION / LISTE DE PRÉSENCE (AVEC MODE HORS-LIGNE)
 const SessionView = () => {
     const { date, type } = useParams();
     const [children, setChildren] = useState([]); 
@@ -541,31 +540,179 @@ const SessionView = () => {
     const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, text: '', name: '', color: '' });
     const [plannedNotes, setPlannedNotes] = useState([]);
 
-    const navigate = useNavigate();
+    // --- NOUVEAU : GESTION HORS-LIGNE ---
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [pendingSync, setPendingSync] = useState(0);
 
+    const navigate = useNavigate();
     const access = localStorage.getItem('categoryAccess') || 'Tous';
     const [categoryFilter, setCategoryFilter] = useState(access);
 
     const isMatin = type === 'MATIN';
     const themeColor = isMatin ? 'car-yellow' : 'car-blue';
-
     const postItColors = ['bg-car-blue', 'bg-car-yellow', 'bg-car-teal', 'bg-car-pink', 'bg-car-green'];
 
+    // --- LOGIQUE DE SYNCHRONISATION ---
+    const syncOfflineActions = async () => {
+        const queueStr = localStorage.getItem('syncQueue');
+        if (!queueStr) return;
+        const queue = JSON.parse(queueStr);
+        if (queue.length === 0) return;
+
+        try {
+            await axios.post(`${API_URL}/attendance/sync`, { actions: queue });
+            localStorage.removeItem('syncQueue'); // On vide le tiroir !
+            setPendingSync(0);
+            loadData(); // On rafraîchit avec les vraies données du serveur
+        } catch (e) {
+            console.error("La synchro a échoué, on réessaiera plus tard.");
+        }
+    };
+
+    // Écouteurs pour savoir quand on perd/retrouve internet
+    useEffect(() => {
+        const handleOnline = () => { setIsOnline(true); syncOfflineActions(); };
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Au démarrage, on compte combien d'actions sont en attente
+        const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
+        setPendingSync(queue.length);
+        if (navigator.onLine) syncOfflineActions();
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
+    // --- CHARGEMENT DES DONNÉES (AVEC SECOURS LOCAL) ---
     useEffect(() => { 
         loadData(); 
-        const interval = setInterval(() => loadData(), 5000);
+        const interval = setInterval(() => { if (navigator.onLine) loadData(); }, 5000);
         return () => clearInterval(interval);
     }, [date, type]);
 
     const loadData = async () => {
-        const [kidsRes, attRes, notesRes] = await Promise.all([
-            axios.get(`${API_URL}/children`), 
-            axios.get(`${API_URL}/attendance?date=${date}&sessionType=${type}`),
-            axios.get(`${API_URL}/planned-notes/date?date=${date}`)
-        ]);
-        setChildren(kidsRes.data); 
-        setAttendance(attRes.data);
-        setPlannedNotes(notesRes.data);
+        try {
+            const [kidsRes, attRes, notesRes] = await Promise.all([
+                axios.get(`${API_URL}/children`), 
+                axios.get(`${API_URL}/attendance?date=${date}&sessionType=${type}`),
+                axios.get(`${API_URL}/planned-notes/date?date=${date}`)
+            ]);
+            
+            setChildren(kidsRes.data); 
+            setAttendance(attRes.data);
+            setPlannedNotes(notesRes.data);
+
+            // Sauvegarde de secours
+            localStorage.setItem('offline_children', JSON.stringify(kidsRes.data));
+            localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(attRes.data));
+            localStorage.setItem(`offline_notes_${date}`, JSON.stringify(notesRes.data));
+            
+            // Mise à jour de l'indicateur
+            const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
+            setPendingSync(queue.length);
+
+        } catch (error) {
+            console.warn("Mode hors-ligne : chargement de la sauvegarde.");
+            const cachedKids = localStorage.getItem('offline_children');
+            const cachedAtt = localStorage.getItem(`offline_attendance_${date}_${type}`);
+            const cachedNotes = localStorage.getItem(`offline_notes_${date}`);
+            
+            if (cachedKids) setChildren(JSON.parse(cachedKids));
+            if (cachedAtt) setAttendance(JSON.parse(cachedAtt));
+            if (cachedNotes) setPlannedNotes(JSON.parse(cachedNotes));
+        }
+    };
+
+    // --- GESTIONNAIRE D'ACTIONS HORS-LIGNE ---
+    const processAction = async (actionDef, optimisticUpdate) => {
+        const timestamp = Date.now();
+        const action = { ...actionDef, timestamp, date, sessionType: type };
+
+        // 1. On met à jour l'interface visuellement tout de suite (Optimiste)
+        setAttendance(prev => optimisticUpdate(prev, timestamp));
+
+        // 2. On met l'action dans la file d'attente
+        const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
+        queue.push(action);
+        localStorage.setItem('syncQueue', JSON.stringify(queue));
+        setPendingSync(queue.length);
+
+        // 3. On sauvegarde le nouvel état "optimiste" en local pour résister aux rafraîchissements
+        setAttendance(currentAtt => {
+            localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(currentAtt));
+            return currentAtt;
+        });
+
+        // 4. Si on a du réseau, on lance la synchro tout de suite
+        if (navigator.onLine) {
+            syncOfflineActions();
+        }
+    };
+
+    // --- ACTIONS DE POINTAGE MODIFIÉES ---
+    const handleCheckIn = (childId) => {
+        const childObj = children.find(c => c._id === childId);
+        processAction(
+            { type: 'CHECK_IN', childId },
+            (prev, ts) => [...prev, { _id: `temp_${ts}`, child: childObj, checkIn: new Date(ts).toISOString(), checkOut: null, isLate: false }]
+        );
+        setSearch('');
+    };
+
+    const handleCheckOut = (recordId) => {
+        const record = attendance.find(a => a._id === recordId);
+        if (!record) return;
+        
+        const limit = new Date(); limit.setHours(18, 35, 0, 0);
+        const isLate = new Date() > limit;
+
+        processAction(
+            { type: 'CHECK_OUT', childId: record.child._id },
+            (prev, ts) => prev.map(a => a._id === recordId ? { ...a, checkOut: new Date(ts).toISOString(), isLate } : a)
+        );
+        setSearch('');
+    };
+
+    const handleUndoCheckOut = (recordId) => {
+        const record = attendance.find(a => a._id === recordId);
+        if (!record) return;
+        processAction(
+            { type: 'CHECK_IN', childId: record.child._id },
+            (prev) => prev.map(a => a._id === recordId ? { ...a, checkOut: null, isLate: false } : a)
+        );
+    };
+
+    const handleDeleteCheckIn = (recordId) => {
+        const record = attendance.find(a => a._id === recordId);
+        if (!record) return;
+        if(window.confirm("Annuler la présence ?")) {
+            processAction(
+                { type: 'DELETE', childId: record.child._id },
+                (prev) => prev.filter(a => a._id !== recordId)
+            );
+        }
+    };
+
+    const saveNote = () => {
+        const record = attendance.find(a => a._id === noteModal.attendanceId);
+        if (!record) return;
+        processAction(
+            { type: 'ADD_NOTE', childId: record.child._id, note: noteModal.text },
+            (prev) => prev.map(a => a._id === noteModal.attendanceId ? { ...a, note: noteModal.text } : a)
+        );
+        setNoteModal({ show: false, attendanceId: null, text: '' });
+    };
+
+    const handleRemoveLate = async (id) => {
+        if(window.confirm("Supprimer le supplément de retard ?")) {
+            await axios.put(`${API_URL}/attendance/remove-late/${id}`);
+            loadData();
+        }
     };
 
     const filteredSearch = useMemo(() => {
@@ -588,16 +735,6 @@ const SessionView = () => {
     const activeCount = filteredAttendance.filter(a => !a.checkOut).length;
     const totalCount = filteredAttendance.length;
 
-    const handleCheckIn = async (childId) => {
-        await axios.post(`${API_URL}/attendance/checkin`, { childId, date, sessionType: type });
-        loadData(); setSearch('');
-    };
-
-    const handleCheckOut = async (id) => {
-        await axios.put(`${API_URL}/attendance/checkout/${id}`);
-        loadData(); setSearch('');
-    };
-
     const handleDepartureClick = (record) => {
         if (record.note) {
             const randomColor = postItColors[Math.floor(Math.random() * postItColors.length)];
@@ -613,37 +750,26 @@ const SessionView = () => {
         }
     };
 
-    const handleUndoCheckOut = async (id) => {
-        await axios.put(`${API_URL}/attendance/undo-checkout/${id}`);
-        loadData();
-    };
-
-    const handleDeleteCheckIn = async (id) => {
-        if(window.confirm("Annuler la présence ?")) {
-            await axios.delete(`${API_URL}/attendance/${id}`);
-            loadData();
-        }
-    };
-
-    const saveNote = async () => {
-        await axios.put(`${API_URL}/attendance/note/${noteModal.attendanceId}`, { note: noteModal.text });
-        setNoteModal({ show: false, attendanceId: null, text: '' });
-        loadData();
-    };
-
-    const handleRemoveLate = async (id) => {
-        if(window.confirm("Supprimer le supplément de retard ?")) {
-            await axios.put(`${API_URL}/attendance/remove-late/${id}`);
-            loadData();
-        }
-    };
-
     return (
         <div className="h-screen flex flex-col bg-slate-50 relative">
             <div className="bg-white shadow-sm z-20">
                 <div className="p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors w-full sm:w-auto text-left">← Retour</button>
-                    <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} access={access} />
+                    
+                    {/* INDICATEUR DE RÉSEAU */}
+                    <div className="flex items-center gap-3">
+                        {isOnline ? (
+                            <div className="flex items-center gap-2 text-car-teal bg-car-teal/10 px-3 py-1.5 rounded-lg text-xs font-bold" title="Connecté au serveur">
+                                <Wifi size={16}/> {pendingSync > 0 ? `${pendingSync} en attente...` : 'En ligne'}
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 text-car-pink bg-car-pink/10 px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse" title="Mode hors-ligne actif. Vos actions sont sauvegardées.">
+                                <WifiOff size={16}/> HORS-LIGNE ({pendingSync})
+                            </div>
+                        )}
+                        <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} access={access} />
+                    </div>
+
                     <div className={`bg-${themeColor}/10 text-${themeColor} px-5 py-2 rounded-full font-black text-sm tracking-widest w-full sm:w-auto text-center`}>
                         {type} • {activeCount} / {totalCount} PRÉSENTS
                     </div>
@@ -745,8 +871,7 @@ const SessionView = () => {
                             <button onClick={() => setNoteModal({...noteModal, show: false})} className="text-slate-400 hover:text-car-dark"><X size={24}/></button>
                         </div>
                         <textarea className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl focus:border-car-yellow outline-none min-h-[150px] font-medium text-car-dark" placeholder="Ex: S'est fait mal au genou..." value={noteModal.text} onChange={(e) => setNoteModal({...noteModal, text: e.target.value})} autoFocus></textarea>
-                        <p className="text-xs text-slate-400 font-bold mt-2 mb-6">Cette note apparaîtra au moment du départ et sera effacée ce soir.</p>
-                        <button onClick={saveNote} className="w-full bg-car-yellow text-white font-black p-4 rounded-2xl hover:-translate-y-1 transition-all shadow-lg shadow-car-yellow/20">SAUVEGARDER</button>
+                        <button onClick={saveNote} className="w-full mt-6 bg-car-yellow text-white font-black p-4 rounded-2xl hover:-translate-y-1 transition-all shadow-lg shadow-car-yellow/20">SAUVEGARDER</button>
                     </div>
                 </div>
             )}
@@ -846,7 +971,7 @@ const ChildrenManager = () => {
     // Mode Ajout Groupé (Copier-Coller)
     const [isBulkMode, setIsBulkMode] = useState(false);
     const [bulkText, setBulkText] = useState('');
-    const [bulkCategory, setBulkCategory] = useState('Élémentaire'); // Élémentaire par défaut comme tu l'as mentionné
+    const [bulkCategory, setBulkCategory] = useState('Élémentaire'); // Élémentaire par défaut
     const [isImporting, setIsImporting] = useState(false);
 
     // Mode Édition

@@ -9,7 +9,7 @@ const User = require('./models/User');
 const Child = require('./models/Child');
 const Attendance = require('./models/Attendance');
 const PlannedNote = require('./models/PlannedNote');
-const Billing = require('./models/Billing'); // NOUVEAU MODÈLE FACTURATION
+const Billing = require('./models/Billing');
 
 const app = express();
 app.use(express.json());
@@ -104,7 +104,7 @@ app.get('/api/attendance', auth(), async (req, res) => {
 app.post('/api/attendance/checkin', auth(), async (req, res) => {
     const { childId, date, sessionType } = req.body;
     try {
-        const att = new Attendance({ date, sessionType, child: childId });
+        const att = new Attendance({ date, sessionType, child: childId, lastUpdated: Date.now() });
         await att.save();
         await att.populate('child');
         res.json(att);
@@ -117,25 +117,26 @@ app.put('/api/attendance/checkout/:id', auth(), async (req, res) => {
     limit.setHours(18, 35, 0, 0);
     const isLate = now > limit;
 
-    const att = await Attendance.findByIdAndUpdate(req.params.id, { checkOut: now, isLate }, { new: true }).populate('child');
+    const att = await Attendance.findByIdAndUpdate(req.params.id, { checkOut: now, isLate, lastUpdated: Date.now() }, { new: true }).populate('child');
     res.json(att);
 });
 
 app.put('/api/attendance/note/:id', auth(), async (req, res) => {
     const { note } = req.body;
-    const updated = await Attendance.findByIdAndUpdate(req.params.id, { note }, { new: true }).populate('child');
+    const updated = await Attendance.findByIdAndUpdate(req.params.id, { note, lastUpdated: Date.now() }, { new: true }).populate('child');
     res.json(updated);
 });
 
 app.put('/api/attendance/remove-late/:id', auth(['staff', 'admin']), async (req, res) => {
-    const updated = await Attendance.findByIdAndUpdate(req.params.id, { isLate: false }, { new: true }).populate('child');
+    const updated = await Attendance.findByIdAndUpdate(req.params.id, { isLate: false, lastUpdated: Date.now() }, { new: true }).populate('child');
     res.json(updated);
 });
 
 app.put('/api/attendance/undo-checkout/:id', auth(), async (req, res) => {
     const updated = await Attendance.findByIdAndUpdate(req.params.id, { 
         checkOut: null, 
-        isLate: false 
+        isLate: false,
+        lastUpdated: Date.now()
     }, { new: true }).populate('child');
     res.json(updated);
 });
@@ -143,6 +144,80 @@ app.put('/api/attendance/undo-checkout/:id', auth(), async (req, res) => {
 app.delete('/api/attendance/:id', auth(), async (req, res) => {
     await Attendance.findByIdAndDelete(req.params.id);
     res.json({ success: true });
+});
+
+// --- NOUVELLE ROUTE DE SYNCHRONISATION (Mode Hors-Ligne) ---
+app.post('/api/attendance/sync', auth(), async (req, res) => {
+    const { actions } = req.body;
+    let successCount = 0;
+    let ignoredCount = 0;
+
+    for (const action of actions) {
+        try {
+            let att = await Attendance.findOne({ 
+                child: action.childId, 
+                date: action.date, 
+                sessionType: action.sessionType 
+            });
+
+            // GESTION DES CONFLITS
+            if (att && att.lastUpdated >= action.timestamp) {
+                ignoredCount++; 
+                continue; 
+            }
+
+            if (action.type === 'CHECK_IN') {
+                if (!att) {
+                    att = new Attendance({ 
+                        child: action.childId, 
+                        date: action.date, 
+                        sessionType: action.sessionType,
+                        checkIn: new Date(action.timestamp),
+                        lastUpdated: action.timestamp
+                    });
+                    await att.save();
+                    successCount++;
+                } else {
+                    att.checkOut = null;
+                    att.isLate = false;
+                    att.lastUpdated = action.timestamp;
+                    await att.save();
+                    successCount++;
+                }
+            } 
+            else if (action.type === 'CHECK_OUT') {
+                if (att) {
+                    att.checkOut = new Date(action.timestamp);
+                    att.lastUpdated = action.timestamp;
+                    
+                    const limit = new Date(action.timestamp);
+                    limit.setHours(18, 35, 0, 0);
+                    att.isLate = limit < new Date(action.timestamp);
+                    
+                    await att.save();
+                    successCount++;
+                }
+            }
+            else if (action.type === 'DELETE') {
+                if (att) {
+                    await Attendance.findByIdAndDelete(att._id);
+                    successCount++;
+                }
+            }
+            else if (action.type === 'ADD_NOTE') {
+                if (att) {
+                    att.note = action.note;
+                    att.lastUpdated = action.timestamp;
+                    await att.save();
+                    successCount++;
+                }
+            }
+        } catch (error) {
+            console.error("Erreur lors de la synchro d'une action:", error);
+        }
+    }
+
+    res.json({ message: "Synchronisation terminée", successCount, ignoredCount });
 });
 
 // --- Routes Notes Planifiées ---
@@ -171,7 +246,7 @@ app.delete('/api/planned-notes/:id', auth(['admin']), async (req, res) => {
 });
 
 
-// --- NOUVEAU : Routes Facturation Alternée ---
+// --- Routes Facturation Alternée ---
 app.get('/api/billing/child/:childId', auth(['admin']), async (req, res) => {
     const rules = await Billing.find({ child: req.params.childId });
     res.json(rules);
@@ -190,20 +265,18 @@ app.delete('/api/billing/:id', auth(['admin']), async (req, res) => {
 });
 
 
-// --- Route Rapport (MODIFIÉE POUR INCLURE LA FACTURATION) ---
+// --- Route Rapport ---
 app.get('/api/report', auth(['admin']), async (req, res) => {
     const { date } = req.query;
     const children = await Child.find({ active: true }).sort({ lastName: 1 });
     const atts = await Attendance.find({ date });
     
-    // On va chercher toutes les règles de facturation qui tombent sur cette date
     const billingsForDate = await Billing.find({ dates: date });
     
     const report = children.map(c => {
         const am = atts.find(a => a.child.toString() == c._id && a.sessionType === 'MATIN');
         const pm = atts.find(a => a.child.toString() == c._id && a.sessionType === 'SOIR');
         
-        // Est-ce qu'on a une instruction de facturation pour cet enfant aujourd'hui ?
         const billingRule = billingsForDate.find(b => b.child.toString() == c._id);
         
         return { 
@@ -213,7 +286,7 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
             checkOut: pm ? pm.checkOut : null,
             isLate: pm ? pm.isLate : false,
             pmId: pm ? pm._id : null,
-            billTo: billingRule ? billingRule.billTo : '' // L'info remonte toute seule !
+            billTo: billingRule ? billingRule.billTo : '' 
         };
     }).filter(r => r.matin || r.soir);
     
