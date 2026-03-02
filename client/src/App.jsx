@@ -839,18 +839,66 @@ const UserManager = () => {
 // 5. ADMIN ENFANTS
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
+    
+    // Mode Ajout Simple
     const [newChild, setNewChild] = useState({ firstName: '', lastName: '', category: 'Maternelle' });
+    
+    // Mode Ajout Groupé (Copier-Coller)
+    const [isBulkMode, setIsBulkMode] = useState(false);
+    const [bulkText, setBulkText] = useState('');
+    const [bulkCategory, setBulkCategory] = useState('Élémentaire'); // Élémentaire par défaut comme tu l'as mentionné
+    const [isImporting, setIsImporting] = useState(false);
+
+    // Mode Édition
     const [editingId, setEditingId] = useState(null);
     const [editForm, setEditForm] = useState({ firstName: '', lastName: '', category: 'Maternelle' });
+    
     const navigate = useNavigate();
 
     useEffect(() => { loadChildren(); }, []);
     const loadChildren = () => axios.get(`${API_URL}/children`).then(res => setChildren(res.data));
 
+    // Ajout d'un seul enfant
     const handleAdd = async (e) => {
         e.preventDefault();
         await axios.post(`${API_URL}/children`, newChild);
         setNewChild({ firstName: '', lastName: '', category: 'Maternelle' });
+        loadChildren();
+    };
+
+    // Ajout groupé depuis un copier-coller
+    const handleBulkSubmit = async (e) => {
+        e.preventDefault();
+        if (!bulkText.trim()) return;
+        
+        setIsImporting(true);
+        // On sépare par ligne et on nettoie les lignes vides
+        const lines = bulkText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        let count = 0;
+
+        for (const line of lines) {
+            // Remplace les tabulations (fréquent avec Excel) par des espaces, puis sépare les mots
+            const cleanLine = line.replace(/\t/g, ' ');
+            const parts = cleanLine.split(/\s+/);
+            
+            if (parts.length >= 2) {
+                // On part du principe que le premier mot est le NOM de famille, le reste est le prénom
+                const lastName = parts[0].toUpperCase();
+                const firstName = parts.slice(1).join(' '); // Rejoint les prénoms composés
+                
+                try {
+                    await axios.post(`${API_URL}/children`, { firstName, lastName, category: bulkCategory });
+                    count++;
+                } catch (error) {
+                    console.error("Erreur lors de l'ajout de :", line);
+                }
+            }
+        }
+        
+        setIsImporting(false);
+        alert(`${count} enfant(s) importé(s) avec succès dans la catégorie ${bulkCategory} !`);
+        setBulkText('');
+        setIsBulkMode(false);
         loadChildren();
     };
 
@@ -876,21 +924,59 @@ const ChildrenManager = () => {
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
             <div className="max-w-4xl mx-auto">
                 <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
-                <div className="flex items-center gap-4 mb-10">
-                    <div className="bg-car-green/10 p-4 rounded-2xl"><Users className="text-car-green w-8 h-8"/></div>
-                    <h1 className="text-4xl font-black text-car-dark">Base Enfants</h1>
+                <div className="flex items-center justify-between mb-10">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-car-green/10 p-4 rounded-2xl"><Users className="text-car-green w-8 h-8"/></div>
+                        <h1 className="text-4xl font-black text-car-dark">Base Enfants</h1>
+                    </div>
+                    {/* Bouton pour basculer entre Ajout Simple et Ajout Groupé */}
+                    <button 
+                        onClick={() => setIsBulkMode(!isBulkMode)}
+                        className={`font-bold px-4 py-2 rounded-xl transition-all ${isBulkMode ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-car-green/10 text-car-green hover:bg-car-green/20'}`}
+                    >
+                        {isBulkMode ? "Passer en Ajout Simple" : "Ajout Groupé (Liste)"}
+                    </button>
                 </div>
 
-                <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col md:flex-row gap-4">
-                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-black text-car-dark placeholder:font-bold placeholder:text-slate-400 flex-1 uppercase" placeholder="NOM" value={newChild.lastName} onChange={e => setNewChild({...newChild, lastName: e.target.value.toUpperCase()})} required/>
-                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-bold text-car-dark placeholder:text-slate-400 flex-1" placeholder="Prénom" value={newChild.firstName} onChange={e => setNewChild({...newChild, firstName: e.target.value})} required/>
-                    <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-green/20" value={newChild.category} onChange={e => setNewChild({...newChild, category: e.target.value})}>
-                        <option value="Maternelle">Maternelle</option>
-                        <option value="Élémentaire">Élémentaire</option>
-                    </select>
-                    <button type="submit" className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-green/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><Plus strokeWidth={3}/> AJOUTER</button>
-                </form>
+                {isBulkMode ? (
+                    // FORMULAIRE D'AJOUT GROUPÉ
+                    <form onSubmit={handleBulkSubmit} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col gap-4">
+                        <div className="flex justify-between items-center mb-2">
+                            <div>
+                                <h3 className="font-black text-car-dark text-lg">Importer une liste</h3>
+                                <p className="text-slate-400 text-sm font-medium">Format attendu : 1 enfant par ligne (ex: DUPONT Jean)</p>
+                            </div>
+                            <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-green/20" value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>
+                                <option value="Maternelle">Tous en Maternelle</option>
+                                <option value="Élémentaire">Tous en Élémentaire</option>
+                            </select>
+                        </div>
+                        <textarea 
+                            className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-medium text-car-dark placeholder:font-bold placeholder:text-slate-400 min-h-[200px] resize-y" 
+                            placeholder={`DUPONT Jean\nMARTIN Sophie\nBERNARD Leo`} 
+                            value={bulkText} 
+                            onChange={e => setBulkText(e.target.value)} 
+                            required
+                            disabled={isImporting}
+                        />
+                        <button type="submit" disabled={isImporting} className="bg-car-dark text-white px-8 py-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isImporting ? "IMPORTATION EN COURS..." : "IMPORTER LA LISTE"}
+                        </button>
+                    </form>
+                ) : (
+                    // FORMULAIRE D'AJOUT SIMPLE (Original)
+                    <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col md:flex-row gap-4">
+                        <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-black text-car-dark placeholder:font-bold placeholder:text-slate-400 flex-1 uppercase" placeholder="NOM" value={newChild.lastName} onChange={e => setNewChild({...newChild, lastName: e.target.value.toUpperCase()})} required/>
+                        <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-bold text-car-dark placeholder:text-slate-400 flex-1" placeholder="Prénom" value={newChild.firstName} onChange={e => setNewChild({...newChild, firstName: e.target.value})} required/>
+                        <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-green/20" value={newChild.category} onChange={e => setNewChild({...newChild, category: e.target.value})}>
+                            <option value="Maternelle">Maternelle</option>
+                            <option value="Élémentaire">Élémentaire</option>
+                        </select>
+                        <button type="submit" className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-green/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><Plus strokeWidth={3}/> AJOUTER</button>
+                    </form>
+                )}
 
+                {/* LISTE DES ENFANTS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {children.map(child => (
                         <div key={child._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center transition-all hover:shadow-md">
