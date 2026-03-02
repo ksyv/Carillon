@@ -596,6 +596,20 @@ const SessionView = () => {
     }, [date, type]);
 
     const loadData = async () => {
+        // 1. Si on sait qu'on est hors ligne, on ne tente même pas la requête Axios (ça évite les erreurs rouges en console)
+        if (!navigator.onLine) {
+            console.log("Lecture depuis la sauvegarde locale (Réseau coupé)");
+            const cachedKids = localStorage.getItem('offline_children');
+            const cachedAtt = localStorage.getItem(`offline_attendance_${date}_${type}`);
+            const cachedNotes = localStorage.getItem(`offline_notes_${date}`);
+            
+            if (cachedKids) setChildren(JSON.parse(cachedKids));
+            if (cachedAtt) setAttendance(JSON.parse(cachedAtt));
+            if (cachedNotes) setPlannedNotes(JSON.parse(cachedNotes));
+            return; // On arrête la fonction ici
+        }
+
+        // 2. Si on est en ligne, on fait comme d'habitude
         try {
             const [kidsRes, attRes, notesRes] = await Promise.all([
                 axios.get(`${API_URL}/children`), 
@@ -607,7 +621,7 @@ const SessionView = () => {
             setAttendance(attRes.data);
             setPlannedNotes(notesRes.data);
 
-            // Sauvegarde de secours
+            // Sauvegarde de secours pour la prochaine fois qu'on perd le réseau
             localStorage.setItem('offline_children', JSON.stringify(kidsRes.data));
             localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(attRes.data));
             localStorage.setItem(`offline_notes_${date}`, JSON.stringify(notesRes.data));
@@ -617,7 +631,8 @@ const SessionView = () => {
             setPendingSync(queue.length);
 
         } catch (error) {
-            console.warn("Mode hors-ligne : chargement de la sauvegarde.");
+            // Ça, c'est au cas où on a du WiFi mais que c'est le serveur qui a planté
+            console.warn("Erreur serveur : chargement de la sauvegarde.");
             const cachedKids = localStorage.getItem('offline_children');
             const cachedAtt = localStorage.getItem(`offline_attendance_${date}_${type}`);
             const cachedNotes = localStorage.getItem(`offline_notes_${date}`);
