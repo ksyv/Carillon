@@ -739,7 +739,7 @@ const SessionView = () => {
                                 <div className="flex items-center gap-2 mt-2">
                                     {isMidi && <span className="text-xs font-bold text-car-teal bg-car-teal/10 px-3 py-1 rounded-lg uppercase tracking-widest">Absent Cantine</span>}
                                     {isGone && !isMidi && <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">Parti à {format(new Date(record.checkOut), 'HH:mm')}</span>}
-                                    {record.isLate && !isMidi && <span className="text-xs font-bold text-white bg-car-pink px-3 py-1 rounded-lg"> +19h</span>}
+                                    {record.isLate && !isMidi && <button onClick={() => handleRemoveLate(record._id)} className="text-xs font-bold text-white bg-car-pink px-3 py-1 rounded-lg hover:scale-105 transition-transform" title="Cliquer pour annuler le supplément"> +19h</button>}
                                 </div>
                             </div>
                             
