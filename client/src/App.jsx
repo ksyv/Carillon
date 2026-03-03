@@ -63,7 +63,6 @@ const ChildInfoModal = ({ child, onClose }) => {
                 </div>
 
                 <div className="space-y-6">
-                    {/* Alerte PAI */}
                     {child.hasPAI && (
                         <div className="bg-car-pink/10 border-2 border-car-pink/30 p-5 rounded-2xl">
                             <div className="flex items-center gap-2 text-car-pink font-black mb-2 uppercase tracking-widest">
@@ -74,7 +73,6 @@ const ChildInfoModal = ({ child, onClose }) => {
                         </div>
                     )}
 
-                    {/* Régime Alimentaire */}
                     {child.regimeAlimentaire !== 'Standard' && (
                         <div className="bg-car-yellow/10 p-5 rounded-2xl">
                             <div className="flex items-center gap-2 text-car-yellow font-black mb-1 uppercase tracking-widest">
@@ -84,7 +82,6 @@ const ChildInfoModal = ({ child, onClose }) => {
                         </div>
                     )}
 
-                    {/* Contacts structurés */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
                             <Phone size={18}/> RESPONSABLES LÉGAUX
@@ -122,7 +119,7 @@ const ChildInfoModal = ({ child, onClose }) => {
     );
 };
 
-// COMPOSANT CALENDRIER DRY
+// COMPOSANT CALENDRIER
 const InteractiveCalendar = ({ selectedDates, onChange }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -218,52 +215,29 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
                 </div>
                 
                 <div className="flex gap-2">
-                    <button type="button" onClick={() => toggleParity(true)} className="text-xs font-bold bg-car-purple/10 text-car-purple hover:bg-car-purple hover:text-white px-3 py-1.5 rounded-lg transition-colors">
-                        Sem. Paires
-                    </button>
-                    <button type="button" onClick={() => toggleParity(false)} className="text-xs font-bold bg-car-teal/10 text-car-teal hover:bg-car-teal hover:text-white px-3 py-1.5 rounded-lg transition-colors">
-                        Sem. Impaires
-                    </button>
+                    <button type="button" onClick={() => toggleParity(true)} className="text-xs font-bold bg-car-purple/10 text-car-purple hover:bg-car-purple hover:text-white px-3 py-1.5 rounded-lg transition-colors">Sem. Paires</button>
+                    <button type="button" onClick={() => toggleParity(false)} className="text-xs font-bold bg-car-teal/10 text-car-teal hover:bg-car-teal hover:text-white px-3 py-1.5 rounded-lg transition-colors">Sem. Impaires</button>
                 </div>
             </div>
             
             <div className="grid grid-cols-8 gap-1 sm:gap-2 mb-2">
                 <div></div>
                 {weekDays.map(wd => (
-                    <button 
-                        key={wd.label} type="button" 
-                        onClick={() => toggleWeekdayInMonth(wd.idx)}
-                        className="text-center font-bold text-xs sm:text-sm text-car-blue bg-car-blue/10 hover:bg-car-blue hover:text-white rounded-lg py-2 transition-colors cursor-pointer"
-                        title={`Sélectionner tous les ${wd.label}`}
-                    >
-                        {wd.label}
-                    </button>
+                    <button key={wd.label} type="button" onClick={() => toggleWeekdayInMonth(wd.idx)} className="text-center font-bold text-xs sm:text-sm text-car-blue bg-car-blue/10 hover:bg-car-blue hover:text-white rounded-lg py-2 transition-colors cursor-pointer">{wd.label}</button>
                 ))}
             </div>
             
             <div className="space-y-1 sm:space-y-2">
                 {weeks.map((week, index) => (
                     <div key={index} className="grid grid-cols-8 gap-1 sm:gap-2">
-                        <button 
-                            type="button" onClick={() => toggleWeek(week[0])}
-                            className="aspect-square flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-colors"
-                            title="Sélectionner cette semaine"
-                        >W</button>
-                        
+                        <button type="button" onClick={() => toggleWeek(week[0])} className="aspect-square flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-colors">W</button>
                         {week.map(day => {
                             const dateStr = format(day, 'yyyy-MM-dd');
                             const isSelected = selectedDates.includes(dateStr);
                             const isCurrentMonth = isSameMonth(day, monthStart);
-                            
                             return (
                                 <div key={dateStr} onClick={() => isCurrentMonth && toggleDate(dateStr)}
-                                    className={`
-                                        aspect-square flex items-center justify-center rounded-xl text-sm font-bold cursor-pointer transition-all
-                                        ${!isCurrentMonth ? 'text-slate-300 opacity-30 cursor-not-allowed bg-transparent' : ''}
-                                        ${isCurrentMonth && !isSelected ? 'bg-slate-50 text-slate-600 hover:bg-slate-200 hover:-translate-y-0.5' : ''}
-                                        ${isCurrentMonth && isSelected ? 'bg-car-teal text-white shadow-md shadow-car-teal/30 hover:bg-teal-600 hover:scale-105' : ''}
-                                    `}
-                                >
+                                    className={`aspect-square flex items-center justify-center rounded-xl text-sm font-bold cursor-pointer transition-all ${!isCurrentMonth ? 'text-slate-300 opacity-30 cursor-not-allowed bg-transparent' : ''} ${isCurrentMonth && !isSelected ? 'bg-slate-50 text-slate-600 hover:bg-slate-200 hover:-translate-y-0.5' : ''} ${isCurrentMonth && isSelected ? 'bg-car-teal text-white shadow-md shadow-car-teal/30 hover:bg-teal-600 hover:scale-105' : ''}`}>
                                     {format(day, 'd')}
                                 </div>
                             );
@@ -299,7 +273,6 @@ const Login = ({ setAuth }) => {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-car-blue/10 rounded-full blur-3xl"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-car-pink/10 rounded-full blur-3xl"></div>
-      
       <div className="bg-white/90 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] w-full max-w-sm border border-slate-100 relative z-10">
         <div className="mb-8"><LogoTexte className="text-4xl mb-2" /><p className="text-center text-slate-400 font-semibold tracking-widest text-xs uppercase mt-2">Périscolaire</p></div>
         <form onSubmit={handleLogin} className="space-y-6">
@@ -321,7 +294,6 @@ const Dashboard = () => {
   
   const getSessionStatus = (session) => {
       if (role === 'admin') return { locked: false, text: 'Admin' };
-      
       const now = new Date();
       const time = now.getHours() * 60 + now.getMinutes();
 
@@ -345,18 +317,11 @@ const Dashboard = () => {
   const SessionButton = ({ title, icon: Icon, type, colorClass }) => {
       const status = getSessionStatus(type);
       return (
-          <button 
-              onClick={() => !status.locked && navigate(`/session/${format(new Date(), 'yyyy-MM-dd')}/${type}`)} 
-              disabled={status.locked}
-              className={`group relative p-8 rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all bg-white 
-                  ${status.locked ? 'opacity-50 cursor-not-allowed border-slate-100 bg-slate-50' : `border-${colorClass} hover:shadow-2xl hover:-translate-y-1 shadow-lg shadow-${colorClass}/10`}`}
-          >
+          <button onClick={() => !status.locked && navigate(`/session/${format(new Date(), 'yyyy-MM-dd')}/${type}`)} disabled={status.locked}
+              className={`group relative p-8 rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all bg-white ${status.locked ? 'opacity-50 cursor-not-allowed border-slate-100 bg-slate-50' : `border-${colorClass} hover:shadow-2xl hover:-translate-y-1 shadow-lg shadow-${colorClass}/10`}`}>
               {!status.locked && <div className={`absolute top-4 right-4 w-3 h-3 rounded-full bg-${colorClass} opacity-50 group-hover:animate-ping`}></div>}
               {status.locked && <div className="absolute top-4 right-4 text-slate-400"><Lock size={20}/></div>}
-              
-              <div className={`p-5 rounded-3xl mb-4 ${status.locked ? 'bg-slate-200 text-slate-400' : `bg-${colorClass}/10 text-${colorClass} group-hover:scale-110`} transition-transform`}>
-                  <Icon strokeWidth={2.5} size={40} />
-              </div>
+              <div className={`p-5 rounded-3xl mb-4 ${status.locked ? 'bg-slate-200 text-slate-400' : `bg-${colorClass}/10 text-${colorClass} group-hover:scale-110`} transition-transform`}><Icon strokeWidth={2.5} size={40} /></div>
               <span className={`font-black text-xl uppercase tracking-wider ${status.locked ? 'text-slate-400' : 'text-car-dark'}`}>{title}</span>
               {status.locked && <span className="text-xs font-bold text-slate-400 mt-2 bg-slate-200 px-3 py-1 rounded-lg">{status.text}</span>}
           </button>
@@ -381,7 +346,6 @@ const Dashboard = () => {
                 <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Pointage en cours</h2>
                 <span className="ml-auto text-sm font-bold text-car-dark">{format(new Date(), 'EEEE d MMMM', { locale: fr })}</span>
             </div>
-            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                 <SessionButton title="Matin" icon={Sun} type="MATIN" colorClass="car-yellow" />
                 <SessionButton title="Midi (Cantine)" icon={Utensils} type="MIDI" colorClass="car-teal" />
@@ -395,14 +359,11 @@ const Dashboard = () => {
                 <div className="h-2 w-2 rounded-full bg-car-purple"></div>
                 <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Administration</h2>
             </div>
-            
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                
                 <button onClick={() => navigate('/admin/children')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-green/10 p-4 rounded-2xl w-fit group-hover:bg-car-green group-hover:text-white text-car-green transition-colors"><Users size={24} strokeWidth={2.5}/></div>
                     <div><h3 className="font-black text-car-dark text-lg">Enfants & Fiches</h3><p className="text-xs text-slate-500 font-medium mt-1">Base de données, PAI...</p></div>
                 </button>
-
                 {role === 'admin' && (
                     <>
                         <button onClick={() => navigate('/report')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
@@ -430,7 +391,6 @@ const Dashboard = () => {
     </div>
   );
 };
-
 
 // 3. SESSION / LISTE DE PRÉSENCE
 const SessionView = () => {
@@ -611,7 +571,7 @@ const SessionView = () => {
     const handleDeleteCheckIn = (recordId) => {
         const record = attendance.find(a => a._id === recordId);
         if (!record) return;
-        const msg = isMidi ? "Annuler l'absence de cet enfant (le remettre présent) ?" : "Annuler la présence ?";
+        const msg = isMidi ? "Annuler l'absence de cet enfant ?" : "Annuler la présence ?";
         if(window.confirm(msg)) {
             processAction(
                 { type: 'DELETE', childId: record.child._id },
@@ -688,11 +648,11 @@ const SessionView = () => {
                     
                     <div className="flex items-center gap-3">
                         {isOnline ? (
-                            <div className="flex items-center gap-2 text-car-teal bg-car-teal/10 px-3 py-1.5 rounded-lg text-xs font-bold" title="Connecté au serveur">
+                            <div className="flex items-center gap-2 text-car-teal bg-car-teal/10 px-3 py-1.5 rounded-lg text-xs font-bold">
                                 <Wifi size={16}/> {pendingSync > 0 ? `${pendingSync} en attente...` : 'En ligne'}
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2 text-car-pink bg-car-pink/10 px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse" title="Mode hors-ligne actif.">
+                            <div className="flex items-center gap-2 text-car-pink bg-car-pink/10 px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse">
                                 <WifiOff size={16}/> HORS-LIGNE ({pendingSync})
                             </div>
                         )}
@@ -803,7 +763,7 @@ const SessionView = () => {
 
                                 {(!isGone || isMatin || isMidi) && (
                                     <button onClick={() => handleDeleteCheckIn(record._id)} className={`p-2 rounded-xl transition-colors ${isMidi ? 'bg-car-teal/10 text-car-teal hover:bg-car-teal hover:text-white px-4 font-bold text-sm' : 'text-slate-300 hover:text-car-pink'}`}>
-                                        {isMidi ? "ANNULER L'ABSENCE" : <Trash2 size={24}/>}
+                                        {isMidi ? "ANNULER ABSENCE" : <Trash2 size={24}/>}
                                     </button>
                                 )}
                             </div>
@@ -931,7 +891,6 @@ const ChildrenManager = () => {
         setEditingId(child._id);
         setEditForm({ 
             firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle',
-            // On initialise au moins un champ vide pour les responsables s'il n'y en a pas
             responsablesLegaux: child.responsablesLegaux?.length ? child.responsablesLegaux : [{firstName: '', lastName: '', phone: ''}], 
             personnesAutorisees: child.personnesAutorisees || [],
             autorisationSortieSeul: child.autorisationSortieSeul || false,
@@ -947,7 +906,6 @@ const ChildrenManager = () => {
         loadChildren();
     };
 
-    // Fonction d'aide pour générer la liste de contacts dans le formulaire
     const renderContacts = (field, title, minRequired) => (
         <div>
             <div className="flex justify-between items-center mb-3">
@@ -1050,7 +1008,6 @@ const ChildrenManager = () => {
                                         </select>
                                     </div>
                                     
-                                    {/* ZONES DE CONTACTS DYNAMIQUES */}
                                     <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl mb-2 mt-2">
                                         {renderContacts('responsablesLegaux', 'Responsables Légaux', 1)}
                                         <div className="w-full h-px bg-slate-200 my-6"></div>
@@ -1351,10 +1308,292 @@ const Report = () => {
     );
 };
 
+// --- 6. ADMIN USERS ---
+const UserManager = () => {
+    const [users, setUsers] = useState([]);
+    const [newUser, setNewUser] = useState({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
+    const navigate = useNavigate();
+
+    useEffect(() => { loadUsers(); }, []);
+    const loadUsers = async () => { const { data } = await axios.get(`${API_URL}/users`); setUsers(data); };
+
+    const handleAdd = async (e) => {
+        e.preventDefault();
+        try {
+            await axios.post(`${API_URL}/users`, newUser);
+            setNewUser({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
+            loadUsers();
+        } catch (e) { alert("Erreur."); }
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-50 p-6 md:p-10">
+            <div className="max-w-4xl mx-auto">
+                <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
+                <div className="flex items-center gap-4 mb-10">
+                    <div className="bg-car-purple/10 p-4 rounded-2xl"><Shield className="text-car-purple w-8 h-8"/></div>
+                    <h1 className="text-4xl font-black text-car-dark">Équipe & Accès</h1>
+                </div>
+
+                <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-purple/20 outline-none font-bold text-car-dark" placeholder="Nom d'utilisateur" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} required/>
+                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-purple/20 outline-none font-bold text-car-dark" placeholder="Mot de passe" type="text" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} required/>
+                    <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-purple/20" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                        <option value="staff">Staff (Anim)</option>
+                        <option value="responsable">Responsable</option>
+                        <option value="admin">Admin (Dir)</option>
+                    </select>
+                    <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-purple/20" value={newUser.categoryAccess} onChange={e => setNewUser({...newUser, categoryAccess: e.target.value})}>
+                        <option value="Tous">Accès: Tous</option>
+                        <option value="Maternelle">Accès: Maternelle</option>
+                        <option value="Élémentaire">Accès: Élémentaire</option>
+                    </select>
+                    <button type="submit" className="bg-car-purple text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-purple/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><UserPlus size={22}/> CRÉER</button>
+                </form>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {users.map(u => (
+                        <div key={u._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <div className={`p-3 rounded-2xl ${u.role === 'admin' ? 'bg-car-purple/10 text-car-purple' : 'bg-slate-100 text-slate-400'}`}>
+                                    {u.role === 'admin' ? <Shield size={24}/> : <Users size={24}/>}
+                                </div>
+                                <div>
+                                    <span className="font-black text-car-dark text-xl block">{u.username}</span>
+                                    <div className="flex gap-2 mt-1">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{u.role}</span>
+                                        <span className="text-xs font-bold text-car-teal bg-car-teal/10 px-2 py-0.5 rounded-md uppercase tracking-widest">{u.categoryAccess || 'Tous'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={async () => { if(window.confirm("Supprimer ?")) { await axios.delete(`${API_URL}/users/${u._id}`); loadUsers(); } }} className="text-slate-300 hover:text-car-pink p-2 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- 7. NOTES PLANIFIEES ---
+const PlannedNotesManager = () => {
+    const [children, setChildren] = useState([]);
+    const [search, setSearch] = useState('');
+    const [selectedChild, setSelectedChild] = useState(null);
+    const [plannedNotes, setPlannedNotes] = useState([]);
+    
+    const [newNote, setNewNote] = useState('');
+    const [selectedDates, setSelectedDates] = useState([]);
+
+    const navigate = useNavigate();
+
+    useEffect(() => { axios.get(`${API_URL}/children`).then(res => setChildren(res.data)); }, []);
+
+    const filteredSearch = useMemo(() => {
+        if (search.length < 2) return [];
+        return children.filter(c => c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase()));
+    }, [children, search]);
+
+    const selectChild = async (child) => {
+        setSelectedChild(child); setSearch(''); loadNotes(child._id);
+    };
+
+    const loadNotes = async (childId) => {
+        const { data } = await axios.get(`${API_URL}/planned-notes/child/${childId}`);
+        setPlannedNotes(data);
+    };
+
+    const handleAddNote = async (e) => {
+        e.preventDefault();
+        if(selectedDates.length === 0) return alert("Veuillez sélectionner au moins une date.");
+        await axios.post(`${API_URL}/planned-notes`, { childId: selectedChild._id, note: newNote, dates: selectedDates });
+        setNewNote(''); setSelectedDates([]); loadNotes(selectedChild._id);
+    };
+
+    const handleDeleteNote = async (id) => {
+        if(window.confirm("Supprimer cette note planifiée ?")) {
+            await axios.delete(`${API_URL}/planned-notes/${id}`);
+            loadNotes(selectedChild._id);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-50 flex flex-col">
+            <div className="bg-white shadow-sm z-20 sticky top-0 p-4 border-b border-slate-100 flex items-center gap-4">
+                <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
+                <div className="flex items-center gap-2"><CalendarDays className="text-car-pink"/><h1 className="font-black text-car-dark text-xl">Notes Planifiées</h1></div>
+            </div>
+
+            <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
+                <div className="relative">
+                    <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
+                    <input type="text" className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-pink/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg" placeholder="Rechercher un enfant..." value={search} onChange={e => setSearch(e.target.value)} />
+                    {search.length >= 2 && (
+                        <div className="bg-white shadow-2xl rounded-2xl max-h-60 overflow-y-auto absolute w-full mt-2 z-30 border border-slate-100">
+                            {filteredSearch.map(child => (
+                                <div key={child._id} onClick={() => selectChild(child)} className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
+                                    <span className="font-black text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {selectedChild && (
+                    <div className="bg-slate-100 rounded-[2rem] p-2">
+                        <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2 flex items-center gap-4">
+                            <div className="bg-car-pink/10 p-3 rounded-xl text-car-pink"><Users size={24}/></div>
+                            <div>
+                                <h2 className="text-2xl font-black text-car-dark">{selectedChild.lastName} {selectedChild.firstName}</h2>
+                                <span className="text-xs font-bold text-slate-400 uppercase">{selectedChild.category || 'Maternelle'}</span>
+                            </div>
+                        </div>
+
+                        {plannedNotes.length > 0 && (
+                            <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Notes existantes</h3>
+                                <div className="space-y-3">
+                                    {plannedNotes.map(pn => (
+                                        <div key={pn._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                            <div>
+                                                <div className="font-bold text-car-dark mb-1">{pn.note}</div>
+                                                <div className="text-xs text-slate-500 font-medium">Pour {pn.dates.length} date(s)</div>
+                                            </div>
+                                            <button onClick={() => handleDeleteNote(pn._id)} className="text-slate-300 hover:text-car-pink bg-white p-2 rounded-lg shadow-sm transition-colors"><Trash2 size={20}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <form onSubmit={handleAddNote} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Ajouter une info</h3>
+                                <textarea className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-pink/20 outline-none font-medium text-car-dark resize-none flex-1 mb-4" placeholder="Ex: Part avec Mamie à 16h30..." value={newNote} onChange={e => setNewNote(e.target.value)} required></textarea>
+                                <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2"><Check size={20}/> ENREGISTRER</button>
+                            </form>
+                            <InteractiveCalendar selectedDates={selectedDates} onChange={setSelectedDates} />
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- 8. FACTURATION ---
+const BillingManager = () => {
+    const [children, setChildren] = useState([]);
+    const [search, setSearch] = useState('');
+    const [selectedChild, setSelectedChild] = useState(null);
+    const [billings, setBillings] = useState([]);
+    
+    const [billTo, setBillTo] = useState('');
+    const [selectedDates, setSelectedDates] = useState([]);
+
+    const navigate = useNavigate();
+
+    useEffect(() => { axios.get(`${API_URL}/children`).then(res => setChildren(res.data)); }, []);
+
+    const filteredSearch = useMemo(() => {
+        if (search.length < 2) return [];
+        return children.filter(c => c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase()));
+    }, [children, search]);
+
+    const selectChild = async (child) => {
+        setSelectedChild(child); setSearch(''); loadBillings(child._id);
+    };
+
+    const loadBillings = async (childId) => {
+        const { data } = await axios.get(`${API_URL}/billing/child/${childId}`);
+        setBillings(data);
+    };
+
+    const handleAddBilling = async (e) => {
+        e.preventDefault();
+        if(selectedDates.length === 0) return alert("Veuillez sélectionner au moins une date.");
+        await axios.post(`${API_URL}/billing`, { childId: selectedChild._id, billTo, dates: selectedDates });
+        setBillTo(''); setSelectedDates([]); loadBillings(selectedChild._id);
+    };
+
+    const handleDeleteBilling = async (id) => {
+        if(window.confirm("Supprimer cette règle de facturation ?")) {
+            await axios.delete(`${API_URL}/billing/${id}`);
+            loadBillings(selectedChild._id);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-50 flex flex-col">
+            <div className="bg-white shadow-sm z-20 sticky top-0 p-4 border-b border-slate-100 flex items-center gap-4">
+                <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
+                <div className="flex items-center gap-2"><Banknote className="text-car-blue"/><h1 className="font-black text-car-dark text-xl">Facturation Alternée</h1></div>
+            </div>
+
+            <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
+                <div className="relative">
+                    <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
+                    <input type="text" className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-blue/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg" placeholder="Rechercher un enfant..." value={search} onChange={e => setSearch(e.target.value)} />
+                    {search.length >= 2 && (
+                        <div className="bg-white shadow-2xl rounded-2xl max-h-60 overflow-y-auto absolute w-full mt-2 z-30 border border-slate-100">
+                            {filteredSearch.map(child => (
+                                <div key={child._id} onClick={() => selectChild(child)} className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
+                                    <span className="font-black text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {selectedChild && (
+                    <div className="bg-slate-100 rounded-[2rem] p-2">
+                        <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2 flex items-center gap-4">
+                            <div className="bg-car-blue/10 p-3 rounded-xl text-car-blue"><Users size={24}/></div>
+                            <div>
+                                <h2 className="text-2xl font-black text-car-dark">{selectedChild.lastName} {selectedChild.firstName}</h2>
+                                <span className="text-xs font-bold text-slate-400 uppercase">{selectedChild.category || 'Maternelle'}</span>
+                            </div>
+                        </div>
+
+                        {billings.length > 0 && (
+                            <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Règles actives</h3>
+                                <div className="space-y-3">
+                                    {billings.map(b => (
+                                        <div key={b._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                            <div>
+                                                <div className="font-bold text-car-blue mb-1">À facturer à : {b.billTo}</div>
+                                                <div className="text-xs text-slate-500 font-medium">Appliqué sur {b.dates.length} date(s)</div>
+                                            </div>
+                                            <button onClick={() => handleDeleteBilling(b._id)} className="text-slate-300 hover:text-car-pink bg-white p-2 rounded-lg shadow-sm transition-colors"><Trash2 size={20}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <form onSubmit={handleAddBilling} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Nouvelle Règle</h3>
+                                <input type="text" className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-blue/20 outline-none font-bold text-car-dark mb-4" placeholder="Nom à facturer (Ex: Maman, Papa...)" value={billTo} onChange={e => setBillTo(e.target.value)} required />
+                                <p className="text-xs text-slate-400 font-medium mb-4 flex-1">Sélectionnez les dates dans le calendrier à côté. Cette mention apparaîtra dans le rapport pour l'aide à la facturation.</p>
+                                <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2"><Check size={20}/> APPLIQUER</button>
+                            </form>
+                            <InteractiveCalendar selectedDates={selectedDates} onChange={setSelectedDates} />
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 // --- ROUTER ---
 export default function App() {
   const [auth, setAuth] = useState({ token: localStorage.getItem('token'), role: localStorage.getItem('role') });
+  
   if (!auth.token) return <Login setAuth={setAuth} />;
+  
   return (
     <BrowserRouter>
       <Routes>
