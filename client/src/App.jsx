@@ -1040,15 +1040,16 @@ const ChildrenManager = () => {
                 </div>
 
                 {/* On mappe sur filteredChildren au lieu de children */}
-                <div className="grid grid-cols-1 gap-4">
+                {/* GRILLE DE CARTES ENFANTS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {filteredChildren.map(child => (
-                        <div key={child._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 transition-all hover:shadow-md">
+                        <div key={child._id} className={`bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100 transition-all duration-300 ${editingId === child._id ? 'md:col-span-2 ring-4 ring-car-green/10' : 'hover:-translate-y-1 hover:shadow-lg'}`}>
                             {editingId === child._id && !isReadOnly ? (
                                 <div className="flex flex-col gap-4">
-                                    <div className="flex gap-4">
-                                        <input className="bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-black text-car-dark w-1/3 uppercase" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value.toUpperCase()})} />
-                                        <input className="bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-1/3" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />
-                                        <select className="bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-1/3" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})}>
+                                    <div className="flex flex-col md:flex-row gap-4">
+                                        <input className="bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-black text-car-dark w-full md:w-1/3 uppercase" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value.toUpperCase()})} />
+                                        <input className="bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-full md:w-1/3" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />
+                                        <select className="bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-full md:w-1/3" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})}>
                                             <option value="Maternelle">Maternelle</option>
                                             <option value="Élémentaire">Élémentaire</option>
                                         </select>
@@ -1102,12 +1103,12 @@ const ChildrenManager = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex justify-between items-center">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center h-full gap-4">
                                     <div className="flex items-center gap-4">
-                                        <button onClick={() => setChildInfoToView(child)} className="text-slate-300 hover:text-car-blue bg-slate-50 p-3 rounded-full transition-colors"><Info size={24}/></button>
+                                        <button onClick={() => setChildInfoToView(child)} className="text-slate-300 hover:text-car-blue bg-slate-50 p-3 rounded-full transition-colors flex-shrink-0"><Info size={24}/></button>
                                         <div>
-                                            <span className="font-black text-car-dark text-xl block">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                            <div className="flex gap-2 mt-2">
+                                            <span className="font-black text-car-dark text-xl block leading-tight">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                            <div className="flex flex-wrap gap-2 mt-2">
                                                 <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
                                                     {child.category || 'Maternelle'}
                                                 </span>
@@ -1117,7 +1118,7 @@ const ChildrenManager = () => {
                                         </div>
                                     </div>
                                     {!isReadOnly && (
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 self-end sm:self-auto">
                                             <button onClick={() => startEdit(child)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 rounded-xl transition-colors"><Pencil size={20}/></button>
                                             <button onClick={() => handleDelete(child._id, `${child.firstName} ${child.lastName}`)} className="text-slate-400 hover:text-car-pink p-3 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
                                         </div>
@@ -1127,7 +1128,7 @@ const ChildrenManager = () => {
                         </div>
                     ))}
                     {filteredChildren.length === 0 && (
-                        <div className="text-center text-slate-400 font-bold p-8 bg-white rounded-3xl border border-slate-100">
+                        <div className="text-center text-slate-400 font-bold p-8 bg-white rounded-3xl border border-slate-100 md:col-span-2">
                             Aucun enfant ne correspond à "{searchTerm}"
                         </div>
                     )}
@@ -1421,9 +1422,10 @@ const UserManager = () => {
                     <button type="submit" className="bg-car-purple text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-purple/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><UserPlus size={22}/> CRÉER</button>
                 </form>
 
-                <div className="grid grid-cols-1 gap-4">
+                {/* GRILLE DE CARTES EQUIPE */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {users.map(u => (
-                        <div key={u._id} className="bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+                        <div key={u._id} className={`bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100 transition-all duration-300 ${editingId === u._id ? 'md:col-span-2 ring-4 ring-car-purple/10' : 'hover:-translate-y-1 hover:shadow-lg'}`}>
                             {editingId === u._id ? (
                                 <div className="flex flex-col md:flex-row gap-4 items-center w-full">
                                     <div className="font-black text-car-dark text-xl w-full md:w-1/4">{u.username}</div>
@@ -1445,20 +1447,20 @@ const UserManager = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex justify-between items-center w-full">
+                                <div className="flex justify-between items-start sm:items-center w-full h-full gap-4">
                                     <div className="flex items-center gap-4">
-                                        <div className={`p-3 rounded-2xl ${u.role === 'admin' ? 'bg-car-purple/10 text-car-purple' : 'bg-slate-100 text-slate-400'}`}>
+                                        <div className={`p-3 rounded-2xl flex-shrink-0 ${u.role === 'admin' ? 'bg-car-purple/10 text-car-purple' : 'bg-slate-100 text-slate-400'}`}>
                                             {u.role === 'admin' ? <Shield size={24}/> : <Users size={24}/>}
                                         </div>
                                         <div>
-                                            <span className="font-black text-car-dark text-xl block">{u.username}</span>
-                                            <div className="flex gap-2 mt-1">
+                                            <span className="font-black text-car-dark text-xl block leading-tight">{u.username}</span>
+                                            <div className="flex flex-wrap gap-2 mt-2">
                                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{u.role}</span>
                                                 <span className="text-xs font-bold text-car-teal bg-car-teal/10 px-2 py-0.5 rounded-md uppercase tracking-widest">{u.categoryAccess || 'Tous'}</span>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 self-end sm:self-auto">
                                         <button onClick={() => startEdit(u)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 rounded-xl transition-colors"><Pencil size={20}/></button>
                                         <button onClick={async () => { if(window.confirm("Supprimer cet utilisateur ?")) { await axios.delete(`${API_URL}/users/${u._id}`); loadUsers(); } }} className="text-slate-400 hover:text-car-pink p-3 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
                                     </div>
