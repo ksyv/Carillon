@@ -66,6 +66,22 @@ app.post('/api/users', auth(['admin']), async (req, res) => {
     }
 });
 
+app.put('/api/users/:id', auth(['admin']), async (req, res) => {
+    try {
+        const updated = await User.findByIdAndUpdate(
+            req.params.id, 
+            { 
+                role: req.body.role, 
+                categoryAccess: req.body.categoryAccess 
+            }, 
+            { new: true }
+        );
+        res.json(updated);
+    } catch (e) {
+        res.status(400).send('Erreur modification utilisateur');
+    }
+});
+
 app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
     await User.findByIdAndDelete(req.params.id);
     res.json({ success: true });
