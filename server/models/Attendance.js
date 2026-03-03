@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const AttendanceSchema = new mongoose.Schema({
   date: { type: String, required: true }, // Format YYYY-MM-DD
-  sessionType: { type: String, enum: ['MATIN', 'SOIR'], required: true },
+  sessionType: { type: String, enum: ['MATIN', 'MIDI', 'SOIR'], required: true },
   child: { type: mongoose.Schema.Types.ObjectId, ref: 'Child', required: true },
   checkIn: { type: Date, default: Date.now },
   checkOut: { type: Date }, // Null = présent

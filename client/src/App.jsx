@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, getDay, getISOWeek } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, getDay, getISOWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Banknote, Wifi, WifiOff } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Banknote, Wifi, WifiOff, Lock, Info, AlertTriangle, Phone, ShieldCheck, Utensils } from 'lucide-react';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -38,6 +38,86 @@ const CategoryFilter = ({ value, onChange, access }) => {
             <button onClick={() => onChange('Tous')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${value === 'Tous' ? 'bg-white text-car-dark shadow-sm' : 'text-slate-500 hover:text-car-dark'}`}>Tous</button>
             <button onClick={() => onChange('Maternelle')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${value === 'Maternelle' ? 'bg-car-yellow text-white shadow-sm' : 'text-slate-500 hover:text-car-yellow'}`}>Mat.</button>
             <button onClick={() => onChange('Élémentaire')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${value === 'Élémentaire' ? 'bg-car-blue text-white shadow-sm' : 'text-slate-500 hover:text-car-blue'}`}>Élém.</button>
+        </div>
+    );
+};
+
+// --- MODALE D'INFORMATION ENFANT ---
+const ChildInfoModal = ({ child, onClose }) => {
+    if (!child) return null;
+    return (
+        <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[2rem] p-8 w-full max-w-lg shadow-2xl relative overflow-y-auto max-h-[90vh]">
+                <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-car-dark bg-slate-100 p-2 rounded-full"><X size={24}/></button>
+                
+                <div className="mb-6 pr-10">
+                    <h2 className="text-3xl font-black text-car-dark leading-tight">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></h2>
+                    <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-block ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
+                        {child.category || 'Maternelle'}
+                    </span>
+                    {child.category === 'Élémentaire' && child.autorisationSortieSeul && (
+                        <span className="ml-2 text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-flex items-center gap-1 bg-car-green/10 text-car-green">
+                            <ShieldCheck size={14}/> SORTIE SEUL AUTORISÉE
+                        </span>
+                    )}
+                </div>
+
+                <div className="space-y-6">
+                    {/* Alerte PAI */}
+                    {child.hasPAI && (
+                        <div className="bg-car-pink/10 border-2 border-car-pink/30 p-5 rounded-2xl">
+                            <div className="flex items-center gap-2 text-car-pink font-black mb-2 uppercase tracking-widest">
+                                <AlertTriangle size={20}/> PROTOCOLE PAI ACTIF
+                            </div>
+                            <p className="text-car-dark font-medium whitespace-pre-wrap">{child.paiDetails}</p>
+                            {child.isPAIAlimentaire && <span className="mt-3 inline-block bg-car-pink text-white text-xs font-bold px-3 py-1 rounded-lg">PAI ALIMENTAIRE</span>}
+                        </div>
+                    )}
+
+                    {/* Régime Alimentaire */}
+                    {child.regimeAlimentaire !== 'Standard' && (
+                        <div className="bg-car-yellow/10 p-5 rounded-2xl">
+                            <div className="flex items-center gap-2 text-car-yellow font-black mb-1 uppercase tracking-widest">
+                                <Utensils size={18}/> RÉGIME ALIMENTAIRE
+                            </div>
+                            <p className="text-car-dark font-bold text-lg">{child.regimeAlimentaire}</p>
+                        </div>
+                    )}
+
+                    {/* Contacts structurés */}
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                        <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
+                            <Phone size={18}/> RESPONSABLES LÉGAUX
+                        </div>
+                        {child.responsablesLegaux && child.responsablesLegaux.length > 0 ? (
+                            <div className="space-y-2 mb-4">
+                                {child.responsablesLegaux.map((c, i) => (
+                                    <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                        <span className="font-bold text-car-dark">{c.lastName?.toUpperCase()} <span className="font-medium">{c.firstName}</span></span>
+                                        <span className="font-bold text-car-teal bg-car-teal/10 px-3 py-1 rounded-lg text-sm">{c.phone || 'Non renseigné'}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <p className="text-slate-400 italic text-sm mb-4">Aucun responsable renseigné</p>}
+                        
+                        <div className="w-full h-px bg-slate-200 my-4"></div>
+                        
+                        <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
+                            <Users size={18}/> PERSONNES AUTORISÉES
+                        </div>
+                        {child.personnesAutorisees && child.personnesAutorisees.length > 0 ? (
+                            <div className="space-y-2">
+                                {child.personnesAutorisees.map((c, i) => (
+                                    <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                        <span className="font-bold text-car-dark">{c.lastName?.toUpperCase()} <span className="font-medium">{c.firstName}</span></span>
+                                        <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg text-sm">{c.phone || 'Non renseigné'}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <p className="text-slate-400 italic text-sm">Aucune personne autorisée</p>}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
@@ -239,8 +319,49 @@ const Dashboard = () => {
   const role = localStorage.getItem('role');
   const access = localStorage.getItem('categoryAccess') || 'Tous';
   
-  const getSuggestedSlot = () => new Date().getHours() < 13 ? 'MATIN' : 'SOIR';
+  const getSessionStatus = (session) => {
+      if (role === 'admin') return { locked: false, text: 'Admin' };
+      
+      const now = new Date();
+      const time = now.getHours() * 60 + now.getMinutes();
+
+      if (session === 'MATIN') {
+          if (time >= 435 && time <= 525) return { locked: false };
+          return { locked: true, text: '7h15 - 8h45' };
+      }
+      if (session === 'MIDI') {
+          if (time >= 705 && time <= 845) return { locked: false };
+          return { locked: true, text: '11h45 - 14h05' };
+      }
+      if (session === 'SOIR') {
+          if (time >= 975 && time <= 1155) return { locked: false };
+          return { locked: true, text: '16h15 - 19h15' };
+      }
+      return { locked: true, text: 'Fermé' };
+  };
+
   const handleLogout = () => { localStorage.clear(); window.location.href = '/'; };
+
+  const SessionButton = ({ title, icon: Icon, type, colorClass }) => {
+      const status = getSessionStatus(type);
+      return (
+          <button 
+              onClick={() => !status.locked && navigate(`/session/${format(new Date(), 'yyyy-MM-dd')}/${type}`)} 
+              disabled={status.locked}
+              className={`group relative p-8 rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all bg-white 
+                  ${status.locked ? 'opacity-50 cursor-not-allowed border-slate-100 bg-slate-50' : `border-${colorClass} hover:shadow-2xl hover:-translate-y-1 shadow-lg shadow-${colorClass}/10`}`}
+          >
+              {!status.locked && <div className={`absolute top-4 right-4 w-3 h-3 rounded-full bg-${colorClass} opacity-50 group-hover:animate-ping`}></div>}
+              {status.locked && <div className="absolute top-4 right-4 text-slate-400"><Lock size={20}/></div>}
+              
+              <div className={`p-5 rounded-3xl mb-4 ${status.locked ? 'bg-slate-200 text-slate-400' : `bg-${colorClass}/10 text-${colorClass} group-hover:scale-110`} transition-transform`}>
+                  <Icon strokeWidth={2.5} size={40} />
+              </div>
+              <span className={`font-black text-xl uppercase tracking-wider ${status.locked ? 'text-slate-400' : 'text-car-dark'}`}>{title}</span>
+              {status.locked && <span className="text-xs font-bold text-slate-400 mt-2 bg-slate-200 px-3 py-1 rounded-lg">{status.text}</span>}
+          </button>
+      );
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -261,24 +382,14 @@ const Dashboard = () => {
                 <span className="ml-auto text-sm font-bold text-car-dark">{format(new Date(), 'EEEE d MMMM', { locale: fr })}</span>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 md:gap-6">
-                <button onClick={() => navigate(`/session/${format(new Date(), 'yyyy-MM-dd')}/MATIN`)} 
-                className={`group relative p-8 rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all bg-white hover:shadow-2xl hover:-translate-y-1 ${getSuggestedSlot() === 'MATIN' ? 'border-car-yellow shadow-lg shadow-car-yellow/10' : 'border-slate-100'}`}>
-                    <div className="absolute top-4 right-4 w-3 h-3 rounded-full bg-car-yellow opacity-50 group-hover:animate-ping"></div>
-                    <div className="p-5 rounded-3xl mb-4 bg-car-yellow/10 text-car-yellow group-hover:scale-110 transition-transform"><Sun strokeWidth={2.5} size={40} /></div>
-                    <span className="font-black text-car-dark text-xl uppercase tracking-wider">Matin</span>
-                </button>
-
-                <button onClick={() => navigate(`/session/${format(new Date(), 'yyyy-MM-dd')}/SOIR`)} 
-                className={`group relative p-8 rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all bg-white hover:shadow-2xl hover:-translate-y-1 ${getSuggestedSlot() === 'SOIR' ? 'border-car-blue shadow-lg shadow-car-blue/10' : 'border-slate-100'}`}>
-                    <div className="absolute top-4 right-4 w-3 h-3 rounded-full bg-car-blue opacity-50 group-hover:animate-ping"></div>
-                    <div className="p-5 rounded-3xl mb-4 bg-car-blue/10 text-car-blue group-hover:scale-110 transition-transform"><Moon strokeWidth={2.5} size={40} /></div>
-                    <span className="font-black text-car-dark text-xl uppercase tracking-wider">Soir</span>
-                </button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                <SessionButton title="Matin" icon={Sun} type="MATIN" colorClass="car-yellow" />
+                <SessionButton title="Midi (Cantine)" icon={Utensils} type="MIDI" colorClass="car-teal" />
+                <SessionButton title="Soir" icon={Moon} type="SOIR" colorClass="car-blue" />
             </div>
         </section>
 
-        {role === 'admin' && (
+        {(role === 'admin' || role === 'responsable') && (
           <section className="pt-6 border-t border-slate-200 border-dashed">
             <div className="flex items-center gap-3 mb-6 ml-2">
                 <div className="h-2 w-2 rounded-full bg-car-purple"></div>
@@ -286,26 +397,32 @@ const Dashboard = () => {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <button onClick={() => navigate('/report')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                    <div className="bg-car-teal/10 p-4 rounded-2xl w-fit group-hover:bg-car-teal group-hover:text-white text-car-teal transition-colors"><FileText size={24} strokeWidth={2.5}/></div>
-                    <div><h3 className="font-black text-car-dark text-lg">Rapports</h3><p className="text-xs text-slate-500 font-medium mt-1">Historique & PDF</p></div>
-                </button>
+                
                 <button onClick={() => navigate('/admin/children')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-green/10 p-4 rounded-2xl w-fit group-hover:bg-car-green group-hover:text-white text-car-green transition-colors"><Users size={24} strokeWidth={2.5}/></div>
-                    <div><h3 className="font-black text-car-dark text-lg">Enfants</h3><p className="text-xs text-slate-500 font-medium mt-1">Base de données</p></div>
+                    <div><h3 className="font-black text-car-dark text-lg">Enfants & Fiches</h3><p className="text-xs text-slate-500 font-medium mt-1">Base de données, PAI...</p></div>
                 </button>
-                <button onClick={() => navigate('/admin/users')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                    <div className="bg-car-purple/10 p-4 rounded-2xl w-fit group-hover:bg-car-purple group-hover:text-white text-car-purple transition-colors"><Shield size={24} strokeWidth={2.5}/></div>
-                    <div><h3 className="font-black text-car-dark text-lg">Équipe</h3><p className="text-xs text-slate-500 font-medium mt-1">Accès & Rôles</p></div>
-                </button>
-                <button onClick={() => navigate('/admin/planned-notes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                    <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
-                    <div><h3 className="font-black text-car-dark text-lg">Notes plannifiées</h3><p className="text-xs text-slate-500 font-medium mt-1">& notes récurrentes</p></div>
-                </button>
-                <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                    <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Banknote size={24} strokeWidth={2.5}/></div>
-                    <div><h3 className="font-black text-car-dark text-lg">Info de Facturation</h3><p className="text-xs text-slate-500 font-medium mt-1">Payeurs séparés</p></div>
-                </button>
+
+                {role === 'admin' && (
+                    <>
+                        <button onClick={() => navigate('/report')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                            <div className="bg-car-teal/10 p-4 rounded-2xl w-fit group-hover:bg-car-teal group-hover:text-white text-car-teal transition-colors"><FileText size={24} strokeWidth={2.5}/></div>
+                            <div><h3 className="font-black text-car-dark text-lg">Rapports & Listes</h3><p className="text-xs text-slate-500 font-medium mt-1">Historique & PDF</p></div>
+                        </button>
+                        <button onClick={() => navigate('/admin/users')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                            <div className="bg-car-purple/10 p-4 rounded-2xl w-fit group-hover:bg-car-purple group-hover:text-white text-car-purple transition-colors"><Shield size={24} strokeWidth={2.5}/></div>
+                            <div><h3 className="font-black text-car-dark text-lg">Équipe</h3><p className="text-xs text-slate-500 font-medium mt-1">Accès & Rôles</p></div>
+                        </button>
+                        <button onClick={() => navigate('/admin/planned-notes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                            <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
+                            <div><h3 className="font-black text-car-dark text-lg">Notes plannifiées</h3><p className="text-xs text-slate-500 font-medium mt-1">& notes récurrentes</p></div>
+                        </button>
+                        <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                            <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Banknote size={24} strokeWidth={2.5}/></div>
+                            <div><h3 className="font-black text-car-dark text-lg">Facturation</h3><p className="text-xs text-slate-500 font-medium mt-1">Payeurs séparés</p></div>
+                        </button>
+                    </>
+                )}
             </div>
           </section>
         )}
@@ -314,236 +431,20 @@ const Dashboard = () => {
   );
 };
 
-// --- MODULE ADMIN : NOTES PLANIFIÉES ---
-const PlannedNotesManager = () => {
-    const [children, setChildren] = useState([]);
-    const [search, setSearch] = useState('');
-    const [selectedChild, setSelectedChild] = useState(null);
-    const [plannedNotes, setPlannedNotes] = useState([]);
-    
-    const [newNote, setNewNote] = useState('');
-    const [selectedDates, setSelectedDates] = useState([]);
 
-    const navigate = useNavigate();
-
-    useEffect(() => { axios.get(`${API_URL}/children`).then(res => setChildren(res.data)); }, []);
-
-    const filteredSearch = useMemo(() => {
-        if (search.length < 2) return [];
-        return children.filter(c => c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase()));
-    }, [children, search]);
-
-    const selectChild = async (child) => {
-        setSelectedChild(child); setSearch(''); loadNotes(child._id);
-    };
-
-    const loadNotes = async (childId) => {
-        const { data } = await axios.get(`${API_URL}/planned-notes/child/${childId}`);
-        setPlannedNotes(data);
-    };
-
-    const handleAddNote = async (e) => {
-        e.preventDefault();
-        if(selectedDates.length === 0) return alert("Veuillez sélectionner au moins une date.");
-        await axios.post(`${API_URL}/planned-notes`, { childId: selectedChild._id, note: newNote, dates: selectedDates });
-        setNewNote(''); setSelectedDates([]); loadNotes(selectedChild._id);
-    };
-
-    const handleDeleteNote = async (id) => {
-        if(window.confirm("Supprimer cette note planifiée ?")) {
-            await axios.delete(`${API_URL}/planned-notes/${id}`);
-            loadNotes(selectedChild._id);
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-slate-50 flex flex-col">
-            <div className="bg-white shadow-sm z-20 sticky top-0 p-4 border-b border-slate-100 flex items-center gap-4">
-                <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
-                <div className="flex items-center gap-2"><CalendarDays className="text-car-pink"/><h1 className="font-black text-car-dark text-xl">Notes Planifiées</h1></div>
-            </div>
-
-            <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
-                <div className="relative">
-                    <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
-                    <input type="text" className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-pink/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg" placeholder="Rechercher un enfant..." value={search} onChange={e => setSearch(e.target.value)} />
-                    {search.length >= 2 && (
-                        <div className="bg-white shadow-2xl rounded-2xl max-h-60 overflow-y-auto absolute w-full mt-2 z-30 border border-slate-100">
-                            {filteredSearch.map(child => (
-                                <div key={child._id} onClick={() => selectChild(child)} className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
-                                    <span className="font-black text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {selectedChild && (
-                    <div className="bg-slate-100 rounded-[2rem] p-2">
-                        <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2 flex items-center gap-4">
-                            <div className="bg-car-pink/10 p-3 rounded-xl text-car-pink"><Users size={24}/></div>
-                            <div>
-                                <h2 className="text-2xl font-black text-car-dark">{selectedChild.lastName} {selectedChild.firstName}</h2>
-                                <span className="text-xs font-bold text-slate-400 uppercase">{selectedChild.category || 'Maternelle'}</span>
-                            </div>
-                        </div>
-
-                        {plannedNotes.length > 0 && (
-                            <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
-                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Notes existantes</h3>
-                                <div className="space-y-3">
-                                    {plannedNotes.map(pn => (
-                                        <div key={pn._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                            <div>
-                                                <div className="font-bold text-car-dark mb-1">{pn.note}</div>
-                                                <div className="text-xs text-slate-500 font-medium">Pour {pn.dates.length} date(s)</div>
-                                            </div>
-                                            <button onClick={() => handleDeleteNote(pn._id)} className="text-slate-300 hover:text-car-pink bg-white p-2 rounded-lg shadow-sm transition-colors"><Trash2 size={20}/></button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <form onSubmit={handleAddNote} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
-                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Ajouter une info</h3>
-                                <textarea className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-pink/20 outline-none font-medium text-car-dark resize-none flex-1 mb-4" placeholder="Ex: Part avec Mamie à 16h30..." value={newNote} onChange={e => setNewNote(e.target.value)} required></textarea>
-                                <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2"><Check size={20}/> ENREGISTRER</button>
-                            </form>
-                            <InteractiveCalendar selectedDates={selectedDates} onChange={setSelectedDates} />
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-
-// --- NOUVEAU MODULE ADMIN : FACTURATION ALTERNÉE (DRY total !) ---
-const BillingManager = () => {
-    const [children, setChildren] = useState([]);
-    const [search, setSearch] = useState('');
-    const [selectedChild, setSelectedChild] = useState(null);
-    const [billings, setBillings] = useState([]);
-    
-    const [billTo, setBillTo] = useState('');
-    const [selectedDates, setSelectedDates] = useState([]);
-
-    const navigate = useNavigate();
-
-    useEffect(() => { axios.get(`${API_URL}/children`).then(res => setChildren(res.data)); }, []);
-
-    const filteredSearch = useMemo(() => {
-        if (search.length < 2) return [];
-        return children.filter(c => c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase()));
-    }, [children, search]);
-
-    const selectChild = async (child) => {
-        setSelectedChild(child); setSearch(''); loadBillings(child._id);
-    };
-
-    const loadBillings = async (childId) => {
-        const { data } = await axios.get(`${API_URL}/billing/child/${childId}`);
-        setBillings(data);
-    };
-
-    const handleAddBilling = async (e) => {
-        e.preventDefault();
-        if(selectedDates.length === 0) return alert("Veuillez sélectionner au moins une date.");
-        await axios.post(`${API_URL}/billing`, { childId: selectedChild._id, billTo, dates: selectedDates });
-        setBillTo(''); setSelectedDates([]); loadBillings(selectedChild._id);
-    };
-
-    const handleDeleteBilling = async (id) => {
-        if(window.confirm("Supprimer cette règle de facturation ?")) {
-            await axios.delete(`${API_URL}/billing/${id}`);
-            loadBillings(selectedChild._id);
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-slate-50 flex flex-col">
-            <div className="bg-white shadow-sm z-20 sticky top-0 p-4 border-b border-slate-100 flex items-center gap-4">
-                <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
-                <div className="flex items-center gap-2"><Banknote className="text-car-blue"/><h1 className="font-black text-car-dark text-xl">Facturation Alternée</h1></div>
-            </div>
-
-            <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
-                <div className="relative">
-                    <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
-                    <input type="text" className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-blue/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg" placeholder="Rechercher un enfant..." value={search} onChange={e => setSearch(e.target.value)} />
-                    {search.length >= 2 && (
-                        <div className="bg-white shadow-2xl rounded-2xl max-h-60 overflow-y-auto absolute w-full mt-2 z-30 border border-slate-100">
-                            {filteredSearch.map(child => (
-                                <div key={child._id} onClick={() => selectChild(child)} className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
-                                    <span className="font-black text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {selectedChild && (
-                    <div className="bg-slate-100 rounded-[2rem] p-2">
-                        <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2 flex items-center gap-4">
-                            <div className="bg-car-blue/10 p-3 rounded-xl text-car-blue"><Users size={24}/></div>
-                            <div>
-                                <h2 className="text-2xl font-black text-car-dark">{selectedChild.lastName} {selectedChild.firstName}</h2>
-                                <span className="text-xs font-bold text-slate-400 uppercase">{selectedChild.category || 'Maternelle'}</span>
-                            </div>
-                        </div>
-
-                        {billings.length > 0 && (
-                            <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
-                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Règles actives</h3>
-                                <div className="space-y-3">
-                                    {billings.map(b => (
-                                        <div key={b._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                            <div>
-                                                <div className="font-bold text-car-blue mb-1">À facturer à : {b.billTo}</div>
-                                                <div className="text-xs text-slate-500 font-medium">Appliqué sur {b.dates.length} date(s)</div>
-                                            </div>
-                                            <button onClick={() => handleDeleteBilling(b._id)} className="text-slate-300 hover:text-car-pink bg-white p-2 rounded-lg shadow-sm transition-colors"><Trash2 size={20}/></button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <form onSubmit={handleAddBilling} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
-                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Nouvelle Règle</h3>
-                                <input type="text" className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-blue/20 outline-none font-bold text-car-dark mb-4" placeholder="Nom à facturer (Ex: Maman, Papa...)" value={billTo} onChange={e => setBillTo(e.target.value)} required />
-                                <p className="text-xs text-slate-400 font-medium mb-4 flex-1">Sélectionnez les dates dans le calendrier à côté. Cette mention apparaîtra dans le rapport pour l'aide à la facturation.</p>
-                                <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2"><Check size={20}/> APPLIQUER</button>
-                            </form>
-                            <InteractiveCalendar selectedDates={selectedDates} onChange={setSelectedDates} />
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-
-// 3. SESSION / LISTE DE PRÉSENCE (AVEC MODE HORS-LIGNE)
+// 3. SESSION / LISTE DE PRÉSENCE
 const SessionView = () => {
     const { date, type } = useParams();
+    const role = localStorage.getItem('role');
     const [children, setChildren] = useState([]); 
     const [attendance, setAttendance] = useState([]); 
-    
-    // NOUVEAU : On stocke l'historique du matin pour la session du soir
     const [amAttendance, setAmAttendance] = useState([]); 
-
     const [search, setSearch] = useState('');
     
-    // NOUVEAU : noteModal gère maintenant l'info du matin séparément
     const [noteModal, setNoteModal] = useState({ show: false, attendanceId: null, text: '', amNote: '' });
     const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, text: '', name: '', color: '' });
     const [plannedNotes, setPlannedNotes] = useState([]);
+    const [childInfoToView, setChildInfoToView] = useState(null); 
 
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [pendingSync, setPendingSync] = useState(0);
@@ -553,10 +454,22 @@ const SessionView = () => {
     const [categoryFilter, setCategoryFilter] = useState(access);
 
     const isMatin = type === 'MATIN';
-    const themeColor = isMatin ? 'car-yellow' : 'car-blue';
+    const isMidi = type === 'MIDI'; 
+    const themeColor = isMatin ? 'car-yellow' : (isMidi ? 'car-teal' : 'car-blue');
     const postItColors = ['bg-car-blue', 'bg-car-yellow', 'bg-car-teal', 'bg-car-pink', 'bg-car-green'];
 
-    // --- LOGIQUE DE SYNCHRONISATION ---
+    useEffect(() => {
+        if (role !== 'admin') {
+            const now = new Date();
+            const time = now.getHours() * 60 + now.getMinutes();
+            let locked = true;
+            if (type === 'MATIN' && time >= 435 && time <= 525) locked = false;
+            if (type === 'MIDI' && time >= 705 && time <= 845) locked = false;
+            if (type === 'SOIR' && time >= 975 && time <= 1155) locked = false;
+            if (locked) navigate('/');
+        }
+    }, [type, role, navigate]);
+
     const syncOfflineActions = async () => {
         const queueStr = localStorage.getItem('syncQueue');
         if (!queueStr) return;
@@ -592,18 +505,14 @@ const SessionView = () => {
             loadLocalFallback();
             return;
         }
-
         try {
-            // NOUVEAU : Si on est le SOIR, on demande aussi silencieusement la liste du MATIN
             const [kidsRes, attRes, amAttRes, notesRes] = await Promise.all([
                 axios.get(`${API_URL}/children`), 
                 axios.get(`${API_URL}/attendance?date=${date}&sessionType=${type}`),
                 type === 'SOIR' ? axios.get(`${API_URL}/attendance?date=${date}&sessionType=MATIN`) : Promise.resolve({ data: [] }),
                 axios.get(`${API_URL}/planned-notes/date?date=${date}`)
             ]);
-            
             setIsOnline(true); 
-            
             setChildren(kidsRes.data); 
             setAttendance(attRes.data);
             setAmAttendance(amAttRes.data);
@@ -616,37 +525,30 @@ const SessionView = () => {
             
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             setPendingSync(queue.length);
-
         } catch (error) {
             setIsOnline(false); 
             loadLocalFallback();
         }
     };
 
-    // --- BOUCLE PRINCIPALE ---
     useEffect(() => { 
         let isMounted = true;
         let timeoutId;
-
         const loop = async () => {
             if (!isMounted) return;
             await loadData();
-            
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             if (navigator.onLine && queue.length > 0) {
                 await syncOfflineActions();
             } else {
                 setPendingSync(queue.length);
             }
-
             timeoutId = setTimeout(loop, 5000);
         };
-
         loop();
 
         const handleOnline = () => { setIsOnline(true); syncOfflineActions(); };
         const handleOffline = () => { setIsOnline(false); };
-
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
@@ -658,13 +560,11 @@ const SessionView = () => {
         };
     }, [date, type]);
 
-    // --- GESTIONNAIRE D'ACTIONS HORS-LIGNE ---
     const processAction = async (actionDef, optimisticUpdate) => {
         const timestamp = Date.now();
         const action = { ...actionDef, timestamp, date, sessionType: type };
 
         setAttendance(prev => optimisticUpdate(prev, timestamp));
-
         const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
         queue.push(action);
         localStorage.setItem('syncQueue', JSON.stringify(queue));
@@ -674,13 +574,9 @@ const SessionView = () => {
             localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(currentAtt));
             return currentAtt;
         });
-
-        if (navigator.onLine) {
-            syncOfflineActions();
-        }
+        if (navigator.onLine) syncOfflineActions();
     };
 
-    // --- ACTIONS DE POINTAGE ---
     const handleCheckIn = (childId) => {
         const childObj = children.find(c => c._id === childId);
         processAction(
@@ -693,9 +589,8 @@ const SessionView = () => {
     const handleCheckOut = (recordId) => {
         const record = attendance.find(a => a._id === recordId);
         if (!record) return;
-        
         const limit = new Date(); limit.setHours(18, 35, 0, 0);
-        const isLate = new Date() > limit;
+        const isLate = type === 'SOIR' ? (new Date() > limit) : false; 
 
         processAction(
             { type: 'CHECK_OUT', childId: record.child._id },
@@ -716,7 +611,8 @@ const SessionView = () => {
     const handleDeleteCheckIn = (recordId) => {
         const record = attendance.find(a => a._id === recordId);
         if (!record) return;
-        if(window.confirm("Annuler la présence ?")) {
+        const msg = isMidi ? "Annuler l'absence de cet enfant (le remettre présent) ?" : "Annuler la présence ?";
+        if(window.confirm(msg)) {
             processAction(
                 { type: 'DELETE', childId: record.child._id },
                 (prev) => prev.filter(a => a._id !== recordId)
@@ -761,7 +657,6 @@ const SessionView = () => {
     const activeCount = filteredAttendance.filter(a => !a.checkOut).length;
     const totalCount = filteredAttendance.length;
 
-    // NOUVEAU : Au départ, on fusionne les deux notes pour la transmission
     const handleDepartureClick = (record) => {
         const amRecord = type === 'SOIR' ? amAttendance.find(a => a.child._id === record.child._id) : null;
         const amNote = amRecord?.note || '';
@@ -797,7 +692,7 @@ const SessionView = () => {
                                 <Wifi size={16}/> {pendingSync > 0 ? `${pendingSync} en attente...` : 'En ligne'}
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2 text-car-pink bg-car-pink/10 px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse" title="Mode hors-ligne actif. Vos actions sont sauvegardées.">
+                            <div className="flex items-center gap-2 text-car-pink bg-car-pink/10 px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse" title="Mode hors-ligne actif.">
                                 <WifiOff size={16}/> HORS-LIGNE ({pendingSync})
                             </div>
                         )}
@@ -805,14 +700,14 @@ const SessionView = () => {
                     </div>
 
                     <div className={`bg-${themeColor}/10 text-${themeColor} px-5 py-2 rounded-full font-black text-sm tracking-widest w-full sm:w-auto text-center`}>
-                        {type} • {activeCount} / {totalCount} PRÉSENTS
+                        {type} • {isMidi ? `${totalCount} ABSENTS` : `${activeCount} / ${totalCount} PRÉSENTS`}
                     </div>
                 </div>
                 <div className="p-4 bg-white border-b border-slate-100">
                     <div className="relative max-w-4xl mx-auto">
                         <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
                         <input type="text" className={`w-full pl-14 p-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-${themeColor} outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg`}
-                            placeholder="Rechercher pour pointer une arrivée ou un départ..." value={search} onChange={e => setSearch(e.target.value)} />
+                            placeholder={isMidi ? "Rechercher un enfant pour le marquer ABSENT à la cantine..." : "Rechercher pour pointer une arrivée ou un départ..."} value={search} onChange={e => setSearch(e.target.value)} />
                     </div>
                 </div>
             </div>
@@ -826,16 +721,24 @@ const SessionView = () => {
                             const isGone = isPresent && !!attendanceRecord.checkOut;
 
                             return (
-                                <div key={child._id} 
-                                    onClick={() => {
+                                <div key={child._id} className="p-5 border-b border-slate-50 flex justify-between items-center hover:bg-slate-50 transition-colors group">
+                                    <div className="flex items-center gap-3">
+                                        <button onClick={() => setChildInfoToView(child)} className="text-slate-300 hover:text-car-blue bg-white p-2 rounded-full shadow-sm border border-slate-100 transition-colors">
+                                            <Info size={20}/>
+                                        </button>
+                                        <span className="font-black text-xl text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                        {child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
+                                    </div>
+                                    
+                                    <div onClick={() => {
                                         if (!isPresent) handleCheckIn(child._id);
-                                        else if (!isGone && !isMatin) handleDepartureClick(attendanceRecord);
-                                    }} 
-                                    className="p-5 border-b border-slate-50 flex justify-between items-center hover:bg-slate-50 cursor-pointer transition-colors group">
-                                    <span className="font-black text-xl text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                    {!isPresent && <span className={`bg-${themeColor} text-white text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity tracking-wider`}>+ AJOUTER</span>}
-                                    {isPresent && !isGone && !isMatin && <span className="bg-car-dark text-white text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity tracking-wider">DÉPART</span>}
-                                    {isGone && <span className="text-slate-400 text-xs font-bold px-4 py-2 rounded-xl">Déjà parti</span>}
+                                        else if (!isGone && !isMatin && !isMidi) handleDepartureClick(attendanceRecord);
+                                    }} className="cursor-pointer">
+                                        {!isPresent && <span className={`bg-${themeColor} text-white text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity tracking-wider`}>{isMidi ? 'MARQUER ABSENT' : '+ AJOUTER'}</span>}
+                                        {isPresent && !isGone && !isMatin && !isMidi && <span className="bg-car-dark text-white text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity tracking-wider">DÉPART</span>}
+                                        {isGone && !isMidi && <span className="text-slate-400 text-xs font-bold px-4 py-2 rounded-xl">Déjà parti</span>}
+                                        {isPresent && isMidi && <span className="text-slate-400 text-xs font-bold px-4 py-2 rounded-xl">Déjà noté absent</span>}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -848,7 +751,6 @@ const SessionView = () => {
                     const isGone = !!record.checkOut;
                     const childNotes = plannedNotes.filter(pn => pn.child === record.child._id);
 
-                    // NOUVEAU : On vérifie s'il y a une note le matin
                     const amRecord = type === 'SOIR' ? amAttendance.find(a => a.child._id === record.child._id) : null;
                     const amNote = amRecord?.note || '';
                     const hasAnyNote = record.note || (type === 'SOIR' && amNote);
@@ -857,12 +759,13 @@ const SessionView = () => {
                         <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-white/50 border border-slate-200' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100'}`}>
                             <div className="w-full sm:w-auto">
                                 <div className={`font-black text-xl flex items-center gap-2 ${isGone ? 'text-slate-400 line-through decoration-slate-300' : 'text-car-dark'}`}>
+                                    <button onClick={() => setChildInfoToView(record.child)} className="text-slate-300 hover:text-car-blue mr-2 transition-colors"><Info size={20}/></button>
                                     {record.child.lastName} <span className="font-medium">{record.child.firstName}</span>
-                                    {/* Clignotement actif s'il y a N'IMPORTE QUELLE note (matin ou soir) */}
-                                    {hasAnyNote && !isGone && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
+                                    {record.child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
+                                    {hasAnyNote && !isGone && !isMidi && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
                                 </div>
                                 
-                                {!isGone && childNotes.length > 0 && (
+                                {!isGone && childNotes.length > 0 && !isMidi && (
                                     <div className="flex flex-col gap-1 mt-1">
                                         {childNotes.map(pn => (
                                             <div key={pn._id} className="flex items-center gap-1.5 text-car-pink bg-car-pink/10 px-2 py-0.5 rounded-md text-xs font-bold w-fit">
@@ -873,20 +776,21 @@ const SessionView = () => {
                                 )}
 
                                 <div className="flex items-center gap-2 mt-2">
-                                    {isGone && <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">Parti à {format(new Date(record.checkOut), 'HH:mm')}</span>}
-                                    {record.isLate && <span className="text-xs font-bold text-white bg-car-pink px-3 py-1 rounded-lg"> +19h</span>}
+                                    {isMidi && <span className="text-xs font-bold text-car-teal bg-car-teal/10 px-3 py-1 rounded-lg uppercase tracking-widest">Absent Cantine</span>}
+                                    {isGone && !isMidi && <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">Parti à {format(new Date(record.checkOut), 'HH:mm')}</span>}
+                                    {record.isLate && !isMidi && <span className="text-xs font-bold text-white bg-car-pink px-3 py-1 rounded-lg"> +19h</span>}
                                 </div>
                             </div>
                             
                             <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                                {!isGone && (
-                                    // On passe la note du matin dans le state du modal
+                                {!isGone && !isMidi && (
                                     <button onClick={() => setNoteModal({ show: true, attendanceId: record._id, text: record.note || '', amNote: amNote })} 
                                         className={`p-3 rounded-2xl transition-colors ${hasAnyNote ? 'bg-car-yellow/20 text-car-yellow hover:bg-car-yellow/30' : 'bg-slate-50 text-slate-400 hover:text-car-yellow hover:bg-slate-100'}`} title="Ajouter un post-it">
                                         <StickyNote size={22}/>
                                     </button>
                                 )}
-                                {!isMatin && (
+                                
+                                {!isMatin && !isMidi && (
                                     !isGone ? (
                                         <button onClick={() => handleDepartureClick(record)} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black active:scale-95 transition-all shadow-lg shadow-car-dark/20 relative">
                                             DÉPART
@@ -896,14 +800,19 @@ const SessionView = () => {
                                         <button onClick={() => handleUndoCheckOut(record._id)} className="bg-slate-100 text-slate-500 p-3 rounded-2xl hover:bg-slate-200 transition-colors" title="Annuler le départ"><RotateCcw size={22}/></button>
                                     )
                                 )}
-                                {(!isGone || isMatin) && (
-                                    <button onClick={() => handleDeleteCheckIn(record._id)} className="text-slate-300 hover:text-car-pink p-2 rounded-xl transition-colors"><Trash2 size={24}/></button>
+
+                                {(!isGone || isMatin || isMidi) && (
+                                    <button onClick={() => handleDeleteCheckIn(record._id)} className={`p-2 rounded-xl transition-colors ${isMidi ? 'bg-car-teal/10 text-car-teal hover:bg-car-teal hover:text-white px-4 font-bold text-sm' : 'text-slate-300 hover:text-car-pink'}`}>
+                                        {isMidi ? "ANNULER L'ABSENCE" : <Trash2 size={24}/>}
+                                    </button>
                                 )}
                             </div>
                         </div>
                     );
                 })}
             </div>
+
+            <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
 
             {noteModal.show && (
                 <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -912,15 +821,12 @@ const SessionView = () => {
                             <h3 className="text-2xl font-black text-car-dark">Note / Info</h3>
                             <button onClick={() => setNoteModal({...noteModal, show: false})} className="text-slate-400 hover:text-car-dark"><X size={24}/></button>
                         </div>
-                        
-                        {/* NOUVEAU : Affichage en lecture seule de la note du matin */}
                         {noteModal.amNote && (
                             <div className="mb-4 p-4 bg-car-yellow/10 border border-car-yellow/30 rounded-2xl text-sm font-medium text-car-dark">
                                 <span className="font-black text-car-yellow uppercase tracking-widest text-xs block mb-1">Transmis ce matin :</span>
                                 {noteModal.amNote}
                             </div>
                         )}
-
                         <textarea className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl focus:border-car-yellow outline-none min-h-[120px] font-medium text-car-dark" 
                             placeholder={noteModal.amNote ? "Ajouter une info pour le soir..." : "Ex: S'est fait mal au genou..."} 
                             value={noteModal.text} 
@@ -954,139 +860,66 @@ const SessionView = () => {
     );
 };
 
-// 4. ADMIN USERS
-const UserManager = () => {
-    const [users, setUsers] = useState([]);
-    const [newUser, setNewUser] = useState({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
-    const navigate = useNavigate();
-
-    useEffect(() => { loadUsers(); }, []);
-    const loadUsers = async () => { const { data } = await axios.get(`${API_URL}/users`); setUsers(data); };
-
-    const handleAdd = async (e) => {
-        e.preventDefault();
-        try {
-            await axios.post(`${API_URL}/users`, newUser);
-            setNewUser({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
-            loadUsers();
-        } catch (e) { alert("Erreur."); }
-    };
-
-    return (
-        <div className="min-h-screen bg-slate-50 p-6 md:p-10">
-            <div className="max-w-4xl mx-auto">
-                <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
-                <div className="flex items-center gap-4 mb-10">
-                    <div className="bg-car-purple/10 p-4 rounded-2xl"><Shield className="text-car-purple w-8 h-8"/></div>
-                    <h1 className="text-4xl font-black text-car-dark">Équipe & Accès</h1>
-                </div>
-
-                <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 grid grid-cols-1 md:grid-cols-5 gap-4">
-                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-purple/20 outline-none font-bold text-car-dark" placeholder="Nom d'utilisateur" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} required/>
-                    <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-purple/20 outline-none font-bold text-car-dark" placeholder="Mot de passe" type="text" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} required/>
-                    <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-purple/20" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
-                        <option value="staff">Staff (Anim)</option>
-                        <option value="admin">Admin (Dir)</option>
-                    </select>
-                    <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-purple/20" value={newUser.categoryAccess} onChange={e => setNewUser({...newUser, categoryAccess: e.target.value})}>
-                        <option value="Tous">Accès: Tous</option>
-                        <option value="Maternelle">Accès: Maternelle</option>
-                        <option value="Élémentaire">Accès: Élémentaire</option>
-                    </select>
-                    <button type="submit" className="bg-car-purple text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-purple/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><UserPlus size={22}/> CRÉER</button>
-                </form>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {users.map(u => (
-                        <div key={u._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center">
-                            <div className="flex items-center gap-4">
-                                <div className={`p-3 rounded-2xl ${u.role === 'admin' ? 'bg-car-purple/10 text-car-purple' : 'bg-slate-100 text-slate-400'}`}>
-                                    {u.role === 'admin' ? <Shield size={24}/> : <Users size={24}/>}
-                                </div>
-                                <div>
-                                    <span className="font-black text-car-dark text-xl block">{u.username}</span>
-                                    <div className="flex gap-2 mt-1">
-                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{u.role}</span>
-                                        <span className="text-xs font-bold text-car-teal bg-car-teal/10 px-2 py-0.5 rounded-md uppercase tracking-widest">{u.categoryAccess || 'Tous'}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button onClick={async () => { if(window.confirm("Supprimer ?")) { await axios.delete(`${API_URL}/users/${u._id}`); loadUsers(); } }} className="text-slate-300 hover:text-car-pink p-2 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// 5. ADMIN ENFANTS
+// 4. ADMIN ENFANTS 
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
+    const role = localStorage.getItem('role');
+    const isReadOnly = role !== 'admin'; 
     
-    // Mode Ajout Simple
-    const [newChild, setNewChild] = useState({ firstName: '', lastName: '', category: 'Maternelle' });
+    const [newChild, setNewChild] = useState({ 
+        firstName: '', lastName: '', category: 'Maternelle' 
+    });
     
-    // Mode Ajout Groupé (Copier-Coller)
     const [isBulkMode, setIsBulkMode] = useState(false);
     const [bulkText, setBulkText] = useState('');
-    const [bulkCategory, setBulkCategory] = useState('Élémentaire'); // Élémentaire par défaut
+    const [bulkCategory, setBulkCategory] = useState('Élémentaire');
     const [isImporting, setIsImporting] = useState(false);
 
-    // Mode Édition
     const [editingId, setEditingId] = useState(null);
-    const [editForm, setEditForm] = useState({ firstName: '', lastName: '', category: 'Maternelle' });
+    const [editForm, setEditForm] = useState({});
     
+    const [childInfoToView, setChildInfoToView] = useState(null);
+
     const navigate = useNavigate();
 
     useEffect(() => { loadChildren(); }, []);
     const loadChildren = () => axios.get(`${API_URL}/children`).then(res => setChildren(res.data));
 
-    // Ajout d'un seul enfant
     const handleAdd = async (e) => {
         e.preventDefault();
+        if (isReadOnly) return;
         await axios.post(`${API_URL}/children`, newChild);
         setNewChild({ firstName: '', lastName: '', category: 'Maternelle' });
         loadChildren();
     };
 
-    // Ajout groupé depuis un copier-coller
     const handleBulkSubmit = async (e) => {
         e.preventDefault();
-        if (!bulkText.trim()) return;
+        if (isReadOnly || !bulkText.trim()) return;
         
         setIsImporting(true);
-        // On sépare par ligne et on nettoie les lignes vides
         const lines = bulkText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         let count = 0;
 
         for (const line of lines) {
-            // Remplace les tabulations (fréquent avec Excel) par des espaces, puis sépare les mots
             const cleanLine = line.replace(/\t/g, ' ');
             const parts = cleanLine.split(/\s+/);
-            
             if (parts.length >= 2) {
-                // On part du principe que le premier mot est le NOM de famille, le reste est le prénom
                 const lastName = parts[0].toUpperCase();
-                const firstName = parts.slice(1).join(' '); // Rejoint les prénoms composés
-                
+                const firstName = parts.slice(1).join(' '); 
                 try {
                     await axios.post(`${API_URL}/children`, { firstName, lastName, category: bulkCategory });
                     count++;
-                } catch (error) {
-                    console.error("Erreur lors de l'ajout de :", line);
-                }
+                } catch (error) { console.error("Erreur", line); }
             }
         }
-        
         setIsImporting(false);
-        alert(`${count} enfant(s) importé(s) avec succès dans la catégorie ${bulkCategory} !`);
-        setBulkText('');
-        setIsBulkMode(false);
-        loadChildren();
+        alert(`${count} enfant(s) importé(s) !`);
+        setBulkText(''); setIsBulkMode(false); loadChildren();
     };
 
     const handleDelete = async (id, nom) => {
+        if(isReadOnly) return;
         if(window.confirm(`Retirer ${nom} ?`)) {
             await axios.delete(`${API_URL}/children/${id}`);
             loadChildren();
@@ -1094,126 +927,221 @@ const ChildrenManager = () => {
     };
 
     const startEdit = (child) => {
+        if(isReadOnly) return;
         setEditingId(child._id);
-        setEditForm({ firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle' });
+        setEditForm({ 
+            firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle',
+            // On initialise au moins un champ vide pour les responsables s'il n'y en a pas
+            responsablesLegaux: child.responsablesLegaux?.length ? child.responsablesLegaux : [{firstName: '', lastName: '', phone: ''}], 
+            personnesAutorisees: child.personnesAutorisees || [],
+            autorisationSortieSeul: child.autorisationSortieSeul || false,
+            hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false,
+            regimeAlimentaire: child.regimeAlimentaire || 'Standard'
+        });
     };
 
     const saveEdit = async (id) => {
+        if(isReadOnly) return;
         await axios.put(`${API_URL}/children/${id}`, editForm);
         setEditingId(null);
         loadChildren();
     };
 
+    // Fonction d'aide pour générer la liste de contacts dans le formulaire
+    const renderContacts = (field, title, minRequired) => (
+        <div>
+            <div className="flex justify-between items-center mb-3">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    {title} {minRequired > 0 && <span className="text-car-pink">*</span>}
+                </label>
+                <button type="button" onClick={() => {
+                    setEditForm(prev => ({...prev, [field]: [...prev[field], {firstName:'', lastName:'', phone:''}]}))
+                }} className="text-xs font-bold text-car-blue bg-car-blue/10 px-3 py-1.5 rounded-lg hover:bg-car-blue hover:text-white transition-colors">+ AJOUTER</button>
+            </div>
+            <div className="space-y-2">
+                {editForm[field].map((contact, index) => (
+                    <div key={index} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                        <input className="bg-white border border-slate-200 p-2.5 rounded-xl text-sm flex-1 uppercase outline-none focus:border-car-green w-full" placeholder="Nom" value={contact.lastName} onChange={e => {
+                            const newArr = [...editForm[field]]; newArr[index].lastName = e.target.value.toUpperCase(); setEditForm({...editForm, [field]: newArr});
+                        }} />
+                        <input className="bg-white border border-slate-200 p-2.5 rounded-xl text-sm flex-1 outline-none focus:border-car-green w-full" placeholder="Prénom" value={contact.firstName} onChange={e => {
+                            const newArr = [...editForm[field]]; newArr[index].firstName = e.target.value; setEditForm({...editForm, [field]: newArr});
+                        }} />
+                        <input className="bg-white border border-slate-200 p-2.5 rounded-xl text-sm flex-1 outline-none focus:border-car-green w-full" placeholder="Téléphone" value={contact.phone} onChange={e => {
+                            const newArr = [...editForm[field]]; newArr[index].phone = e.target.value; setEditForm({...editForm, [field]: newArr});
+                        }} />
+                        {editForm[field].length > minRequired ? (
+                            <button type="button" onClick={() => {
+                                const newArr = editForm[field].filter((_, i) => i !== index); setEditForm({...editForm, [field]: newArr});
+                            }} className="p-2 text-slate-400 hover:bg-car-pink/10 hover:text-car-pink rounded-xl transition-colors"><X size={20}/></button>
+                        ) : <div className="w-9"></div>}
+                    </div>
+                ))}
+                {editForm[field].length === 0 && (
+                    <p className="text-xs text-slate-400 italic">Aucun contact enregistré.</p>
+                )}
+            </div>
+        </div>
+    );
+
     return (
-        <div className="min-h-screen bg-slate-50 p-6 md:p-10">
-            <div className="max-w-4xl mx-auto">
+        <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
+            <div className="max-w-4xl mx-auto pb-20">
                 <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
-                <div className="flex items-center justify-between mb-10">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-10 gap-4">
                     <div className="flex items-center gap-4">
                         <div className="bg-car-green/10 p-4 rounded-2xl"><Users className="text-car-green w-8 h-8"/></div>
-                        <h1 className="text-4xl font-black text-car-dark">Base Enfants</h1>
+                        <div>
+                            <h1 className="text-4xl font-black text-car-dark">Base Enfants</h1>
+                            {isReadOnly && <p className="text-car-pink font-bold text-sm mt-1">Mode Lecture Seule</p>}
+                        </div>
                     </div>
-                    {/* Bouton pour basculer entre Ajout Simple et Ajout Groupé */}
-                    <button 
-                        onClick={() => setIsBulkMode(!isBulkMode)}
-                        className={`font-bold px-4 py-2 rounded-xl transition-all ${isBulkMode ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-car-green/10 text-car-green hover:bg-car-green/20'}`}
-                    >
-                        {isBulkMode ? "Passer en Ajout Simple" : "Ajout Groupé (Liste)"}
-                    </button>
+                    {!isReadOnly && (
+                        <button onClick={() => setIsBulkMode(!isBulkMode)} className={`font-bold px-4 py-2 rounded-xl transition-all ${isBulkMode ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-car-green/10 text-car-green hover:bg-car-green/20'}`}>
+                            {isBulkMode ? "Passer en Ajout Simple" : "Ajout Groupé (Liste)"}
+                        </button>
+                    )}
                 </div>
 
-                {isBulkMode ? (
-                    // FORMULAIRE D'AJOUT GROUPÉ
-                    <form onSubmit={handleBulkSubmit} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col gap-4">
-                        <div className="flex justify-between items-center mb-2">
-                            <div>
-                                <h3 className="font-black text-car-dark text-lg">Importer une liste</h3>
-                                <p className="text-slate-400 text-sm font-medium">Format attendu : 1 enfant par ligne (ex: DUPONT Jean)</p>
+                {!isReadOnly && (
+                    isBulkMode ? (
+                        <form onSubmit={handleBulkSubmit} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col gap-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <div>
+                                    <h3 className="font-black text-car-dark text-lg">Importer une liste</h3>
+                                    <p className="text-slate-400 text-sm font-medium">Format attendu : 1 enfant par ligne (ex: DUPONT Jean)</p>
+                                </div>
+                                <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-green/20" value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>
+                                    <option value="Maternelle">Tous en Maternelle</option>
+                                    <option value="Élémentaire">Tous en Élémentaire</option>
+                                </select>
                             </div>
-                            <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-green/20" value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>
-                                <option value="Maternelle">Tous en Maternelle</option>
-                                <option value="Élémentaire">Tous en Élémentaire</option>
-                            </select>
-                        </div>
-                        <textarea 
-                            className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-medium text-car-dark placeholder:font-bold placeholder:text-slate-400 min-h-[200px] resize-y" 
-                            placeholder={`DUPONT Jean\nMARTIN Sophie\nBERNARD Leo`} 
-                            value={bulkText} 
-                            onChange={e => setBulkText(e.target.value)} 
-                            required
-                            disabled={isImporting}
-                        />
-                        <button type="submit" disabled={isImporting} className="bg-car-dark text-white px-8 py-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                            {isImporting ? "IMPORTATION EN COURS..." : "IMPORTER LA LISTE"}
-                        </button>
-                    </form>
-                ) : (
-                    // FORMULAIRE D'AJOUT SIMPLE (Original)
-                    <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col md:flex-row gap-4">
-                        <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-black text-car-dark placeholder:font-bold placeholder:text-slate-400 flex-1 uppercase" placeholder="NOM" value={newChild.lastName} onChange={e => setNewChild({...newChild, lastName: e.target.value.toUpperCase()})} required/>
-                        <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-bold text-car-dark placeholder:text-slate-400 flex-1" placeholder="Prénom" value={newChild.firstName} onChange={e => setNewChild({...newChild, firstName: e.target.value})} required/>
-                        <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-green/20" value={newChild.category} onChange={e => setNewChild({...newChild, category: e.target.value})}>
-                            <option value="Maternelle">Maternelle</option>
-                            <option value="Élémentaire">Élémentaire</option>
-                        </select>
-                        <button type="submit" className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-green/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><Plus strokeWidth={3}/> AJOUTER</button>
-                    </form>
+                            <textarea className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-medium text-car-dark placeholder:font-bold placeholder:text-slate-400 min-h-[200px] resize-y" placeholder={`DUPONT Jean\nMARTIN Sophie\nBERNARD Leo`} value={bulkText} onChange={e => setBulkText(e.target.value)} required disabled={isImporting} />
+                            <button type="submit" disabled={isImporting} className="bg-car-dark text-white px-8 py-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {isImporting ? "IMPORTATION EN COURS..." : "IMPORTER LA LISTE"}
+                            </button>
+                        </form>
+                    ) : (
+                        <form onSubmit={handleAdd} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col gap-4">
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-black text-car-dark placeholder:font-bold placeholder:text-slate-400 flex-1 uppercase" placeholder="NOM" value={newChild.lastName} onChange={e => setNewChild({...newChild, lastName: e.target.value.toUpperCase()})} required/>
+                                <input className="bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-green/20 outline-none font-bold text-car-dark placeholder:text-slate-400 flex-1" placeholder="Prénom" value={newChild.firstName} onChange={e => setNewChild({...newChild, firstName: e.target.value})} required/>
+                                <select className="bg-slate-50 border-none p-4 rounded-2xl font-bold text-car-dark outline-none focus:ring-4 focus:ring-car-green/20" value={newChild.category} onChange={e => setNewChild({...newChild, category: e.target.value})}>
+                                    <option value="Maternelle">Maternelle</option>
+                                    <option value="Élémentaire">Élémentaire</option>
+                                </select>
+                            </div>
+                            <button type="submit" className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-green/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><Plus strokeWidth={3}/> CRÉATION RAPIDE</button>
+                        </form>
+                    )
                 )}
 
-                {/* LISTE DES ENFANTS */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                     {children.map(child => (
-                        <div key={child._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center transition-all hover:shadow-md">
-                            {editingId === child._id ? (
-                                <div className="flex-1 flex flex-col gap-2 mr-4">
-                                    <input className="bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-black text-car-dark w-full uppercase text-sm" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value.toUpperCase()})} />
-                                    <input className="bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-full text-sm" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />
-                                    <select className="bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-full text-sm" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})}>
-                                        <option value="Maternelle">Maternelle</option>
-                                        <option value="Élémentaire">Élémentaire</option>
-                                    </select>
+                        <div key={child._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 transition-all hover:shadow-md">
+                            {editingId === child._id && !isReadOnly ? (
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex gap-4">
+                                        <input className="bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-black text-car-dark w-1/3 uppercase" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value.toUpperCase()})} />
+                                        <input className="bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-1/3" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />
+                                        <select className="bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-car-green/50 outline-none font-bold text-car-dark w-1/3" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})}>
+                                            <option value="Maternelle">Maternelle</option>
+                                            <option value="Élémentaire">Élémentaire</option>
+                                        </select>
+                                    </div>
+                                    
+                                    {/* ZONES DE CONTACTS DYNAMIQUES */}
+                                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl mb-2 mt-2">
+                                        {renderContacts('responsablesLegaux', 'Responsables Légaux', 1)}
+                                        <div className="w-full h-px bg-slate-200 my-6"></div>
+                                        {renderContacts('personnesAutorisees', 'Personnes Autorisées (Hors Parents)', 0)}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                        <label className="flex items-center gap-2 text-sm font-bold text-car-dark cursor-pointer">
+                                            <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editForm.hasPAI} onChange={e => setEditForm({...editForm, hasPAI: e.target.checked})} />
+                                            Enfant sous PAI
+                                        </label>
+                                        {editForm.hasPAI && (
+                                            <>
+                                                <input type="text" className="border border-slate-200 p-2 rounded-lg text-sm w-full outline-none focus:border-car-pink" placeholder="Détails du PAI..." value={editForm.paiDetails} onChange={e => setEditForm({...editForm, paiDetails: e.target.value})} />
+                                                <label className="flex items-center gap-2 text-sm font-bold text-car-pink cursor-pointer">
+                                                    <input type="checkbox" className="w-5 h-5 accent-car-pink" checked={editForm.isPAIAlimentaire} onChange={e => {
+                                                        const isAlim = e.target.checked;
+                                                        setEditForm({...editForm, isPAIAlimentaire: isAlim, regimeAlimentaire: isAlim ? 'PAI' : 'Standard'});
+                                                    }} /> PAI Alimentaire
+                                                </label>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 block mb-1">Régime Alimentaire</label>
+                                            <select className="bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none font-bold text-car-dark w-full" value={editForm.regimeAlimentaire} onChange={e => setEditForm({...editForm, regimeAlimentaire: e.target.value})} disabled={editForm.isPAIAlimentaire}>
+                                                <option value="Standard">Standard</option>
+                                                <option value="Sans-porc">Sans-porc</option>
+                                                <option value="Végétarien">Végétarien</option>
+                                                <option value="PAI">PAI</option>
+                                            </select>
+                                        </div>
+                                        {editForm.category === 'Élémentaire' && (
+                                            <label className="flex items-center gap-2 text-sm font-bold text-car-blue cursor-pointer mt-4">
+                                                <input type="checkbox" className="w-5 h-5 accent-car-blue" checked={editForm.autorisationSortieSeul} onChange={e => setEditForm({...editForm, autorisationSortieSeul: e.target.checked})} />
+                                                Autorisation de sortir seul
+                                            </label>
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-slate-100">
+                                        <button onClick={() => setEditingId(null)} className="bg-slate-100 text-slate-500 px-6 py-2 font-bold rounded-xl hover:bg-slate-200 transition-colors">Annuler</button>
+                                        <button onClick={() => saveEdit(child._id)} className="bg-car-green text-white px-6 py-2 font-bold rounded-xl shadow-md hover:bg-green-600 transition-colors flex items-center gap-2"><Check size={20}/> Sauvegarder</button>
+                                    </div>
                                 </div>
                             ) : (
-                                <div>
-                                    <span className="font-black text-car-dark text-xl block">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                    <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-block ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
-                                        {child.category || 'Maternelle'}
-                                    </span>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-4">
+                                        <button onClick={() => setChildInfoToView(child)} className="text-slate-300 hover:text-car-blue bg-slate-50 p-3 rounded-full transition-colors"><Info size={24}/></button>
+                                        <div>
+                                            <span className="font-black text-car-dark text-xl block">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                            <div className="flex gap-2 mt-2">
+                                                <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
+                                                    {child.category || 'Maternelle'}
+                                                </span>
+                                                {child.hasPAI && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-car-pink/10 text-car-pink flex items-center gap-1"><AlertTriangle size={12}/> PAI</span>}
+                                                {child.regimeAlimentaire !== 'Standard' && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-car-yellow/20 text-car-yellow flex items-center gap-1"><Utensils size={12}/> {child.regimeAlimentaire}</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {!isReadOnly && (
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => startEdit(child)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 rounded-xl transition-colors"><Pencil size={20}/></button>
+                                            <button onClick={() => handleDelete(child._id, `${child.firstName} ${child.lastName}`)} className="text-slate-400 hover:text-car-pink p-3 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
-
-                            <div className="flex items-center gap-2">
-                                {editingId === child._id ? (
-                                    <>
-                                        <button onClick={() => saveEdit(child._id)} className="bg-car-green text-white p-2 rounded-xl shadow-md"><Check size={20}/></button>
-                                        <button onClick={() => setEditingId(null)} className="bg-slate-100 text-slate-500 p-2 rounded-xl"><X size={20}/></button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <button onClick={() => startEdit(child)} className="text-slate-400 hover:text-car-blue p-2 bg-slate-50 rounded-xl"><Pencil size={20}/></button>
-                                        <button onClick={() => handleDelete(child._id, `${child.firstName} ${child.lastName}`)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-xl"><Trash2 size={20}/></button>
-                                    </>
-                                )}
-                            </div>
                         </div>
                     ))}
                 </div>
             </div>
+            <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
         </div>
     );
 };
 
-// 6. RAPPORT
+// 5. RAPPORTS (4 Onglets)
 const Report = () => {
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [reportData, setReportData] = useState([]);
-    const navigate = useNavigate();
     
+    const [activeTab, setActiveTab] = useState('PERISCO');
+    
+    const navigate = useNavigate();
     const access = localStorage.getItem('categoryAccess') || 'Tous';
     const [categoryFilter, setCategoryFilter] = useState(access);
 
     useEffect(() => { loadReport(); }, [date]);
-
     const loadReport = () => axios.get(`${API_URL}/report?date=${date}`).then(res => setReportData(res.data));
 
     const handleRemoveLate = async (id) => {
@@ -1227,71 +1155,89 @@ const Report = () => {
         return reportData.filter(r => categoryFilter === 'Tous' || r.child.category === categoryFilter);
     }, [reportData, categoryFilter]);
 
-    // On intègre la facturation dans le PDF et on retire l'heure exacte et la catégorie
     const exportPDF = () => {
         const doc = new jsPDF();
-        // Modification : Retrait de "Cat."
-        const tableColumn = ["Nom", "Prénom", "Facture", "Matin", "Soir", "19h"];
-        
-        const tableRows = filteredReportData.map(row => {
-            const matinText = row.matin ? 'OUI' : '-';
-            // Modification : On affiche 'OUI' s'il y a un pointage, peu importe l'heure
-            const soirText = (row.checkOut || row.soir) ? 'OUI' : '-';
-            
-            return [
-                row.child.lastName, 
-                row.child.firstName, 
-                // Retrait de la ligne : row.child.category === 'Élémentaire' ? 'Elem.' : 'Mat.',
-                row.billTo || '-', 
-                matinText, 
-                soirText, 
-                row.isLate ? 'OUI' : '-'
-            ];
-        });
-
-        const totalMatin = filteredReportData.filter(r => r.matin).length;
-        const totalSoir = filteredReportData.filter(r => r.soir || r.checkOut).length;
-        const totalLate = filteredReportData.filter(r => r.isLate).length;
-
         doc.setFontSize(18);
-        doc.text(`Rapport Journalier - ${format(new Date(date), 'dd/MM/yyyy')} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`, 14, 22);
         
+        let title = "";
+        let tableColumn = [];
+        let tableRows = [];
+        let footData = [];
+
+        if (activeTab === 'PERISCO') {
+            title = `Rapport Périscolaire - ${format(new Date(date), 'dd/MM/yyyy')} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            tableColumn = ["Nom", "Prénom", "Facture", "Matin", "Soir", "19h"];
+            const presences = filteredReportData.filter(r => r.matin || r.soir || r.checkOut);
+            tableRows = presences.map(row => [row.child.lastName, row.child.firstName, row.billTo || '-', row.matin ? 'OUI' : '-', (row.checkOut || row.soir) ? 'OUI' : '-', row.isLate ? 'OUI' : '-']);
+            footData = [["TOTAL", "", "", presences.filter(r=>r.matin).length.toString(), presences.filter(r=>r.soir||r.checkOut).length.toString(), presences.filter(r=>r.isLate).length.toString()]];
+        } 
+        else if (activeTab === 'CANTINE') {
+            title = `Rapport ABSENTS Cantine - ${format(new Date(date), 'dd/MM/yyyy')} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            tableColumn = ["Nom", "Prénom", "Catégorie", "Régime", "PAI Alim."];
+            const absents = filteredReportData.filter(r => r.midiAbsent);
+            tableRows = absents.map(row => [row.child.lastName, row.child.firstName, row.child.category, row.child.regimeAlimentaire, row.child.isPAIAlimentaire ? 'OUI' : '-']);
+            footData = [["TOTAL ABSENTS", absents.length.toString(), "", "", ""]];
+        }
+        else if (activeTab === 'PAI') {
+            title = `Liste Globale des PAI ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            tableColumn = ["Nom", "Prénom", "Type PAI", "Détails"];
+            const pais = filteredReportData.filter(r => r.child.hasPAI);
+            tableRows = pais.map(row => [row.child.lastName, row.child.firstName, row.child.isPAIAlimentaire ? 'Alimentaire' : 'Médical', row.child.paiDetails]);
+            footData = [["TOTAL ENFANTS PAI", pais.length.toString(), "", ""]];
+        }
+        else if (activeTab === 'REGIMES') {
+            title = `Régimes Alimentaires Spécifiques ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            tableColumn = ["Nom", "Prénom", "Catégorie", "Régime"];
+            const regimes = filteredReportData.filter(r => r.child.regimeAlimentaire !== 'Standard');
+            tableRows = regimes.map(row => [row.child.lastName, row.child.firstName, row.child.category, row.child.regimeAlimentaire]);
+            footData = [["TOTAL RÉGIMES", regimes.length.toString(), "", ""]];
+        }
+        
+        doc.text(title, 14, 22);
         autoTable(doc, {
-            startY: 35,
-            head: [tableColumn],
-            body: tableRows,
-            foot: [["TOTAL", "", "", totalMatin.toString(), totalSoir.toString(), totalLate.toString()]],
+            startY: 35, head: [tableColumn], body: tableRows, foot: footData,
             footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
-            theme: 'grid',
-            headStyles: { fillColor: [84, 132, 164], textColor: 255, fontStyle: 'bold' },
+            theme: 'grid', headStyles: { fillColor: [84, 132, 164], textColor: 255, fontStyle: 'bold' },
             styles: { font: 'helvetica', fontSize: 10, textColor: [58, 58, 58] },
             alternateRowStyles: { fillColor: [248, 250, 252] },
             halign: 'center'
         });
 
-        doc.save(`carillon_rapport_${date}.pdf`);
+        doc.save(`carillon_rapport_${activeTab}_${date}.pdf`);
     };
 
-    const totalMatin = filteredReportData.filter(r => r.matin).length;
-    const totalSoir = filteredReportData.filter(r => r.soir || r.checkOut).length;
-    const totalLate = filteredReportData.filter(r => r.isLate).length;
+    const displayData = useMemo(() => {
+        if (activeTab === 'PERISCO') return filteredReportData.filter(r => r.matin || r.soir || r.checkOut);
+        if (activeTab === 'CANTINE') return filteredReportData.filter(r => r.midiAbsent);
+        if (activeTab === 'PAI') return filteredReportData.filter(r => r.child.hasPAI);
+        if (activeTab === 'REGIMES') return filteredReportData.filter(r => r.child.regimeAlimentaire !== 'Standard');
+        return [];
+    }, [filteredReportData, activeTab]);
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-5xl mx-auto">
                 <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
                 
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <div className="flex items-center gap-4">
                         <div className="bg-car-blue/10 p-4 rounded-2xl"><FileText className="text-car-blue w-8 h-8"/></div>
-                        <h1 className="text-4xl font-black text-car-dark">Rapports</h1>
+                        <h1 className="text-4xl font-black text-car-dark">Rapports & Listes</h1>
                     </div>
-                    <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20"><Download size={20}/> PDF</button>
+                    <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20"><Download size={20}/> TÉLÉCHARGER PDF</button>
                 </div>
 
-                <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 mb-8">
-                    <input type="date" className="bg-slate-50 p-4 rounded-2xl outline-none font-bold text-car-dark flex-1 cursor-pointer" value={date} onChange={e => setDate(e.target.value)} />
-                    {/* Le filtre de catégorie reste bien actif ici ! */}
+                <div className="flex flex-wrap gap-2 mb-6">
+                    <button onClick={() => setActiveTab('PERISCO')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'PERISCO' ? 'bg-car-blue text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Périscolaire</button>
+                    <button onClick={() => setActiveTab('CANTINE')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'CANTINE' ? 'bg-car-teal text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Absents Cantine</button>
+                    <button onClick={() => setActiveTab('PAI')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'PAI' ? 'bg-car-pink text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Fiches PAI</button>
+                    <button onClick={() => setActiveTab('REGIMES')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'REGIMES' ? 'bg-car-yellow text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Régimes Spéciaux</button>
+                </div>
+
+                <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 mb-6">
+                    {(activeTab === 'PERISCO' || activeTab === 'CANTINE') && (
+                        <input type="date" className="bg-slate-50 p-4 rounded-2xl outline-none font-bold text-car-dark flex-1 cursor-pointer" value={date} onChange={e => setDate(e.target.value)} />
+                    )}
                     <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} access={access} />
                 </div>
 
@@ -1299,50 +1245,102 @@ const Report = () => {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-xs tracking-wider">
-                                <th className="p-5 border-b border-slate-100">Nom</th>
-                                {/* Suppression de la colonne Catégorie */}
-                                <th className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">Facturation</th>
-                                <th className="p-5 border-b border-slate-100 text-center">Matin</th>
-                                <th className="p-5 border-b border-slate-100 text-center">Soir</th>
-                                <th className="p-5 border-b border-slate-100 text-center">19h</th>
+                                <th className="p-5 border-b border-slate-100">Enfant</th>
+                                
+                                {activeTab === 'PERISCO' && (
+                                    <>
+                                        <th className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">Facturation</th>
+                                        <th className="p-5 border-b border-slate-100 text-center">Matin</th>
+                                        <th className="p-5 border-b border-slate-100 text-center">Soir</th>
+                                        <th className="p-5 border-b border-slate-100 text-center">19h</th>
+                                    </>
+                                )}
+
+                                {activeTab === 'CANTINE' && (
+                                    <>
+                                        <th className="p-5 border-b border-slate-100 text-center">Catégorie</th>
+                                        <th className="p-5 border-b border-slate-100 text-center">Régime</th>
+                                        <th className="p-5 border-b border-slate-100 text-center">PAI Alim.</th>
+                                    </>
+                                )}
+
+                                {activeTab === 'PAI' && (
+                                    <>
+                                        <th className="p-5 border-b border-slate-100">Détails du PAI</th>
+                                        <th className="p-5 border-b border-slate-100 text-center">Alimentaire</th>
+                                    </>
+                                )}
+
+                                {activeTab === 'REGIMES' && (
+                                    <>
+                                        <th className="p-5 border-b border-slate-100 text-center">Catégorie</th>
+                                        <th className="p-5 border-b border-slate-100">Régime Strict</th>
+                                    </>
+                                )}
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredReportData.map(row => (
-                                <tr key={row.child._id} className="hover:bg-slate-50/50 transition-colors group">
+                            {displayData.map(row => {
+                                const c = row.child ? row.child : row; 
+                                return (
+                                <tr key={c._id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-5 border-b border-slate-100">
-                                        <span className="font-black text-car-dark">{row.child.lastName}</span> <span className="font-medium text-slate-500">{row.child.firstName}</span>
+                                        <span className="font-black text-car-dark">{c.lastName}</span> <span className="font-medium text-slate-500">{c.firstName}</span>
                                     </td>
-                                    {/* Suppression de la cellule Catégorie */}
-                                    <td className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">
-                                        {row.billTo ? <span className="bg-car-blue/10 text-car-blue font-bold px-2 py-1 rounded-md text-xs uppercase tracking-widest">{row.billTo}</span> : <span className="text-slate-300">-</span>}
-                                    </td>
-                                    <td className="p-5 border-b border-slate-100 text-center">
-                                        {row.matin ? <CheckCircle className="text-car-yellow mx-auto" size={24}/> : <span className="text-slate-300 font-bold">-</span>}
-                                    </td>
-                                    <td className="p-5 border-b border-slate-100 text-center">
-                                        {/* Modification : Plus de formatage d'heure, on vérifie juste si checkOut ou soir existent */}
-                                        {(row.checkOut || row.soir) ? (
-                                            <CheckCircle className="text-car-blue mx-auto" size={24}/>
-                                        ) : <span className="text-slate-300 font-bold">-</span>}
-                                    </td>
-                                    <td className="p-5 border-b border-slate-100 text-center">
-                                        {row.isLate ? (
-                                            <button onClick={() => handleRemoveLate(row.pmId)} className="text-xs font-bold text-white bg-car-pink hover:bg-red-500 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-sm"> +19h</button>
-                                        ) : <span className="text-slate-300 font-bold">-</span>}
-                                    </td>
+                                    
+                                    {activeTab === 'PERISCO' && (
+                                        <>
+                                            <td className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">{row.billTo ? <span className="bg-car-blue/10 text-car-blue font-bold px-2 py-1 rounded-md text-xs uppercase tracking-widest">{row.billTo}</span> : <span className="text-slate-300">-</span>}</td>
+                                            <td className="p-5 border-b border-slate-100 text-center">{row.matin ? <CheckCircle className="text-car-yellow mx-auto" size={24}/> : <span className="text-slate-300 font-bold">-</span>}</td>
+                                            <td className="p-5 border-b border-slate-100 text-center">{(row.checkOut || row.soir) ? <CheckCircle className="text-car-blue mx-auto" size={24}/> : <span className="text-slate-300 font-bold">-</span>}</td>
+                                            <td className="p-5 border-b border-slate-100 text-center">{row.isLate ? <button onClick={() => handleRemoveLate(row.pmId)} className="text-xs font-bold text-white bg-car-pink px-3 py-1 rounded-lg"> +19h</button> : <span className="text-slate-300 font-bold">-</span>}</td>
+                                        </>
+                                    )}
+
+                                    {activeTab === 'CANTINE' && (
+                                        <>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-sm font-bold text-car-dark">{c.regimeAlimentaire}</span></td>
+                                            <td className="p-5 border-b border-slate-100 text-center">{c.isPAIAlimentaire ? <AlertTriangle className="text-car-pink mx-auto" size={20}/> : <span className="text-slate-300">-</span>}</td>
+                                        </>
+                                    )}
+
+                                    {activeTab === 'PAI' && (
+                                        <>
+                                            <td className="p-5 border-b border-slate-100 text-sm font-medium text-car-dark">{c.paiDetails}</td>
+                                            <td className="p-5 border-b border-slate-100 text-center">{c.isPAIAlimentaire ? <span className="bg-car-pink text-white text-xs font-bold px-2 py-1 rounded-md">OUI</span> : <span className="text-slate-300">-</span>}</td>
+                                        </>
+                                    )}
+
+                                    {activeTab === 'REGIMES' && (
+                                        <>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
+                                            <td className="p-5 border-b border-slate-100"><span className="text-sm font-bold text-car-yellow bg-car-yellow/10 px-3 py-1 rounded-lg">{c.regimeAlimentaire}</span></td>
+                                        </>
+                                    )}
                                 </tr>
-                            ))}
+                            )})}
+                            {displayData.length === 0 && (
+                                <tr><td colSpan="6" className="p-8 text-center text-slate-400 font-bold">Aucune donnée trouvée</td></tr>
+                            )}
                         </tbody>
-                        {filteredReportData.length > 0 && (
+                        
+                        {displayData.length > 0 && activeTab === 'PERISCO' && (
                             <tfoot className="bg-slate-100/80 border-t-2 border-slate-200">
                                 <tr>
-                                    {/* colSpan ajusté à 2 car on a enlevé une colonne */}
                                     <td colSpan="2" className="p-5 font-black text-car-dark text-right sm:table-cell hidden">TOTAL PRÉSENCES</td>
                                     <td className="p-5 font-black text-car-dark text-right sm:hidden">TOTAL</td>
-                                    <td className="p-5 font-black text-car-dark text-center text-lg">{totalMatin}</td>
-                                    <td className="p-5 font-black text-car-dark text-center text-lg">{totalSoir}</td>
-                                    <td className="p-5 font-black text-car-pink text-center text-lg">{totalLate}</td>
+                                    <td className="p-5 font-black text-car-dark text-center text-lg">{displayData.filter(r=>r.matin).length}</td>
+                                    <td className="p-5 font-black text-car-dark text-center text-lg">{displayData.filter(r=>r.soir||r.checkOut).length}</td>
+                                    <td className="p-5 font-black text-car-pink text-center text-lg">{displayData.filter(r=>r.isLate).length}</td>
+                                </tr>
+                            </tfoot>
+                        )}
+                        {displayData.length > 0 && activeTab === 'CANTINE' && (
+                            <tfoot className="bg-slate-100/80 border-t-2 border-slate-200">
+                                <tr>
+                                    <td colSpan="3" className="p-5 font-black text-car-teal text-right">TOTAL ABSENTS CANTINE :</td>
+                                    <td colSpan="2" className="p-5 font-black text-car-teal text-left text-xl">{displayData.length}</td>
                                 </tr>
                             </tfoot>
                         )}

@@ -72,11 +72,13 @@ app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
 });
 
 // --- Routes Enfants ---
+// Tous les connectés peuvent lire la base (indispensable pour l'appli hors-ligne des animateurs)
 app.get('/api/children', auth(), async (req, res) => {
     const children = await Child.find({ active: true }).sort({ lastName: 1, firstName: 1 });
     res.json(children);
 });
 
+// Seul l'admin peut modifier ou supprimer la base (les responsables ne peuvent QUE lire côté frontend)
 app.post('/api/children', auth(['admin']), async (req, res) => {
     const child = new Child(req.body);
     await child.save();
@@ -84,8 +86,7 @@ app.post('/api/children', auth(['admin']), async (req, res) => {
 });
 
 app.put('/api/children/:id', auth(['admin']), async (req, res) => {
-    const { firstName, lastName, category } = req.body;
-    const updated = await Child.findByIdAndUpdate(req.params.id, { firstName, lastName, category }, { new: true });
+    const updated = await Child.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(updated);
 });
 
@@ -112,10 +113,16 @@ app.post('/api/attendance/checkin', auth(), async (req, res) => {
 });
 
 app.put('/api/attendance/checkout/:id', auth(), async (req, res) => {
+    const attRecord = await Attendance.findById(req.params.id);
     const now = new Date();
-    const limit = new Date();
-    limit.setHours(18, 35, 0, 0);
-    const isLate = now > limit;
+    let isLate = false;
+    
+    // On ne calcule le retard de 18h35 QUE si c'est la session du SOIR
+    if (attRecord && attRecord.sessionType === 'SOIR') {
+        const limit = new Date();
+        limit.setHours(18, 35, 0, 0);
+        isLate = now > limit;
+    }
 
     const att = await Attendance.findByIdAndUpdate(req.params.id, { checkOut: now, isLate, lastUpdated: Date.now() }, { new: true }).populate('child');
     res.json(att);
@@ -127,7 +134,7 @@ app.put('/api/attendance/note/:id', auth(), async (req, res) => {
     res.json(updated);
 });
 
-app.put('/api/attendance/remove-late/:id', auth(['staff', 'admin']), async (req, res) => {
+app.put('/api/attendance/remove-late/:id', auth(['staff', 'responsable', 'admin']), async (req, res) => {
     const updated = await Attendance.findByIdAndUpdate(req.params.id, { isLate: false, lastUpdated: Date.now() }, { new: true }).populate('child');
     res.json(updated);
 });
@@ -146,7 +153,7 @@ app.delete('/api/attendance/:id', auth(), async (req, res) => {
     res.json({ success: true });
 });
 
-// --- NOUVELLE ROUTE DE SYNCHRONISATION (Mode Hors-Ligne) ---
+// --- ROUTE DE SYNCHRONISATION (Mode Hors-Ligne) ---
 app.post('/api/attendance/sync', auth(), async (req, res) => {
     const { actions } = req.body;
     let successCount = 0;
@@ -160,7 +167,6 @@ app.post('/api/attendance/sync', auth(), async (req, res) => {
                 sessionType: action.sessionType 
             });
 
-            // GESTION DES CONFLITS
             if (att && att.lastUpdated >= action.timestamp) {
                 ignoredCount++; 
                 continue; 
@@ -190,9 +196,12 @@ app.post('/api/attendance/sync', auth(), async (req, res) => {
                     att.checkOut = new Date(action.timestamp);
                     att.lastUpdated = action.timestamp;
                     
-                    const limit = new Date(action.timestamp);
-                    limit.setHours(18, 35, 0, 0);
-                    att.isLate = limit < new Date(action.timestamp);
+                    // Calcul retard uniquement le SOIR
+                    if (att.sessionType === 'SOIR') {
+                        const limit = new Date(action.timestamp);
+                        limit.setHours(18, 35, 0, 0);
+                        att.isLate = limit < new Date(action.timestamp);
+                    }
                     
                     await att.save();
                     successCount++;
@@ -213,7 +222,7 @@ app.post('/api/attendance/sync', auth(), async (req, res) => {
                 }
             }
         } catch (error) {
-            console.error("Erreur lors de la synchro d'une action:", error);
+            console.error("Erreur synchro:", error);
         }
     }
 
@@ -265,7 +274,8 @@ app.delete('/api/billing/:id', auth(['admin']), async (req, res) => {
 });
 
 
-// --- Route Rapport ---
+// --- Route Rapport (Matin, Midi, Soir) ---
+// Réservé aux admins
 app.get('/api/report', auth(['admin']), async (req, res) => {
     const { date } = req.query;
     const children = await Child.find({ active: true }).sort({ lastName: 1 });
@@ -273,8 +283,10 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
     
     const billingsForDate = await Billing.find({ dates: date });
     
+    // On construit le rapport global
     const report = children.map(c => {
         const am = atts.find(a => a.child.toString() == c._id && a.sessionType === 'MATIN');
+        const midi = atts.find(a => a.child.toString() == c._id && a.sessionType === 'MIDI');
         const pm = atts.find(a => a.child.toString() == c._id && a.sessionType === 'SOIR');
         
         const billingRule = billingsForDate.find(b => b.child.toString() == c._id);
@@ -282,13 +294,14 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
         return { 
             child: c, 
             matin: !!am, 
+            midiAbsent: !!midi, // Logique inversée : présence d'une ligne = absent
             soir: !!pm, 
             checkOut: pm ? pm.checkOut : null,
             isLate: pm ? pm.isLate : false,
             pmId: pm ? pm._id : null,
             billTo: billingRule ? billingRule.billTo : '' 
         };
-    }).filter(r => r.matin || r.soir);
+    });
     
     res.json(report);
 });
