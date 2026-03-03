@@ -43,6 +43,7 @@ const CategoryFilter = ({ value, onChange, access }) => {
 };
 
 // --- MODALE D'INFORMATION ENFANT ---
+// --- MODALE D'INFORMATION ENFANT ---
 const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
     return (
@@ -86,7 +87,8 @@ const ChildInfoModal = ({ child, onClose }) => {
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
                             <Phone size={18}/> RESPONSABLES LÉGAUX
                         </div>
-                        {child.responsablesLegaux && child.responsablesLegaux.length > 0 ? (
+                        {/* CORRECTION ICI : On vérifie que c'est bien un tableau (Array) */}
+                        {Array.isArray(child.responsablesLegaux) && child.responsablesLegaux.length > 0 ? (
                             <div className="space-y-2 mb-4">
                                 {child.responsablesLegaux.map((c, i) => (
                                     <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
@@ -102,7 +104,8 @@ const ChildInfoModal = ({ child, onClose }) => {
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
                             <Users size={18}/> PERSONNES AUTORISÉES
                         </div>
-                        {child.personnesAutorisees && child.personnesAutorisees.length > 0 ? (
+                        {/* CORRECTION ICI : On vérifie que c'est bien un tableau (Array) */}
+                        {Array.isArray(child.personnesAutorisees) && child.personnesAutorisees.length > 0 ? (
                             <div className="space-y-2">
                                 {child.personnesAutorisees.map((c, i) => (
                                     <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
@@ -889,12 +892,28 @@ const ChildrenManager = () => {
     const startEdit = (child) => {
         if(isReadOnly) return;
         setEditingId(child._id);
+
+        // CORRECTION ICI : Nettoyage des vieilles données de la BDD
+        let respLegaux = [{firstName: '', lastName: '', phone: ''}];
+        if (Array.isArray(child.responsablesLegaux) && child.responsablesLegaux.length > 0) {
+            respLegaux = child.responsablesLegaux;
+        }
+
+        let persAuto = [];
+        if (Array.isArray(child.personnesAutorisees)) {
+            persAuto = child.personnesAutorisees;
+        }
+
         setEditForm({ 
-            firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle',
-            responsablesLegaux: child.responsablesLegaux?.length ? child.responsablesLegaux : [{firstName: '', lastName: '', phone: ''}], 
-            personnesAutorisees: child.personnesAutorisees || [],
+            firstName: child.firstName, 
+            lastName: child.lastName, 
+            category: child.category || 'Maternelle',
+            responsablesLegaux: respLegaux, 
+            personnesAutorisees: persAuto,
             autorisationSortieSeul: child.autorisationSortieSeul || false,
-            hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false,
+            hasPAI: child.hasPAI || false, 
+            paiDetails: child.paiDetails || '', 
+            isPAIAlimentaire: child.isPAIAlimentaire || false,
             regimeAlimentaire: child.regimeAlimentaire || 'Standard'
         });
     };
