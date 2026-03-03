@@ -840,11 +840,23 @@ const ChildrenManager = () => {
     const [editForm, setEditForm] = useState({});
     
     const [childInfoToView, setChildInfoToView] = useState(null);
+    
+    // NOUVEAU : État pour la barre de recherche
+    const [searchTerm, setSearchTerm] = useState('');
 
     const navigate = useNavigate();
 
     useEffect(() => { loadChildren(); }, []);
     const loadChildren = () => axios.get(`${API_URL}/children`).then(res => setChildren(res.data));
+
+    // NOUVEAU : Filtre de la liste d'enfants
+    const filteredChildren = useMemo(() => {
+        if (!searchTerm) return children;
+        return children.filter(c => 
+            c.lastName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            c.firstName.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [children, searchTerm]);
 
     const handleAdd = async (e) => {
         e.preventDefault();
@@ -1010,8 +1022,26 @@ const ChildrenManager = () => {
                     )
                 )}
 
+                {/* NOUVEAU : BARRE DE RECHERCHE */}
+                <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 mb-6 flex items-center gap-4 relative">
+                    <Search className="text-slate-400 ml-2" size={24} />
+                    <input 
+                        type="text" 
+                        className="bg-transparent border-none outline-none font-bold text-car-dark placeholder:text-slate-400 w-full text-lg" 
+                        placeholder="Rechercher un enfant pour voir ou modifier sa fiche..." 
+                        value={searchTerm} 
+                        onChange={(e) => setSearchTerm(e.target.value)} 
+                    />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-car-pink transition-colors">
+                            <X size={20}/>
+                        </button>
+                    )}
+                </div>
+
+                {/* On mappe sur filteredChildren au lieu de children */}
                 <div className="grid grid-cols-1 gap-4">
-                    {children.map(child => (
+                    {filteredChildren.map(child => (
                         <div key={child._id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 transition-all hover:shadow-md">
                             {editingId === child._id && !isReadOnly ? (
                                 <div className="flex flex-col gap-4">
@@ -1096,6 +1126,11 @@ const ChildrenManager = () => {
                             )}
                         </div>
                     ))}
+                    {filteredChildren.length === 0 && (
+                        <div className="text-center text-slate-400 font-bold p-8 bg-white rounded-3xl border border-slate-100">
+                            Aucun enfant ne correspond à "{searchTerm}"
+                        </div>
+                    )}
                 </div>
             </div>
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
