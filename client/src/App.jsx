@@ -717,7 +717,7 @@ const SessionView = () => {
                     const hasAnyNote = record.note || (type === 'SOIR' && amNote);
 
                     return (
-                        <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-white/50 border border-slate-200' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100'}`}>
+                        <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-slate-50 opacity-70' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)]'}`}>
                             <div className="w-full sm:w-auto">
                                 <div className={`font-black text-xl flex items-center gap-2 ${isGone ? 'text-slate-400 line-through decoration-slate-300' : 'text-car-dark'}`}>
                                     <button onClick={() => setChildInfoToView(record.child)} className="text-slate-300 hover:text-car-blue mr-2 transition-colors"><Info size={20}/></button>
