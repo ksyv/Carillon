@@ -534,13 +534,17 @@ const SessionView = () => {
     const { date, type } = useParams();
     const [children, setChildren] = useState([]); 
     const [attendance, setAttendance] = useState([]); 
+    
+    // NOUVEAU : On stocke l'historique du matin pour la session du soir
+    const [amAttendance, setAmAttendance] = useState([]); 
+
     const [search, setSearch] = useState('');
     
-    const [noteModal, setNoteModal] = useState({ show: false, attendanceId: null, text: '' });
+    // NOUVEAU : noteModal gère maintenant l'info du matin séparément
+    const [noteModal, setNoteModal] = useState({ show: false, attendanceId: null, text: '', amNote: '' });
     const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, text: '', name: '', color: '' });
     const [plannedNotes, setPlannedNotes] = useState([]);
 
-    // --- GESTION HORS-LIGNE (Améliorée) ---
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [pendingSync, setPendingSync] = useState(0);
 
@@ -561,28 +565,28 @@ const SessionView = () => {
 
         try {
             await axios.post(`${API_URL}/attendance/sync`, { actions: queue });
-            localStorage.removeItem('syncQueue'); // On vide le tiroir
+            localStorage.removeItem('syncQueue'); 
             setPendingSync(0);
-            setIsOnline(true); // Le serveur a répondu !
-            loadData(); // Recharger avec les données toutes fraîches
+            setIsOnline(true); 
+            loadData(); 
         } catch (e) {
-            setIsOnline(false); // Le serveur ne répond pas
+            setIsOnline(false); 
         }
     };
 
-    // Chargement de secours depuis le LocalStorage
     const loadLocalFallback = () => {
         const cachedKids = localStorage.getItem('offline_children');
         const cachedAtt = localStorage.getItem(`offline_attendance_${date}_${type}`);
+        const cachedAmAtt = localStorage.getItem(`offline_attendance_${date}_MATIN`);
         const cachedNotes = localStorage.getItem(`offline_notes_${date}`);
         
         if (cachedKids) setChildren(JSON.parse(cachedKids));
         if (cachedAtt) setAttendance(JSON.parse(cachedAtt));
+        if (cachedAmAtt && type === 'SOIR') setAmAttendance(JSON.parse(cachedAmAtt));
         if (cachedNotes) setPlannedNotes(JSON.parse(cachedNotes));
     };
 
     const loadData = async () => {
-        // 1. Si on sait via le navigateur qu'on est totalement hors-ligne, on ne tente pas de faire appel au serveur.
         if (!navigator.onLine) {
             setIsOnline(false);
             loadLocalFallback();
@@ -590,35 +594,36 @@ const SessionView = () => {
         }
 
         try {
-            const [kidsRes, attRes, notesRes] = await Promise.all([
+            // NOUVEAU : Si on est le SOIR, on demande aussi silencieusement la liste du MATIN
+            const [kidsRes, attRes, amAttRes, notesRes] = await Promise.all([
                 axios.get(`${API_URL}/children`), 
                 axios.get(`${API_URL}/attendance?date=${date}&sessionType=${type}`),
+                type === 'SOIR' ? axios.get(`${API_URL}/attendance?date=${date}&sessionType=MATIN`) : Promise.resolve({ data: [] }),
                 axios.get(`${API_URL}/planned-notes/date?date=${date}`)
             ]);
             
-            setIsOnline(true); // Le serveur répond correctement !
+            setIsOnline(true); 
             
             setChildren(kidsRes.data); 
             setAttendance(attRes.data);
+            setAmAttendance(amAttRes.data);
             setPlannedNotes(notesRes.data);
 
-            // Sauvegarde de secours
             localStorage.setItem('offline_children', JSON.stringify(kidsRes.data));
             localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(attRes.data));
+            if (type === 'SOIR') localStorage.setItem(`offline_attendance_${date}_MATIN`, JSON.stringify(amAttRes.data));
             localStorage.setItem(`offline_notes_${date}`, JSON.stringify(notesRes.data));
             
-            // Mise à jour de l'indicateur d'actions en attente
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             setPendingSync(queue.length);
 
         } catch (error) {
-            // Le WiFi est allumé, MAIS le serveur est injoignable (éteint, bloqué...)
             setIsOnline(false); 
             loadLocalFallback();
         }
     };
 
-    // --- BOUCLE PRINCIPALE (Remplace l'ancien setInterval) ---
+    // --- BOUCLE PRINCIPALE ---
     useEffect(() => { 
         let isMounted = true;
         let timeoutId;
@@ -627,7 +632,6 @@ const SessionView = () => {
             if (!isMounted) return;
             await loadData();
             
-            // Vérifier s'il y a des choses à synchroniser
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             if (navigator.onLine && queue.length > 0) {
                 await syncOfflineActions();
@@ -635,13 +639,11 @@ const SessionView = () => {
                 setPendingSync(queue.length);
             }
 
-            // On relance la boucle
             timeoutId = setTimeout(loop, 5000);
         };
 
         loop();
 
-        // Écouteurs système pour le réseau
         const handleOnline = () => { setIsOnline(true); syncOfflineActions(); };
         const handleOffline = () => { setIsOnline(false); };
 
@@ -661,22 +663,18 @@ const SessionView = () => {
         const timestamp = Date.now();
         const action = { ...actionDef, timestamp, date, sessionType: type };
 
-        // 1. Mise à jour "Optimiste" de l'interface
         setAttendance(prev => optimisticUpdate(prev, timestamp));
 
-        // 2. On stocke l'action
         const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
         queue.push(action);
         localStorage.setItem('syncQueue', JSON.stringify(queue));
         setPendingSync(queue.length);
 
-        // 3. On sauvegarde la vue en cours pour résister au F5
         setAttendance(currentAtt => {
             localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(currentAtt));
             return currentAtt;
         });
 
-        // 4. Si on a du réseau (système), on tente une synchro
         if (navigator.onLine) {
             syncOfflineActions();
         }
@@ -733,7 +731,7 @@ const SessionView = () => {
             { type: 'ADD_NOTE', childId: record.child._id, note: noteModal.text },
             (prev) => prev.map(a => a._id === noteModal.attendanceId ? { ...a, note: noteModal.text } : a)
         );
-        setNoteModal({ show: false, attendanceId: null, text: '' });
+        setNoteModal({ show: false, attendanceId: null, text: '', amNote: '' });
     };
 
     const handleRemoveLate = async (id) => {
@@ -763,13 +761,22 @@ const SessionView = () => {
     const activeCount = filteredAttendance.filter(a => !a.checkOut).length;
     const totalCount = filteredAttendance.length;
 
+    // NOUVEAU : Au départ, on fusionne les deux notes pour la transmission
     const handleDepartureClick = (record) => {
-        if (record.note) {
+        const amRecord = type === 'SOIR' ? amAttendance.find(a => a.child._id === record.child._id) : null;
+        const amNote = amRecord?.note || '';
+        
+        let combinedNote = record.note;
+        if (type === 'SOIR' && amNote) {
+            combinedNote = record.note ? `MATIN : ${amNote}\n\nSOIR : ${record.note}` : `MATIN : ${amNote}`;
+        }
+
+        if (combinedNote) {
             const randomColor = postItColors[Math.floor(Math.random() * postItColors.length)];
             setReadNoteModal({ 
                 show: true, 
                 attendanceId: record._id, 
-                text: record.note, 
+                text: combinedNote, 
                 name: `${record.child.firstName} ${record.child.lastName}`,
                 color: randomColor
             });
@@ -784,7 +791,6 @@ const SessionView = () => {
                 <div className="p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors w-full sm:w-auto text-left">← Retour</button>
                     
-                    {/* INDICATEUR DE RÉSEAU */}
                     <div className="flex items-center gap-3">
                         {isOnline ? (
                             <div className="flex items-center gap-2 text-car-teal bg-car-teal/10 px-3 py-1.5 rounded-lg text-xs font-bold" title="Connecté au serveur">
@@ -842,12 +848,18 @@ const SessionView = () => {
                     const isGone = !!record.checkOut;
                     const childNotes = plannedNotes.filter(pn => pn.child === record.child._id);
 
+                    // NOUVEAU : On vérifie s'il y a une note le matin
+                    const amRecord = type === 'SOIR' ? amAttendance.find(a => a.child._id === record.child._id) : null;
+                    const amNote = amRecord?.note || '';
+                    const hasAnyNote = record.note || (type === 'SOIR' && amNote);
+
                     return (
                         <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-white/50 border border-slate-200' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100'}`}>
                             <div className="w-full sm:w-auto">
                                 <div className={`font-black text-xl flex items-center gap-2 ${isGone ? 'text-slate-400 line-through decoration-slate-300' : 'text-car-dark'}`}>
                                     {record.child.lastName} <span className="font-medium">{record.child.firstName}</span>
-                                    {record.note && !isGone && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
+                                    {/* Clignotement actif s'il y a N'IMPORTE QUELLE note (matin ou soir) */}
+                                    {hasAnyNote && !isGone && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
                                 </div>
                                 
                                 {!isGone && childNotes.length > 0 && (
@@ -868,7 +880,9 @@ const SessionView = () => {
                             
                             <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                                 {!isGone && (
-                                    <button onClick={() => setNoteModal({ show: true, attendanceId: record._id, text: record.note || '' })} className={`p-3 rounded-2xl transition-colors ${record.note ? 'bg-car-yellow/20 text-car-yellow hover:bg-car-yellow/30' : 'bg-slate-50 text-slate-400 hover:text-car-yellow hover:bg-slate-100'}`} title="Ajouter un post-it">
+                                    // On passe la note du matin dans le state du modal
+                                    <button onClick={() => setNoteModal({ show: true, attendanceId: record._id, text: record.note || '', amNote: amNote })} 
+                                        className={`p-3 rounded-2xl transition-colors ${hasAnyNote ? 'bg-car-yellow/20 text-car-yellow hover:bg-car-yellow/30' : 'bg-slate-50 text-slate-400 hover:text-car-yellow hover:bg-slate-100'}`} title="Ajouter un post-it">
                                         <StickyNote size={22}/>
                                     </button>
                                 )}
@@ -876,7 +890,7 @@ const SessionView = () => {
                                     !isGone ? (
                                         <button onClick={() => handleDepartureClick(record)} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black active:scale-95 transition-all shadow-lg shadow-car-dark/20 relative">
                                             DÉPART
-                                            {record.note && <div className="absolute -top-2 -right-2 bg-car-pink w-4 h-4 rounded-full border-2 border-white animate-bounce"></div>}
+                                            {hasAnyNote && <div className="absolute -top-2 -right-2 bg-car-pink w-4 h-4 rounded-full border-2 border-white animate-bounce"></div>}
                                         </button>
                                     ) : (
                                         <button onClick={() => handleUndoCheckOut(record._id)} className="bg-slate-100 text-slate-500 p-3 rounded-2xl hover:bg-slate-200 transition-colors" title="Annuler le départ"><RotateCcw size={22}/></button>
@@ -898,8 +912,23 @@ const SessionView = () => {
                             <h3 className="text-2xl font-black text-car-dark">Note / Info</h3>
                             <button onClick={() => setNoteModal({...noteModal, show: false})} className="text-slate-400 hover:text-car-dark"><X size={24}/></button>
                         </div>
-                        <textarea className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl focus:border-car-yellow outline-none min-h-[150px] font-medium text-car-dark" placeholder="Ex: S'est fait mal au genou..." value={noteModal.text} onChange={(e) => setNoteModal({...noteModal, text: e.target.value})} autoFocus></textarea>
-                        <button onClick={saveNote} className="w-full mt-6 bg-car-yellow text-white font-black p-4 rounded-2xl hover:-translate-y-1 transition-all shadow-lg shadow-car-yellow/20">SAUVEGARDER</button>
+                        
+                        {/* NOUVEAU : Affichage en lecture seule de la note du matin */}
+                        {noteModal.amNote && (
+                            <div className="mb-4 p-4 bg-car-yellow/10 border border-car-yellow/30 rounded-2xl text-sm font-medium text-car-dark">
+                                <span className="font-black text-car-yellow uppercase tracking-widest text-xs block mb-1">Transmis ce matin :</span>
+                                {noteModal.amNote}
+                            </div>
+                        )}
+
+                        <textarea className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl focus:border-car-yellow outline-none min-h-[120px] font-medium text-car-dark" 
+                            placeholder={noteModal.amNote ? "Ajouter une info pour le soir..." : "Ex: S'est fait mal au genou..."} 
+                            value={noteModal.text} 
+                            onChange={(e) => setNoteModal({...noteModal, text: e.target.value})} 
+                            autoFocus>
+                        </textarea>
+                        <p className="text-xs text-slate-400 font-bold mt-2 mb-6">Cette note apparaîtra au moment du départ et sera effacée ce soir.</p>
+                        <button onClick={saveNote} className="w-full bg-car-yellow text-white font-black p-4 rounded-2xl hover:-translate-y-1 transition-all shadow-lg shadow-car-yellow/20">SAUVEGARDER</button>
                     </div>
                 </div>
             )}
@@ -911,7 +940,9 @@ const SessionView = () => {
                             <h3 className="text-3xl font-black text-white">À transmettre !</h3>
                         </div>
                         <p className="text-white/90 font-bold text-lg mb-2 uppercase tracking-widest">{readNoteModal.name}</p>
-                        <div className="bg-white/10 p-6 rounded-2xl text-white font-medium text-xl leading-relaxed mb-8 backdrop-blur-md">{readNoteModal.text}</div>
+                        <div className="bg-white/10 p-6 rounded-2xl text-white font-medium text-xl leading-relaxed mb-8 backdrop-blur-md whitespace-pre-wrap">
+                            {readNoteModal.text}
+                        </div>
                         <button onClick={() => { handleCheckOut(readNoteModal.attendanceId); setReadNoteModal({ show: false, attendanceId: null, text: '', name: '', color: '' }); }} className="w-full bg-white text-car-dark font-black p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl flex justify-center items-center gap-2">
                             <CheckCircle size={24}/> J'AI TRANSMIS, VALIDER DÉPART
                         </button>
