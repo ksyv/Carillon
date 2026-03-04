@@ -825,6 +825,7 @@ const SessionView = () => {
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
     const role = localStorage.getItem('role');
+    const access = localStorage.getItem('categoryAccess') || 'Tous';
     const isReadOnly = role !== 'admin'; 
     
     const [newChild, setNewChild] = useState({ 
@@ -851,12 +852,23 @@ const ChildrenManager = () => {
 
     // NOUVEAU : Filtre de la liste d'enfants
     const filteredChildren = useMemo(() => {
-        if (!searchTerm) return children;
-        return children.filter(c => 
-            c.lastName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            c.firstName.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [children, searchTerm]);
+        let result = children;
+
+        // 1. Restriction de sécurité selon l'accès (Mater/Elem)
+        if (access !== 'Tous') {
+            result = result.filter(c => c.category === access);
+        }
+
+        // 2. Filtre de la barre de recherche
+        if (searchTerm) {
+            result = result.filter(c => 
+                c.lastName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                c.firstName.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        return result;
+    }, [children, searchTerm, access]);
 
     const handleAdd = async (e) => {
         e.preventDefault();
