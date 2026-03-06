@@ -46,7 +46,6 @@ const CategoryFilter = ({ value, onChange, access }) => {
 const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
     return (
-        // CORRECTION ICI : 'fixed' au lieu de 'absolute'
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-[2rem] p-8 w-full max-w-lg shadow-2xl relative overflow-y-auto max-h-[90vh]">
                 <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-car-dark bg-slate-100 p-2 rounded-full"><X size={24}/></button>
@@ -618,6 +617,10 @@ const SessionView = () => {
     const activeCount = filteredAttendance.filter(a => !a.checkOut).length;
     const totalCount = filteredAttendance.length;
 
+    // CALCUL DU MIDI EN TEMPS RÉEL
+    const totalCategoryChildren = children.filter(c => categoryFilter === 'Tous' || c.category === categoryFilter).length;
+    const midiPresents = totalCategoryChildren - totalCount; 
+
     const handleDepartureClick = (record) => {
         const amRecord = type === 'SOIR' ? amAttendance.find(a => a.child._id === record.child._id) : null;
         const amNote = amRecord?.note || '';
@@ -661,7 +664,7 @@ const SessionView = () => {
                     </div>
 
                     <div className={`bg-${themeColor}/10 text-${themeColor} px-5 py-2 rounded-full font-black text-sm tracking-widest w-full sm:w-auto text-center`}>
-                        {type} • {isMidi ? `${totalCount} ABSENTS` : `${activeCount} / ${totalCount} PRÉSENTS`}
+                        {type} • {isMidi ? `${midiPresents} PRÉSENTS (${totalCount} Absents)` : `${activeCount} / ${totalCount} PRÉSENTS`}
                     </div>
                 </div>
                 <div className="p-4 bg-white border-b border-slate-100">
@@ -682,7 +685,7 @@ const SessionView = () => {
                             const isGone = isPresent && !!attendanceRecord.checkOut;
 
                             return (
-                                <div key={child._id} className="p-5 border-b border-slate-50 flex justify-between items-center hover:bg-slate-50 transition-colors group">
+                                <div key={child._id} className="p-5 flex justify-between items-center hover:bg-slate-100 transition-colors group rounded-2xl mb-1">
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => setChildInfoToView(child)} className="text-slate-300 hover:text-car-blue bg-white p-2 rounded-full shadow-sm border border-slate-100 transition-colors">
                                             <Info size={20}/>
