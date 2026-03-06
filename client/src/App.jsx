@@ -664,7 +664,7 @@ const SessionView = () => {
                     </div>
 
                     <div className={`bg-${themeColor}/10 text-${themeColor} px-5 py-2 rounded-full font-black text-sm tracking-widest w-full sm:w-auto text-center`}>
-                        {type} • {isMidi ? `${midiPresents} PRÉSENTS (${totalCount} Absents)` : `${activeCount} / ${totalCount} PRÉSENTS`}
+                        {type} • {isMidi ? `${midiPresents} PRÉSENTS` : `${activeCount} / ${totalCount} PRÉSENTS`}
                     </div>
                 </div>
                 <div className="p-4 bg-white border-b border-slate-100">
