@@ -3,7 +3,7 @@ import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, getDay, getISOWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Banknote, Wifi, WifiOff, Lock, Info, AlertTriangle, Phone, ShieldCheck, Utensils } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Banknote, Wifi, WifiOff, Lock, Info, AlertTriangle, Phone, ShieldCheck, Utensils, FolderHeart } from 'lucide-react';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -471,6 +471,11 @@ const Dashboard = () => {
                 </button>
                 {role === 'admin' && (
                     <>
+                        <button onClick={() => navigate('/admin/families')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group relative overflow-hidden">
+                            <div className="absolute top-0 right-0 bg-car-pink text-white text-xs font-black px-3 py-1 rounded-bl-xl shadow-sm animate-pulse">NOUVEAU</div>
+                            <div className="bg-car-yellow/10 p-4 rounded-2xl w-fit group-hover:bg-car-yellow group-hover:text-white text-car-yellow transition-colors"><FolderHeart size={24} strokeWidth={2.5}/></div>
+                            <div><h3 className="font-black text-car-dark text-lg">Dossiers Familles</h3><p className="text-xs text-slate-500 font-medium mt-1">Rattachement & CAF</p></div>
+                        </button>
                         <button onClick={() => navigate('/report')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-teal/10 p-4 rounded-2xl w-fit group-hover:bg-car-teal group-hover:text-white text-car-teal transition-colors"><FileText size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Rapports & Listes</h3><p className="text-xs text-slate-500 font-medium mt-1">Historique & PDF</p></div>
@@ -1851,6 +1856,202 @@ const BillingManager = () => {
     );
 };
 
+// --- 9. ADMIN FAMILLES (Dossiers) ---
+const FamilyManager = () => {
+    const [children, setChildren] = useState([]);
+    const [families, setFamilies] = useState([]);
+    const [newFamilyName, setNewFamilyName] = useState('');
+    const [selectedFamily, setSelectedFamily] = useState(null);
+    const [searchOrphan, setSearchOrphan] = useState('');
+
+    const navigate = useNavigate();
+
+    useEffect(() => { loadData(); }, []);
+
+    const loadData = async () => {
+        const [kidsRes, famRes] = await Promise.all([
+            axios.get(`${API_URL}/children`),
+            axios.get(`${API_URL}/families`)
+        ]);
+        setChildren(kidsRes.data);
+        setFamilies(famRes.data);
+        
+        // Mettre à jour la famille sélectionnée si elle existe
+        if (selectedFamily) {
+            const updatedFam = famRes.data.find(f => f._id === selectedFamily._id);
+            setSelectedFamily(updatedFam || null);
+        }
+    };
+
+    const handleCreateFamily = async (e) => {
+        e.preventDefault();
+        if (!newFamilyName.trim()) return;
+        try {
+            const res = await axios.post(`${API_URL}/families`, { name: newFamilyName.toUpperCase() });
+            setNewFamilyName('');
+            loadData();
+            setSelectedFamily(res.data);
+        } catch (e) { alert("Erreur à la création."); }
+    };
+
+    const handleDeleteFamily = async (id) => {
+        if (window.confirm("Supprimer ce dossier ? Les enfants ne seront pas effacés, ils deviendront juste 'sans dossier'.")) {
+            await axios.delete(`${API_URL}/families/${id}`);
+            setSelectedFamily(null);
+            loadData();
+        }
+    };
+
+    const handleAttachChild = async (childId, familyId) => {
+        await axios.put(`${API_URL}/children/${childId}`, { family: familyId });
+        loadData();
+        setSearchOrphan('');
+    };
+
+    const handleDetachChild = async (childId) => {
+        if (window.confirm("Détacher cet enfant de la famille ?")) {
+            await axios.put(`${API_URL}/children/${childId}`, { family: null });
+            loadData();
+        }
+    };
+
+    // Logique de filtrage
+    const orphans = children.filter(c => !c.family);
+    const filteredOrphans = searchOrphan.length >= 2 
+        ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase()))
+        : [];
+        
+    const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id) : [];
+
+    return (
+        <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
+            <div className="max-w-6xl mx-auto pb-20">
+                <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
+                
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-10 gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-car-yellow/10 p-4 rounded-2xl"><FolderHeart className="text-car-yellow w-8 h-8"/></div>
+                        <div>
+                            <h1 className="text-4xl font-black text-car-dark">Dossiers Familles</h1>
+                            <p className="text-slate-500 font-medium mt-1">Gestion centralisée & Rattachements</p>
+                        </div>
+                    </div>
+                    
+                    {/* LE FAMEUX COMPTEUR D'ORPHELINS */}
+                    <div className={`px-6 py-4 rounded-2xl font-black text-lg flex items-center gap-3 shadow-sm ${orphans.length > 0 ? 'bg-car-pink text-white animate-pulse' : 'bg-car-green text-white'}`}>
+                        {orphans.length > 0 ? <AlertTriangle size={24}/> : <CheckCircle size={24}/>}
+                        {orphans.length} ENFANTS SANS DOSSIER
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* COLONNE GAUCHE : Liste des familles */}
+                    <div className="lg:col-span-1 space-y-4">
+                        <form onSubmit={handleCreateFamily} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex gap-2">
+                            <input className="bg-slate-50 border-none p-3 rounded-xl focus:ring-4 focus:ring-car-yellow/20 outline-none font-black text-car-dark placeholder:text-slate-400 flex-1 uppercase text-sm" placeholder="NOM FAMILLE..." value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} required/>
+                            <button type="submit" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors"><Plus size={20}/></button>
+                        </form>
+
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[600px]">
+                            <div className="p-4 bg-slate-50 border-b border-slate-100 font-black text-slate-400 text-xs tracking-widest uppercase">
+                                {families.length} Dossiers existants
+                            </div>
+                            <div className="overflow-y-auto flex-1 p-2">
+                                {families.map(fam => {
+                                    const famChildrenCount = children.filter(c => c.family === fam._id).length;
+                                    return (
+                                        <button key={fam._id} onClick={() => setSelectedFamily(fam)} className={`w-full text-left p-4 rounded-2xl mb-1 flex items-center justify-between transition-all ${selectedFamily?._id === fam._id ? 'bg-car-yellow text-white shadow-md' : 'hover:bg-slate-50 text-car-dark'}`}>
+                                            <div>
+                                                <span className="font-black block text-lg">Famille {fam.name}</span>
+                                                <span className={`text-xs font-bold ${selectedFamily?._id === fam._id ? 'text-white/80' : 'text-slate-400'}`}>
+                                                    {famChildrenCount} enfant(s)
+                                                </span>
+                                            </div>
+                                            {!fam.dossierComplet && <span className="w-3 h-3 rounded-full bg-car-pink" title="Dossier Incomplet"></span>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* COLONNE DROITE : Détail de la famille */}
+                    <div className="lg:col-span-2">
+                        {selectedFamily ? (
+                            <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 min-h-[600px] flex flex-col">
+                                <div className="flex justify-between items-start mb-8">
+                                    <div>
+                                        <h2 className="text-3xl font-black text-car-dark">Dossier <span className="text-car-yellow">{selectedFamily.name}</span></h2>
+                                        {!selectedFamily.dossierComplet && (
+                                            <span className="inline-flex items-center gap-1 text-car-pink bg-car-pink/10 px-3 py-1 rounded-lg text-xs font-bold mt-2 uppercase tracking-widest">
+                                                <AlertTriangle size={14}/> Informations administratives manquantes
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-300 hover:text-car-pink bg-slate-50 p-3 rounded-xl transition-colors"><Trash2 size={20}/></button>
+                                </div>
+
+                                {/* BLOC : ENFANTS RATTACHÉS */}
+                                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-6">
+                                    <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
+                                    
+                                    {attachedChildren.length > 0 ? (
+                                        <div className="space-y-2 mb-6">
+                                            {attachedChildren.map(c => (
+                                                <div key={c._id} className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm">
+                                                    <span className="font-black text-car-dark text-lg">{c.lastName} <span className="font-medium text-slate-500">{c.firstName}</span></span>
+                                                    <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink font-bold text-xs bg-slate-50 px-3 py-2 rounded-lg transition-colors">Détacher</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-slate-400 font-medium mb-6 italic">Aucun enfant n'est rattaché à ce dossier.</p>
+                                    )}
+
+                                    {/* LE TINDER : RECHERCHE D'ORPHELINS */}
+                                    <div className="relative">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Search className="text-slate-400" size={18}/>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rattacher un enfant existant :</label>
+                                        </div>
+                                        <input type="text" className="w-full p-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-car-yellow/20 outline-none font-bold text-car-dark placeholder:text-slate-300" placeholder="Rechercher par prénom ou nom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
+                                        
+                                        {searchOrphan.length >= 2 && (
+                                            <div className="absolute w-full mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
+                                                {filteredOrphans.map(c => (
+                                                    <div key={c._id} className="p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                        <span className="font-black text-car-dark">{c.lastName} <span className="font-medium text-slate-500">{c.firstName}</span></span>
+                                                        <button onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md hover:scale-105 transition-transform">+ Ajouter</button>
+                                                    </div>
+                                                ))}
+                                                {filteredOrphans.length === 0 && <div className="p-4 text-center text-slate-400 font-bold">Aucun enfant orphelin trouvé.</div>}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* BLOC : PAPERASSE (En construction pour l'instant, on fait simple) */}
+                                <div className="flex-1 border-2 border-dashed border-slate-200 rounded-3xl p-8 flex flex-col items-center justify-center text-center opacity-70">
+                                    <FileText size={48} className="text-slate-300 mb-4"/>
+                                    <h3 className="font-black text-car-dark text-xl mb-2">Dossier Administratif</h3>
+                                    <p className="text-slate-500 font-medium">Une fois que vous avez lié les enfants, vous pourrez renseigner ici les numéros de CAF, la facturation et les responsables légaux.</p>
+                                    <p className="text-car-yellow font-bold mt-4 px-4 py-2 bg-car-yellow/10 rounded-xl">Interface de saisie complète en cours de construction...</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-slate-100/50 rounded-[2rem] h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-200 p-10 text-center">
+                                <FolderHeart size={64} className="text-slate-300 mb-4"/>
+                                <h3 className="font-black text-slate-400 text-2xl mb-2">Aucun dossier sélectionné</h3>
+                                <p className="text-slate-400 font-medium max-w-sm">Créez une nouvelle famille à gauche ou sélectionnez-en une pour y rattacher des enfants.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- ROUTER ---
 export default function App() {
   const [auth, setAuth] = useState({ token: localStorage.getItem('token'), role: localStorage.getItem('role') });
@@ -1867,6 +2068,7 @@ export default function App() {
         <Route path="/admin/users" element={<UserManager />} />
         <Route path="/admin/planned-notes" element={<PlannedNotesManager />} />
         <Route path="/admin/billing" element={<BillingManager />} />
+        <Route path="/admin/families" element={<FamilyManager />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
