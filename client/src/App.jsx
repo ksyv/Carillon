@@ -148,55 +148,74 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
 };
 
 // --- MODALE D'INFORMATION ENFANT ---
+// --- MODALE D'INFORMATION ENFANT (Mise à jour avec la Famille) ---
 const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
+
+    // Si l'enfant est rattaché à une famille, on prend les contacts de la famille, 
+    // sinon on prend les anciens (pour la rétrocompatibilité le temps de la migration)
+    const responsables = child.family?.responsables?.length > 0 ? child.family.responsables : child.responsablesLegaux;
+    const personnesAutorisees = child.family?.personnesAutorisees?.length > 0 ? child.family.personnesAutorisees : child.personnesAutorisees;
+
     return (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-[2rem] p-8 w-full max-w-lg shadow-2xl relative overflow-y-auto max-h-[90vh]">
                 <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-car-dark bg-slate-100 p-2 rounded-full"><X size={24}/></button>
                 
                 <div className="mb-6 pr-10">
-                    <h2 className="text-3xl font-black text-car-dark leading-tight">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></h2>
+                    <h2 className="text-3xl font-black text-car-dark leading-tight">{child.lastName} <span className="font-medium text-slate-500 capitalize">{child.firstName}</span></h2>
                     <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-block ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
                         {child.category || 'Maternelle'}
                     </span>
-                    {child.category === 'Élémentaire' && child.autorisationSortieSeul && (
-                        <span className="ml-2 text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-flex items-center gap-1 bg-car-green/10 text-car-green">
-                            <ShieldCheck size={14}/> SORTIE SEUL AUTORISÉE
+                    {child.family && (
+                        <span className="ml-2 text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-flex items-center gap-1 bg-car-purple/10 text-car-purple">
+                            <FolderHeart size={14}/> DOSSIER LIÉ
                         </span>
                     )}
                 </div>
 
                 <div className="space-y-6">
-                    {child.hasPAI && (
-                        <div className="bg-car-pink/10 border-2 border-car-pink/30 p-5 rounded-2xl">
-                            <div className="flex items-center gap-2 text-car-pink font-black mb-2 uppercase tracking-widest">
-                                <AlertTriangle size={20}/> PROTOCOLE PAI ACTIF
-                            </div>
-                            <p className="text-car-dark font-medium whitespace-pre-wrap">{child.paiDetails}</p>
-                            {child.isPAIAlimentaire && <span className="mt-3 inline-block bg-car-pink text-white text-xs font-bold px-3 py-1 rounded-lg">PAI ALIMENTAIRE</span>}
+                    {/* INFOS MÉDICALES & PAI */}
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                        <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
+                            <Utensils size={18}/> Santé & Médical
                         </div>
-                    )}
-
-                    {child.regimeAlimentaire !== 'Standard' && (
-                        <div className="bg-car-yellow/10 p-5 rounded-2xl">
-                            <div className="flex items-center gap-2 text-car-yellow font-black mb-1 uppercase tracking-widest">
-                                <Utensils size={18}/> RÉGIME ALIMENTAIRE
-                            </div>
-                            <p className="text-car-dark font-bold text-lg">{child.regimeAlimentaire}</p>
+                        <div className="grid grid-cols-2 gap-4 mb-4 text-sm font-medium text-car-dark">
+                            <div className="bg-white p-3 rounded-xl shadow-sm">Lunettes : {child.medical?.lunettes ? 'OUI' : 'NON'}</div>
+                            <div className="bg-white p-3 rounded-xl shadow-sm">Appareil auditif : {child.medical?.appareilAuditif ? 'OUI' : 'NON'}</div>
+                            <div className="bg-white p-3 rounded-xl shadow-sm">Appareil dentaire : {child.medical?.appareilDentaire ? 'OUI' : 'NON'}</div>
+                            <div className="bg-white p-3 rounded-xl shadow-sm">Activités Physiques : {child.medical?.activitesPhysiques !== false ? 'OUI' : 'NON'}</div>
                         </div>
-                    )}
+                        {child.medical?.medecinNom && (
+                            <div className="bg-white p-3 rounded-xl shadow-sm text-sm font-medium text-car-dark mb-4">
+                                <span className="text-slate-400">Médecin :</span> {child.medical.medecinNom} ({child.medical.medecinPhone})
+                            </div>
+                        )}
+                        
+                        {child.hasPAI && (
+                            <div className="bg-car-pink/10 border-2 border-car-pink/30 p-4 rounded-xl mt-2">
+                                <div className="text-car-pink font-black uppercase tracking-widest mb-1 flex items-center gap-2"><AlertTriangle size={16}/> PAI ACTIF</div>
+                                <p className="text-car-dark font-medium text-sm">{child.paiDetails}</p>
+                            </div>
+                        )}
+                    </div>
 
+                    {/* CONTACTS DES RESPONSABLES */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
                             <Phone size={18}/> RESPONSABLES LÉGAUX
                         </div>
-                        {Array.isArray(child.responsablesLegaux) && child.responsablesLegaux.length > 0 ? (
-                            <div className="space-y-2 mb-4">
-                                {child.responsablesLegaux.map((c, i) => (
-                                    <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                                        <span className="font-bold text-car-dark">{c.lastName?.toUpperCase()} <span className="font-medium">{c.firstName}</span></span>
-                                        <span className="font-bold text-car-teal bg-car-teal/10 px-3 py-1 rounded-lg text-sm">{c.phone || 'Non renseigné'}</span>
+                        {Array.isArray(responsables) && responsables.length > 0 ? (
+                            <div className="space-y-3 mb-4">
+                                {responsables.map((c, i) => (
+                                    <div key={i} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="font-bold text-car-dark uppercase">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
+                                            <span className="text-xs font-bold text-slate-400 uppercase">{c.qualite || 'Resp. '+ (i+1)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center mt-2">
+                                            <span className="font-bold text-car-teal bg-car-teal/10 px-3 py-1 rounded-lg text-sm">{c.phoneMobile || c.phone || 'Pas de numéro'}</span>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -207,12 +226,12 @@ const ChildInfoModal = ({ child, onClose }) => {
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
                             <Users size={18}/> PERSONNES AUTORISÉES
                         </div>
-                        {Array.isArray(child.personnesAutorisees) && child.personnesAutorisees.length > 0 ? (
+                        {Array.isArray(personnesAutorisees) && personnesAutorisees.length > 0 ? (
                             <div className="space-y-2">
-                                {child.personnesAutorisees.map((c, i) => (
+                                {personnesAutorisees.map((c, i) => (
                                     <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
                                         <span className="font-bold text-car-dark">{c.lastName?.toUpperCase()} <span className="font-medium">{c.firstName}</span></span>
-                                        <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg text-sm">{c.phone || 'Non renseigné'}</span>
+                                        <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg text-sm">{c.phone || 'Pas de numéro'}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1997,6 +2016,18 @@ const FamilyManager = () => {
         
     const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id) : [];
 
+    const handleFileUpload = (docType, e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // On transforme le fichier en Base64 pour le sauvegarder facilement dans MongoDB
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            handleDocChange(docType, 'fileUrl', reader.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
             <div className="max-w-7xl mx-auto pb-20">
@@ -2173,19 +2204,40 @@ const FamilyManager = () => {
                                         </div>
 
                                         {/* DOCUMENT JUSTIFICATIF */}
-                                        <div className="bg-white p-4 rounded-2xl border border-slate-200">
-                                            <h4 className="text-xs font-bold text-slate-500 mb-3 uppercase flex items-center gap-2"><FileText size={14}/> Justificatif CAF / Imposition</h4>
-                                            <div className="flex gap-2">
-                                                <select className={`flex-1 p-2 rounded-lg text-sm font-bold border outline-none ${editFamily.documents?.attestationCAF?.status === 'Valide' ? 'bg-car-green/10 text-car-green border-car-green/20' : 'bg-slate-50 text-slate-600 border-slate-100'}`} 
-                                                    value={editFamily.documents?.attestationCAF?.status || 'Manquant'} 
-                                                    onChange={e => handleDocChange('attestationCAF', 'status', e.target.value)}>
-                                                    <option value="Manquant">Manquant</option>
-                                                    <option value="Valide">Valide</option>
-                                                    <option value="Expiré">Expiré</option>
-                                                </select>
-                                                <input type="date" title="Date de fin de validité" className="flex-1 bg-slate-50 border border-slate-100 p-2 rounded-lg outline-none focus:border-car-yellow font-medium text-car-dark text-sm" 
-                                                    value={editFamily.documents?.attestationCAF?.expiryDate ? editFamily.documents.attestationCAF.expiryDate.split('T')[0] : ''} 
-                                                    onChange={e => handleDocChange('attestationCAF', 'expiryDate', e.target.value)} />
+                                        <div className="bg-white p-4 rounded-2xl border border-slate-200 mt-4">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><FileText size={14}/> Justificatif CAF / Imposition</h4>
+                                                {editFamily.documents?.attestationCAF?.fileUrl && (
+                                                    <button type="button" onClick={() => {
+                                                        const win = window.open();
+                                                        win.document.write(`<iframe src="${editFamily.documents.attestationCAF.fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                    }} className="text-car-blue bg-car-blue/10 px-3 py-1 rounded-lg font-bold text-xs hover:bg-car-blue hover:text-white transition-colors">
+                                                        👀 VOIR LE DOCUMENT
+                                                    </button>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="flex flex-col gap-3">
+                                                <div className="flex gap-2">
+                                                    <select className={`flex-1 p-2 rounded-lg text-sm font-bold border outline-none ${editFamily.documents?.attestationCAF?.status === 'Valide' ? 'bg-car-green/10 text-car-green border-car-green/20' : 'bg-slate-50 text-slate-600 border-slate-100'}`} 
+                                                        value={editFamily.documents?.attestationCAF?.status || 'Manquant'} 
+                                                        onChange={e => handleDocChange('attestationCAF', 'status', e.target.value)}>
+                                                        <option value="Manquant">Manquant</option>
+                                                        <option value="Valide">Valide</option>
+                                                        <option value="Expiré">Expiré</option>
+                                                    </select>
+                                                    <input type="date" title="Date de fin de validité" className="flex-1 bg-slate-50 border border-slate-100 p-2 rounded-lg outline-none focus:border-car-yellow font-medium text-car-dark text-sm" 
+                                                        value={editFamily.documents?.attestationCAF?.expiryDate ? editFamily.documents.attestationCAF.expiryDate.split('T')[0] : ''} 
+                                                        onChange={e => handleDocChange('attestationCAF', 'expiryDate', e.target.value)} />
+                                                </div>
+                                                
+                                                {/* NOUVEAU : BOUTON D'UPLOAD */}
+                                                <input 
+                                                    type="file" 
+                                                    accept=".pdf, image/jpeg, image/png" 
+                                                    onChange={(e) => handleFileUpload('attestationCAF', e)} 
+                                                    className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
+                                                />
                                             </div>
                                         </div>
                                     </div>

@@ -91,7 +91,10 @@ app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
 // --- Routes Enfants ---
 // Tous les connectés peuvent lire la base (indispensable pour l'appli hors-ligne des animateurs)
 app.get('/api/children', auth(), async (req, res) => {
-    const children = await Child.find({ active: true }).sort({ lastName: 1, firstName: 1 });
+    // Le .populate('family') permet d'inclure toutes les infos des parents !
+    const children = await Child.find({ active: true })
+        .sort({ lastName: 1, firstName: 1 })
+        .populate('family'); 
     res.json(children);
 });
 
