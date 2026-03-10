@@ -148,20 +148,90 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
 };
 
 // --- MODALE D'INFORMATION ENFANT ---
-// --- MODALE D'INFORMATION ENFANT (Mise à jour avec la Famille) ---
 // --- MODALE D'INFORMATION ENFANT ---
 const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
 
-    // Les parents viennent de la famille, mais les personnes autorisées viennent de l'enfant !
     const responsables = child.family?.responsables?.length > 0 ? child.family.responsables : [];
+
+    const exportChildPDF = () => {
+        const doc = new jsPDF();
+        let yPos = 20;
+
+        doc.setFontSize(18);
+        doc.text(`FICHE ENFANT : ${child.lastName.toUpperCase()} ${child.firstName}`, 14, yPos);
+        yPos += 10;
+
+        const mainInfo = [
+            ['Catégorie', child.category || 'Maternelle'],
+            ['Date de naissance', child.birthDate ? new Date(child.birthDate).toLocaleDateString('fr-FR') : 'Non renseignée'],
+            ['Régime Alimentaire', child.regimeAlimentaire],
+            ['Droit à l\'image', child.droitImage ? 'OUI' : 'NON'],
+            ['Autorisé à sortir seul', child.autorisationSortieSeul ? 'OUI' : 'NON']
+        ];
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Informations Générales', '']],
+            body: mainInfo,
+            theme: 'grid',
+            headStyles: { fillColor: [84, 132, 164] }
+        });
+        yPos = doc.lastAutoTable.finalY + 10;
+
+        const medicalInfo = [
+            ['Médecin', `${child.medical?.medecinNom || '-'} (${child.medical?.medecinPhone || '-'})`],
+            ['Détails', `Lunettes: ${child.medical?.lunettes?'OUI':'NON'} | Audition: ${child.medical?.appareilAuditif?'OUI':'NON'} | Dents: ${child.medical?.appareilDentaire?'OUI':'NON'}`],
+            ['Apte au sport', child.medical?.activitesPhysiques !== false ? 'OUI' : 'NON']
+        ];
+        if (child.hasPAI) {
+            medicalInfo.push(['PAI ACTIF', child.isPAIAlimentaire ? 'Alimentaire' : 'Médical']);
+            medicalInfo.push(['Motif / Protocole', child.paiDetails || '-']);
+        }
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Santé & Médical', '']],
+            body: medicalInfo,
+            theme: 'grid',
+            headStyles: { fillColor: [244, 63, 94] } // car-pink
+        });
+        yPos = doc.lastAutoTable.finalY + 10;
+
+        if (responsables.length > 0) {
+            const respData = responsables.map(r => [`${r.lastName?.toUpperCase()} ${r.firstName} (${r.qualite || 'Resp'})`, r.phoneMobile || r.phoneFixe || '-']);
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Responsables Légaux', 'Téléphone']],
+                body: respData,
+                theme: 'grid'
+            });
+            yPos = doc.lastAutoTable.finalY + 10;
+        }
+
+        if (child.personnesAutorisees && child.personnesAutorisees.length > 0) {
+            const authData = child.personnesAutorisees.map(p => [`${p.lastName?.toUpperCase()} ${p.firstName}`, p.phone || '-', p.isEmergency ? 'OUI' : 'NON']);
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Personnes Autorisées', 'Téléphone', 'Urgence']],
+                body: authData,
+                theme: 'grid',
+                headStyles: { fillColor: [156, 163, 175] }
+            });
+        }
+
+        doc.save(`Fiche_${child.lastName.toUpperCase()}_${child.firstName}.pdf`);
+    };
 
     return (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-[2rem] p-8 w-full max-w-lg shadow-2xl relative overflow-y-auto max-h-[90vh]">
-                <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-car-dark bg-slate-100 p-2 rounded-full"><X size={24}/></button>
+                <div className="absolute top-6 right-6 flex gap-2">
+                    <button onClick={exportChildPDF} className="text-slate-400 hover:text-car-blue bg-slate-100 p-2 rounded-full" title="Exporter en PDF"><Download size={24}/></button>
+                    <button onClick={onClose} className="text-slate-400 hover:text-car-pink bg-slate-100 p-2 rounded-full"><X size={24}/></button>
+                </div>
                 
-                <div className="mb-6 pr-10">
+                <div className="mb-6 pr-20">
                     <h2 className="text-3xl font-black text-car-dark leading-tight">{child.lastName} <span className="font-medium text-slate-500 capitalize">{child.firstName}</span></h2>
                     <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-block ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
                         {child.category || 'Maternelle'}
@@ -221,7 +291,7 @@ const ChildInfoModal = ({ child, onClose }) => {
                                             <span className="text-xs font-bold text-slate-400 uppercase">{c.qualite || 'Resp. '+ (i+1)}</span>
                                         </div>
                                         <div className="flex justify-between items-center mt-2">
-                                            <span className="font-bold text-car-teal bg-car-teal/10 px-3 py-1 rounded-lg text-sm">{c.phoneMobile || c.phone || 'Pas de numéro'}</span>
+                                            <span className="font-bold text-car-teal bg-car-teal/10 px-3 py-1 rounded-lg text-sm">{c.phoneMobile || c.phoneFixe || 'Pas de numéro'}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -2097,6 +2167,114 @@ const FamilyManager = () => {
         ? families 
         : families.filter(f => f.name.toLowerCase().includes(searchFamilyText.toLowerCase()));
 
+    const exportFamilyPDF = () => {
+        if (!editFamily) return;
+        const doc = new jsPDF();
+        let yPos = 20;
+
+        // TITRE
+        doc.setFontSize(18);
+        doc.text(`DOSSIER FAMILLE : ${editFamily.name.toUpperCase()}`, 14, yPos);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        yPos += 8;
+        doc.text(`Statut : ${editFamily.dossierComplet ? 'Complet' : 'Incomplet'} | Edité le ${new Date().toLocaleDateString('fr-FR')}`, 14, yPos);
+        yPos += 12;
+
+        // FACTURATION & CAF
+        const facturationData = [
+            ['Payeur par défaut', editFamily.payeur || '-'],
+            ['Revenu de Référence', editFamily.revenuReference ? `${editFamily.revenuReference} €` : '-'],
+            ['Nombre de parts', editFamily.nombreParts || '-'],
+            ['Quotient Familial (Calculé)', editFamily.quotientFamilial || '-']
+        ];
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Facturation & Administratif', 'Valeur']],
+            body: facturationData,
+            theme: 'grid',
+            headStyles: { fillColor: [84, 132, 164] } // car-blue
+        });
+        yPos = doc.lastAutoTable.finalY + 10;
+
+        // RESPONSABLES
+        const respBody = [];
+        editFamily.responsables.forEach((r, i) => {
+            if(r.lastName || r.firstName) {
+                respBody.push([{ content: `Responsable ${i+1} : ${r.qualite || ''}`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }]);
+                respBody.push(['Identité', `${r.lastName?.toUpperCase()} ${r.firstName}`]);
+                respBody.push(['Téléphone', r.phoneMobile || '-']);
+                respBody.push(['Email', r.email || '-']);
+                respBody.push(['Profession', `${r.profession || '-'} chez ${r.employeur || '-'}`]);
+                respBody.push(['Sécurité Sociale / CAF', `${r.couvertureSociale || '-'} - Allocataire N°: ${r.numAllocataireCAF || '-'}`]);
+            }
+        });
+
+        if (respBody.length > 0) {
+            autoTable(doc, {
+                startY: yPos,
+                body: respBody,
+                theme: 'grid'
+            });
+            yPos = doc.lastAutoTable.finalY + 15;
+        }
+
+        // ENFANTS RATTACHÉS
+        if (attachedChildren.length > 0) {
+            doc.setFontSize(14);
+            doc.setTextColor(20);
+            doc.text("Enfants rattachés au foyer :", 14, yPos);
+            yPos += 8;
+
+            attachedChildren.forEach(child => {
+                if (yPos > 240) { doc.addPage(); yPos = 20; } // Saut de page si besoin
+
+                const childBody = [
+                    ['Catégorie', child.category],
+                    ['Date de naissance', child.birthDate ? new Date(child.birthDate).toLocaleDateString('fr-FR') : '-'],
+                    ['Autorisations', `Droit Image: ${child.droitImage?'OUI':'NON'} | Sortie Seul: ${child.autorisationSortieSeul?'OUI':'NON'}`],
+                    ['Médical', `Lunettes: ${child.medical?.lunettes?'OUI':'NON'} | Audition: ${child.medical?.appareilAuditif?'OUI':'NON'} | Dents: ${child.medical?.appareilDentaire?'OUI':'NON'}`],
+                    ['Médecin traitant', `${child.medical?.medecinNom || '-'} (${child.medical?.medecinPhone || '-'})`]
+                ];
+
+                if (child.hasPAI) {
+                    childBody.push(['PAI', `ACTIF - ${child.isPAIAlimentaire ? 'Alimentaire' : 'Médical'} (${child.paiDetails})`]);
+                }
+
+                autoTable(doc, {
+                    startY: yPos,
+                    head: [[`${child.firstName} ${child.lastName.toUpperCase()}`, 'Détails']],
+                    body: childBody,
+                    theme: 'grid',
+                    headStyles: { fillColor: [13, 148, 136] } // car-green
+                });
+                yPos = doc.lastAutoTable.finalY + 5;
+
+                if (child.personnesAutorisees && child.personnesAutorisees.length > 0) {
+                    if (yPos > 260) { doc.addPage(); yPos = 20; }
+                    const authBody = child.personnesAutorisees.map(p => [
+                        `${p.lastName?.toUpperCase()} ${p.firstName}`,
+                        p.phone || '-',
+                        p.isEmergency ? 'OUI' : 'NON'
+                    ]);
+                    autoTable(doc, {
+                        startY: yPos,
+                        head: [['Personnes Autorisées', 'Téléphone', 'Contact Urgence']],
+                        body: authBody,
+                        theme: 'grid',
+                        headStyles: { fillColor: [156, 163, 175] }
+                    });
+                    yPos = doc.lastAutoTable.finalY + 10;
+                } else {
+                    yPos += 5;
+                }
+            });
+        }
+
+        doc.save(`Dossier_Famille_${editFamily.name.toUpperCase()}.pdf`);
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
             <div className="max-w-7xl mx-auto pb-20">
@@ -2180,6 +2358,9 @@ const FamilyManager = () => {
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille"><Trash2 size={24}/></button>
+                                        <button onClick={exportFamilyPDF} className="text-slate-400 hover:text-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Exporter le dossier en PDF">
+                                            <Download size={24}/>
+                                        </button>
                                         <button onClick={handleSaveFamily} className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest hover:bg-green-600 transition-all flex items-center gap-2 shadow-lg shadow-car-green/20">
                                             <Save size={20}/> SAUVEGARDER LE DOSSIER
                                         </button>
