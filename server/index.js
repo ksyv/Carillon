@@ -13,7 +13,9 @@ const Billing = require('./models/Billing');
 const Family = require('./models/Family');
 
 const app = express();
-app.use(express.json());
+// On augmente la limite à 50 méga-octets pour accepter les PDF et images en Base64
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors());
 
 mongoose.connect(process.env.MONGO_URI)
