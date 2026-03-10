@@ -43,8 +43,24 @@ const CategoryFilter = ({ value, onChange, access }) => {
 };
 
 // --- MODALE FICHE D'URGENCE ---
-const EmergencyModal = ({ attendance, onClose }) => {
-    const presentChildren = attendance.filter(a => !a.checkOut).sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
+const EmergencyModal = ({ attendance, allChildren, sessionType, onClose }) => {
+    const isMidi = sessionType === 'MIDI';
+    
+    // Logique inversée : Qui est VRAIMENT présent ?
+    let presentRecords = [];
+    
+    if (isMidi) {
+        // Le midi : Les présents sont TOUS les enfants MOINS ceux qui ont été pointés absents
+        const absentIds = attendance.map(a => a.child._id);
+        presentRecords = allChildren
+            .filter(c => !absentIds.includes(c._id))
+            .map(c => ({ _id: c._id, child: c })); // On simule la structure de données pour l'affichage
+    } else {
+        // Matin/Soir : Les présents sont ceux pointés (sans checkOut)
+        presentRecords = attendance.filter(a => !a.checkOut);
+    }
+
+    const presentChildren = presentRecords.sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
     const [safeChildren, setSafeChildren] = useState(new Set());
 
     const toggleSafe = (id) => {
@@ -61,7 +77,9 @@ const EmergencyModal = ({ attendance, onClose }) => {
                     <h2 className="text-3xl font-black text-car-pink flex items-center gap-3">
                         <AlertTriangle size={32} /> ÉVACUATION / APPEL
                     </h2>
-                    <p className="text-slate-500 font-bold mt-1">Cochez les enfants en sécurité. Ceci n'affecte pas le pointage réel.</p>
+                    <p className="text-slate-500 font-bold mt-1">
+                        {isMidi ? "Midi : Affiche tous les enfants sauf ceux marqués absents." : "Cochez les enfants en sécurité. N'affecte pas le pointage."}
+                    </p>
                 </div>
                 <button onClick={onClose} className="w-full sm:w-auto bg-slate-100 text-slate-500 hover:bg-slate-200 p-4 rounded-2xl font-black transition-colors">
                     FERMER
@@ -859,8 +877,13 @@ const SessionView = () => {
 
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
             
-            {/* NOUVEAU : Appel de la modale d'urgence */}
-            {showEmergency && <EmergencyModal attendance={attendance} onClose={() => setShowEmergency(false)} />}
+            {/* NOUVEAU : Appel de la modale d'urgence corrigée */}
+            {showEmergency && <EmergencyModal 
+                attendance={attendance} 
+                allChildren={children} 
+                sessionType={type} 
+                onClose={() => setShowEmergency(false)} 
+            />}
 
             {noteModal.show && (
                 <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
