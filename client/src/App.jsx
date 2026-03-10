@@ -1889,7 +1889,9 @@ const BillingManager = () => {
 const FamilyManager = () => {
     const [children, setChildren] = useState([]);
     const [families, setFamilies] = useState([]);
-    const [newFamilyName, setNewFamilyName] = useState('');
+    
+    // Ce state sert à la fois de barre de recherche ET de nom pour la création
+    const [searchFamilyText, setSearchFamilyText] = useState('');
     
     const [selectedFamily, setSelectedFamily] = useState(null);
     const [editFamily, setEditFamily] = useState(null); 
@@ -1931,12 +1933,30 @@ const FamilyManager = () => {
         }
     }, [selectedFamily]);
 
-    const handleCreateFamily = async (e) => {
+    // MODIFIÉ : L'OMNIBOX AVEC GESTION DES HOMONYMES
+    const handleSearchOrCreateFamily = async (e) => {
         e.preventDefault();
-        if (!newFamilyName.trim()) return;
+        const searchName = searchFamilyText.trim().toUpperCase();
+        if (!searchName) return;
+
+        // 1. On vérifie si une ou plusieurs familles ont déjà ce nom exact
+        const existingFamilies = families.filter(f => f.name === searchName);
+        
+        if (existingFamilies.length > 0) {
+            const wantsToCreateDuplicate = window.confirm(`⚠️ Une ou plusieurs familles nommées "${searchName}" existent déjà !\n\nVoulez-vous vraiment en créer une NOUVELLE ?\n\n(Cliquez sur "Annuler" pour simplement ouvrir le dossier existant)`);
+            
+            if (!wantsToCreateDuplicate) {
+                // Si elle annule, on sélectionne simplement la première famille trouvée
+                setSelectedFamily(existingFamilies[0]);
+                setSearchFamilyText('');
+                return;
+            }
+        }
+
+        // 2. Création de la famille (soit car elle n'existe pas, soit car on a forcé la création d'un doublon)
         try {
-            const res = await axios.post(`${API_URL}/families`, { name: newFamilyName.toUpperCase() });
-            setNewFamilyName('');
+            const res = await axios.post(`${API_URL}/families`, { name: searchName });
+            setSearchFamilyText('');
             loadData();
             setSelectedFamily(res.data);
         } catch (e) { alert("Erreur à la création."); }
@@ -2006,14 +2026,13 @@ const FamilyManager = () => {
         reader.readAsDataURL(file);
     };
 
-    // --- LOGIQUE DU FORMULAIRE ENFANT ---
     const startAddChild = () => {
         setEditingChild({
             _id: null,
             firstName: '', lastName: selectedFamily.name, category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
             medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
             hasPAI: false, paiDetails: '', isPAIAlimentaire: false, paiDocument: '', regimeAlimentaire: 'Standard',
-            personnesAutorisees: [] // On initialise vide
+            personnesAutorisees: []
         });
     };
 
@@ -2025,11 +2044,10 @@ const FamilyManager = () => {
             droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
             medical: child.medical || { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
             hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false, paiDocument: child.paiDocument || '', regimeAlimentaire: child.regimeAlimentaire || 'Standard',
-            personnesAutorisees: child.personnesAutorisees || [] // On récupère les contacts
+            personnesAutorisees: child.personnesAutorisees || [] 
         });
     };
 
-    // Upload du document PAI de l'enfant
     const handleChildFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -2038,14 +2056,12 @@ const FamilyManager = () => {
         reader.readAsDataURL(file);
     };
 
-    // Changement d'un contact enfant
     const handleChildContactChange = (index, field, value) => {
         const newContacts = [...editingChild.personnesAutorisees];
         newContacts[index] = { ...newContacts[index], [field]: value };
         setEditingChild({ ...editingChild, personnesAutorisees: newContacts });
     };
 
-    // Le bouton magique "Copier la fratrie"
     const handleCopyContacts = () => {
         const sibling = attachedChildren.find(c => c._id !== editingChild._id && c.personnesAutorisees?.length > 0);
         if (sibling) {
@@ -2057,11 +2073,9 @@ const FamilyManager = () => {
 
     const saveChild = async (e) => {
         e.preventDefault();
-        
         if (editingChild.hasPAI && !editingChild.paiDocument) {
             if(!window.confirm("Aucun document PAI n'a été joint. Voulez-vous quand même sauvegarder ?")) return;
         }
-
         try {
             if (editingChild._id) {
                 await axios.put(`${API_URL}/children/${editingChild._id}`, editingChild);
@@ -2078,6 +2092,10 @@ const FamilyManager = () => {
         ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase()))
         : [];
     const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id || c.family?._id === selectedFamily._id) : [];
+
+    const filteredFamilies = searchFamilyText.trim() === '' 
+        ? families 
+        : families.filter(f => f.name.toLowerCase().includes(searchFamilyText.toLowerCase()));
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
@@ -2100,19 +2118,28 @@ const FamilyManager = () => {
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-                    {/* COLONNE GAUCHE : Liste des familles */}
+                    {/* COLONNE GAUCHE : Liste des familles filtrée */}
                     <div className="xl:col-span-1 space-y-4">
-                        <form onSubmit={handleCreateFamily} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex gap-2">
-                            <input className="bg-slate-50 border-none p-3 rounded-xl focus:ring-4 focus:ring-car-yellow/20 outline-none font-black text-car-dark placeholder:text-slate-400 flex-1 uppercase text-sm" placeholder="NOM FAMILLE..." value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} required/>
-                            <button type="submit" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors"><Plus size={20}/></button>
+                        <form onSubmit={handleSearchOrCreateFamily} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex gap-2 items-center">
+                            <Search className="text-slate-400 ml-2" size={20} />
+                            <input 
+                                className="bg-transparent border-none p-2 outline-none font-black text-car-dark placeholder:text-slate-300 flex-1 uppercase text-sm" 
+                                placeholder="CHERCHER OU CRÉER..." 
+                                value={searchFamilyText} 
+                                onChange={e => setSearchFamilyText(e.target.value)} 
+                            />
+                            <button type="submit" title="Créer un nouveau dossier" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors shrink-0">
+                                <Plus size={20}/>
+                            </button>
                         </form>
 
                         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[800px]">
-                            <div className="p-4 bg-slate-50 border-b border-slate-100 font-black text-slate-400 text-xs tracking-widest uppercase">
-                                {families.length} Dossiers existants
+                            <div className="p-4 bg-slate-50 border-b border-slate-100 font-black text-slate-400 text-xs tracking-widest uppercase flex justify-between">
+                                <span>{filteredFamilies.length} Dossiers</span>
+                                {searchFamilyText && <span className="text-car-yellow">Filtré</span>}
                             </div>
                             <div className="overflow-y-auto flex-1 p-2">
-                                {families.map(fam => {
+                                {filteredFamilies.map(fam => {
                                     const famChildrenCount = children.filter(c => c.family === fam._id || c.family?._id === fam._id).length;
                                     return (
                                         <button key={fam._id} onClick={() => setSelectedFamily(fam)} className={`w-full text-left p-4 rounded-2xl mb-1 flex items-center justify-between transition-all ${selectedFamily?._id === fam._id ? 'bg-car-yellow text-white shadow-md' : 'hover:bg-slate-50 text-car-dark'}`}>
@@ -2126,6 +2153,12 @@ const FamilyManager = () => {
                                         </button>
                                     );
                                 })}
+                                {filteredFamilies.length === 0 && searchFamilyText && (
+                                    <div className="p-8 text-center text-slate-400">
+                                        <p className="font-bold mb-2">Aucun dossier "{searchFamilyText.toUpperCase()}"</p>
+                                        <p className="text-xs">Appuyez sur <kbd className="bg-slate-100 p-1 rounded">Entrée</kbd> ou sur le <kbd className="bg-slate-100 p-1 rounded">+</kbd> pour le créer.</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -2319,12 +2352,13 @@ const FamilyManager = () => {
                                         </div>
                                     </div>
                                 </div>
+                                
                             </div>
                         ) : (
                             <div className="bg-slate-100/50 rounded-[2rem] h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-200 p-10 text-center">
                                 <FolderHeart size={64} className="text-slate-300 mb-4"/>
                                 <h3 className="font-black text-slate-400 text-2xl mb-2">Aucun dossier sélectionné</h3>
-                                <p className="text-slate-400 font-medium max-w-sm">Créez une nouvelle famille à gauche ou sélectionnez-en une pour commencer la saisie.</p>
+                                <p className="text-slate-400 font-medium max-w-sm">Recherchez une famille à gauche ou créez-en une pour commencer la saisie.</p>
                             </div>
                         )}
                     </div>
@@ -2444,7 +2478,7 @@ const FamilyManager = () => {
                                                     setEditingChild({...editingChild, isPAIAlimentaire: isAlim, regimeAlimentaire: isAlim ? 'PAI' : 'Standard'});
                                                 }} /> C'est un PAI Alimentaire</label>
                                                 
-                                                {/* NOUVEAU : UPLOAD DU DOC PAI */}
+                                                {/* UPLOAD DU DOC PAI */}
                                                 <div className="mt-2 bg-white p-3 rounded-xl border border-car-pink/30 flex items-center justify-between">
                                                     <div className="flex flex-col">
                                                         <span className="text-[10px] font-black text-car-pink uppercase">Joindre le document PAI</span>
