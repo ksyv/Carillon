@@ -42,6 +42,64 @@ const CategoryFilter = ({ value, onChange, access }) => {
     );
 };
 
+// --- MODALE FICHE D'URGENCE ---
+const EmergencyModal = ({ attendance, onClose }) => {
+    const presentChildren = attendance.filter(a => !a.checkOut).sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
+    const [safeChildren, setSafeChildren] = useState(new Set());
+
+    const toggleSafe = (id) => {
+        const newSafe = new Set(safeChildren);
+        if (newSafe.has(id)) newSafe.delete(id);
+        else newSafe.add(id);
+        setSafeChildren(newSafe);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-car-pink/95 backdrop-blur-md z-[100] flex flex-col">
+            <div className="bg-white p-6 shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center sticky top-0 z-10 gap-4">
+                <div>
+                    <h2 className="text-3xl font-black text-car-pink flex items-center gap-3">
+                        <AlertTriangle size={32} /> ÉVACUATION / APPEL
+                    </h2>
+                    <p className="text-slate-500 font-bold mt-1">Cochez les enfants en sécurité. Ceci n'affecte pas le pointage réel.</p>
+                </div>
+                <button onClick={onClose} className="w-full sm:w-auto bg-slate-100 text-slate-500 hover:bg-slate-200 p-4 rounded-2xl font-black transition-colors">
+                    FERMER
+                </button>
+            </div>
+            
+            <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
+                <div className="max-w-4xl mx-auto">
+                    <div className="bg-white rounded-3xl p-6 shadow-xl mb-6 flex justify-between items-center">
+                        <span className="text-xl font-black text-car-dark">En sécurité :</span>
+                        <span className={`text-3xl font-black px-6 py-2 rounded-2xl ${safeChildren.size === presentChildren.length ? 'bg-car-green text-white animate-pulse' : 'bg-car-pink/20 text-car-pink'}`}>
+                            {safeChildren.size} / {presentChildren.length}
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {presentChildren.map(record => {
+                            const isSafe = safeChildren.has(record._id);
+                            return (
+                                <div key={record._id} onClick={() => toggleSafe(record._id)} 
+                                    className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex justify-between items-center ${isSafe ? 'bg-car-green/10 border-car-green text-car-green shadow-inner' : 'bg-white border-transparent shadow-lg text-car-dark'}`}>
+                                    <div>
+                                        <span className={`font-black text-xl block ${isSafe ? 'line-through opacity-50' : ''}`}>{record.child.lastName} <span className="font-medium">{record.child.firstName}</span></span>
+                                        <span className="text-xs font-bold uppercase tracking-widest opacity-60">{record.child.category}</span>
+                                    </div>
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isSafe ? 'bg-car-green border-car-green text-white' : 'border-slate-200 text-transparent'}`}>
+                                        <Check strokeWidth={4} />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- MODALE D'INFORMATION ENFANT ---
 const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
@@ -402,9 +460,11 @@ const SessionView = () => {
     const [search, setSearch] = useState('');
     
     const [noteModal, setNoteModal] = useState({ show: false, attendanceId: null, text: '', amNote: '' });
-    const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, text: '', name: '', color: '' });
+    // Update de la modale de lecture pour gérer la sauvegarde pour demain
+    const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' });
     const [plannedNotes, setPlannedNotes] = useState([]);
     const [childInfoToView, setChildInfoToView] = useState(null); 
+    const [showEmergency, setShowEmergency] = useState(false);
 
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [pendingSync, setPendingSync] = useState(0);
@@ -617,25 +677,39 @@ const SessionView = () => {
     const activeCount = filteredAttendance.filter(a => !a.checkOut).length;
     const totalCount = filteredAttendance.length;
 
-    // CALCUL DU MIDI EN TEMPS RÉEL
     const totalCategoryChildren = children.filter(c => categoryFilter === 'Tous' || c.category === categoryFilter).length;
     const midiPresents = totalCategoryChildren - totalCount; 
 
+    // MODIFIÉ : Fusionne la note du jour + note persistante
     const handleDepartureClick = (record) => {
         const amRecord = type === 'SOIR' ? amAttendance.find(a => a.child._id === record.child._id) : null;
         const amNote = amRecord?.note || '';
+        const persistentNote = record.child.persistentNote || '';
         
-        let combinedNote = record.note;
+        let combinedDisplay = [];
+        let combinedSave = [];
+
+        if (persistentNote) {
+            combinedDisplay.push(`⚠️ EN ATTENTE : ${persistentNote}`);
+            combinedSave.push(persistentNote);
+        }
         if (type === 'SOIR' && amNote) {
-            combinedNote = record.note ? `MATIN : ${amNote}\n\nSOIR : ${record.note}` : `MATIN : ${amNote}`;
+            combinedDisplay.push(`MATIN : ${amNote}`);
+            combinedSave.push(`Matin: ${amNote}`);
+        }
+        if (record.note) {
+            combinedDisplay.push(`${type === 'SOIR' ? 'SOIR : ' : ''}${record.note}`);
+            combinedSave.push(record.note);
         }
 
-        if (combinedNote) {
+        if (combinedDisplay.length > 0) {
             const randomColor = postItColors[Math.floor(Math.random() * postItColors.length)];
             setReadNoteModal({ 
                 show: true, 
                 attendanceId: record._id, 
-                text: combinedNote, 
+                childId: record.child._id,
+                text: combinedDisplay.join('\n\n'), 
+                textToSave: combinedSave.join(' | '),
                 name: `${record.child.firstName} ${record.child.lastName}`,
                 color: randomColor
             });
@@ -651,12 +725,17 @@ const SessionView = () => {
                     <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors w-full sm:w-auto text-left">← Retour</button>
                     
                     <div className="flex items-center gap-3">
+                        {/* NOUVEAU : BOUTON URGENCE */}
+                        <button onClick={() => setShowEmergency(true)} className="flex items-center gap-2 bg-car-pink text-white px-4 py-2 rounded-xl text-sm font-black tracking-widest hover:bg-red-600 transition-colors shadow-md shadow-car-pink/30 animate-pulse">
+                            <AlertTriangle size={18} /> URGENCE
+                        </button>
+
                         {isOnline ? (
-                            <div className="flex items-center gap-2 text-car-teal bg-car-teal/10 px-3 py-1.5 rounded-lg text-xs font-bold">
+                            <div className="flex items-center gap-2 text-car-teal bg-car-teal/10 px-3 py-1.5 rounded-lg text-xs font-bold hidden sm:flex">
                                 <Wifi size={16}/> {pendingSync > 0 ? `${pendingSync} en attente...` : 'En ligne'}
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2 text-car-pink bg-car-pink/10 px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse">
+                            <div className="flex items-center gap-2 text-car-pink bg-car-pink/10 px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse hidden sm:flex">
                                 <WifiOff size={16}/> HORS-LIGNE ({pendingSync})
                             </div>
                         )}
@@ -717,7 +796,9 @@ const SessionView = () => {
 
                     const amRecord = type === 'SOIR' ? amAttendance.find(a => a.child._id === record.child._id) : null;
                     const amNote = amRecord?.note || '';
-                    const hasAnyNote = record.note || (type === 'SOIR' && amNote);
+                    const persistentNote = record.child.persistentNote || '';
+                    // Indicateur global de message en attente
+                    const hasAnyNote = record.note || (type === 'SOIR' && amNote) || persistentNote;
 
                     return (
                         <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-slate-50 opacity-70' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)]'}`}>
@@ -777,6 +858,9 @@ const SessionView = () => {
             </div>
 
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
+            
+            {/* NOUVEAU : Appel de la modale d'urgence */}
+            {showEmergency && <EmergencyModal attendance={attendance} onClose={() => setShowEmergency(false)} />}
 
             {noteModal.show && (
                 <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -802,6 +886,8 @@ const SessionView = () => {
                     </div>
                 </div>
             )}
+
+            {/* MODIFIÉ : Modale de lecture avec sauvegarde persistante */}
             {readNoteModal.show && (
                 <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className={`${readNoteModal.color} rounded-[2rem] p-8 w-full max-w-md shadow-2xl transform rotate-1 scale-105 transition-transform`}>
@@ -813,10 +899,30 @@ const SessionView = () => {
                         <div className="bg-white/10 p-6 rounded-2xl text-white font-medium text-xl leading-relaxed mb-8 backdrop-blur-md whitespace-pre-wrap">
                             {readNoteModal.text}
                         </div>
-                        <button onClick={() => { handleCheckOut(readNoteModal.attendanceId); setReadNoteModal({ show: false, attendanceId: null, text: '', name: '', color: '' }); }} className="w-full bg-white text-car-dark font-black p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl flex justify-center items-center gap-2">
-                            <CheckCircle size={24}/> J'AI TRANSMIS, VALIDER DÉPART
-                        </button>
-                        <button onClick={() => setReadNoteModal({...readNoteModal, show: false})} className="w-full mt-4 text-white/80 font-bold p-2 hover:text-white transition-colors">Annuler, ne pas faire partir</button>
+                        
+                        <div className="space-y-3">
+                            {/* BOUTON TRANSMIS : Valide le départ et EFFACE la note persistante de l'enfant */}
+                            <button onClick={() => { 
+                                handleCheckOut(readNoteModal.attendanceId); 
+                                axios.put(`${API_URL}/children/${readNoteModal.childId}`, { persistentNote: "" }).then(() => loadData());
+                                setReadNoteModal({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' }); 
+                            }} className="w-full bg-white text-car-dark font-black p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl flex justify-center items-center gap-2">
+                                <CheckCircle size={24}/> J'AI TRANSMIS, DÉPART
+                            </button>
+                            
+                            {/* NOUVEAU BOUTON NON TRANSMIS : Valide le départ et SAUVEGARDE la note pour demain */}
+                            <button onClick={() => { 
+                                handleCheckOut(readNoteModal.attendanceId); 
+                                axios.put(`${API_URL}/children/${readNoteModal.childId}`, { persistentNote: readNoteModal.textToSave }).then(() => loadData());
+                                setReadNoteModal({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' }); 
+                            }} className="w-full bg-black/20 text-white font-black p-4 rounded-2xl hover:bg-black/30 transition-all flex justify-center items-center gap-2 border border-white/30">
+                                <AlertTriangle size={20}/> NON TRANSMIS (RAPPORTER)
+                            </button>
+
+                            <button onClick={() => setReadNoteModal({...readNoteModal, show: false})} className="w-full mt-2 text-white/80 font-bold p-2 hover:text-white transition-colors">
+                                Annuler, ne pas faire partir
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -845,7 +951,6 @@ const ChildrenManager = () => {
     
     const [childInfoToView, setChildInfoToView] = useState(null);
     
-    // NOUVEAU : État pour la barre de recherche
     const [searchTerm, setSearchTerm] = useState('');
 
     const navigate = useNavigate();
@@ -853,23 +958,17 @@ const ChildrenManager = () => {
     useEffect(() => { loadChildren(); }, []);
     const loadChildren = () => axios.get(`${API_URL}/children`).then(res => setChildren(res.data));
 
-    // NOUVEAU : Filtre de la liste d'enfants
     const filteredChildren = useMemo(() => {
         let result = children;
-
-        // 1. Restriction de sécurité selon l'accès (Mater/Elem)
         if (access !== 'Tous') {
             result = result.filter(c => c.category === access);
         }
-
-        // 2. Filtre de la barre de recherche
         if (searchTerm) {
             result = result.filter(c => 
                 c.lastName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 c.firstName.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
-
         return result;
     }, [children, searchTerm, access]);
 
@@ -1037,7 +1136,6 @@ const ChildrenManager = () => {
                     )
                 )}
 
-                {/* NOUVEAU : BARRE DE RECHERCHE */}
                 <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 mb-6 flex items-center gap-4 relative">
                     <Search className="text-slate-400 ml-2" size={24} />
                     <input 
@@ -1054,8 +1152,6 @@ const ChildrenManager = () => {
                     )}
                 </div>
 
-                {/* On mappe sur filteredChildren au lieu de children */}
-                {/* GRILLE DE CARTES ENFANTS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {filteredChildren.map(child => (
                         <div key={child._id} className={`bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100 transition-all duration-300 ${editingId === child._id ? 'md:col-span-2 ring-4 ring-car-green/10' : 'hover:-translate-y-1 hover:shadow-lg'}`}>

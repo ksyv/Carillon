@@ -94,16 +94,32 @@ app.get('/api/children', auth(), async (req, res) => {
     res.json(children);
 });
 
-// Seul l'admin peut modifier ou supprimer la base (les responsables ne peuvent QUE lire côté frontend)
+// Seul l'admin peut créer ou supprimer
 app.post('/api/children', auth(['admin']), async (req, res) => {
     const child = new Child(req.body);
     await child.save();
     res.json(child);
 });
 
-app.put('/api/children/:id', auth(['admin']), async (req, res) => {
-    const updated = await Child.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(updated);
+// MODIFIÉ : On laisse passer tout le monde, mais on filtre ce qu'ils ont le droit de faire
+app.put('/api/children/:id', auth(), async (req, res) => {
+    try {
+        // Si ce n'est pas un admin, on vérifie qu'il n'essaie de modifier QUE la note persistante
+        if (req.user.role !== 'admin') {
+            const keys = Object.keys(req.body);
+            if (keys.length === 1 && keys.includes('persistentNote')) {
+                const updated = await Child.findByIdAndUpdate(req.params.id, { persistentNote: req.body.persistentNote }, { new: true });
+                return res.json(updated);
+            }
+            return res.status(403).send("Seul un admin peut modifier la fiche complète de l'enfant.");
+        }
+
+        // Si c'est un admin, on met à jour toute la fiche sans restriction
+        const updated = await Child.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(updated);
+    } catch (e) {
+        res.status(400).send('Erreur modification enfant');
+    }
 });
 
 app.delete('/api/children/:id', auth(['admin']), async (req, res) => {

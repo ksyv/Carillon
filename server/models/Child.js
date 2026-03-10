@@ -13,6 +13,9 @@ const ChildSchema = new mongoose.Schema({
   category: { type: String, enum: ['Maternelle', 'Élémentaire'], default: 'Maternelle' },
   active: { type: Boolean, default: true },
   
+  // NOUVEAU : Note persistante (reportée de jour en jour si non transmise)
+  persistentNote: { type: String, default: '' },
+  
   // Listes structurées des contacts
   responsablesLegaux: [ContactSchema],
   personnesAutorisees: [ContactSchema],
