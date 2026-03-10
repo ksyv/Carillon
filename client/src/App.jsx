@@ -916,7 +916,7 @@ const SessionView = () => {
                                 axios.put(`${API_URL}/children/${readNoteModal.childId}`, { persistentNote: readNoteModal.textToSave }).then(() => loadData());
                                 setReadNoteModal({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' }); 
                             }} className="w-full bg-black/20 text-white font-black p-4 rounded-2xl hover:bg-black/30 transition-all flex justify-center items-center gap-2 border border-white/30">
-                                <AlertTriangle size={20}/> NON TRANSMIS (RAPPORTER)
+                                <AlertTriangle size={20}/> NON TRANSMIS (REPORTER)
                             </button>
 
                             <button onClick={() => setReadNoteModal({...readNoteModal, show: false})} className="w-full mt-2 text-white/80 font-bold p-2 hover:text-white transition-colors">
