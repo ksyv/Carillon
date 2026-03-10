@@ -4,7 +4,13 @@ const ContactSchema = new mongoose.Schema({
   firstName: { type: String, default: '' },
   lastName: { type: String, default: '' },
   phone: { type: String, default: '' },
-  isEmergency: { type: Boolean, default: false } // NOUVEAU : Case à cocher "Urgence"
+  isEmergency: { type: Boolean, default: false }
+});
+
+const ChildDocumentSchema = new mongoose.Schema({
+  status: { type: String, enum: ['Manquant', 'Valide', 'Expiré'], default: 'Manquant' },
+  expiryDate: { type: Date, default: null },
+  fileUrl: { type: String, default: '' }
 });
 
 const ChildSchema = new mongoose.Schema({
@@ -33,7 +39,7 @@ const ChildSchema = new mongoose.Schema({
   hasPAI: { type: Boolean, default: false },
   paiDetails: { type: String, default: '' },
   isPAIAlimentaire: { type: Boolean, default: false },
-  paiDocument: { type: String, default: '' }, // NOUVEAU : Pour uploader le fichier PAI
+  paiDocument: { type: String, default: '' }, 
   
   regimeAlimentaire: { 
       type: String, 
@@ -41,7 +47,13 @@ const ChildSchema = new mongoose.Schema({
       default: 'Standard' 
   },
 
-  personnesAutorisees: [ContactSchema] // C'est ici que ça se passe !
+  personnesAutorisees: [ContactSchema],
+
+  // NOUVEAU : Documents spécifiques à l'enfant
+  documents: {
+      vaccins: { type: ChildDocumentSchema, default: () => ({}) },
+      assurance: { type: ChildDocumentSchema, default: () => ({}) }
+  }
 });
 
 module.exports = mongoose.model('Child', ChildSchema);
