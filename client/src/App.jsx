@@ -43,24 +43,31 @@ const CategoryFilter = ({ value, onChange, access }) => {
 };
 
 // --- MODALE FICHE D'URGENCE ---
-const EmergencyModal = ({ attendance, allChildren, sessionType, onClose }) => {
+// --- MODALE FICHE D'URGENCE ---
+const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access }) => {
     const isMidi = sessionType === 'MIDI';
     
+    // On initialise le filtre sur les droits de l'utilisateur (ou 'Tous')
+    const [categoryFilter, setCategoryFilter] = useState(access === 'Tous' ? 'Tous' : access);
+
     // Logique inversée : Qui est VRAIMENT présent ?
     let presentRecords = [];
     
     if (isMidi) {
-        // Le midi : Les présents sont TOUS les enfants MOINS ceux qui ont été pointés absents
         const absentIds = attendance.map(a => a.child._id);
         presentRecords = allChildren
             .filter(c => !absentIds.includes(c._id))
-            .map(c => ({ _id: c._id, child: c })); // On simule la structure de données pour l'affichage
+            .map(c => ({ _id: c._id, child: c })); 
     } else {
-        // Matin/Soir : Les présents sont ceux pointés (sans checkOut)
         presentRecords = attendance.filter(a => !a.checkOut);
     }
 
-    const presentChildren = presentRecords.sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
+    // Application du filtre Mat/Élém
+    const filteredRecords = presentRecords.filter(record => 
+        categoryFilter === 'Tous' || record.child.category === categoryFilter
+    );
+
+    const displayChildren = filteredRecords.sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
     const [safeChildren, setSafeChildren] = useState(new Set());
 
     const toggleSafe = (id) => {
@@ -70,47 +77,69 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose }) => {
         setSafeChildren(newSafe);
     };
 
+    // Les compteurs s'adaptent au filtre sélectionné !
+    const currentSafeCount = displayChildren.filter(r => safeChildren.has(r._id)).length;
+    const currentTotalCount = displayChildren.length;
+
     return (
         <div className="fixed inset-0 bg-car-pink/95 backdrop-blur-md z-[100] flex flex-col">
-            <div className="bg-white p-6 shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center sticky top-0 z-10 gap-4">
+            <div className="bg-white p-4 sm:p-6 shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center sticky top-0 z-10 gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-car-pink flex items-center gap-3">
-                        <AlertTriangle size={32} /> ÉVACUATION / APPEL
+                        <AlertTriangle size={32} /> ÉVACUATION
                     </h2>
-                    <p className="text-slate-500 font-bold mt-1">
-                        {isMidi ? "Midi : Affiche tous les enfants sauf ceux marqués absents." : "Cochez les enfants en sécurité. N'affecte pas le pointage."}
+                    <p className="text-slate-500 font-bold mt-1 text-sm sm:text-base">
+                        {isMidi ? "Midi : Affiche tous les enfants sauf ceux marqués absents." : "Cochez les enfants en sécurité."}
                     </p>
                 </div>
-                <button onClick={onClose} className="w-full sm:w-auto bg-slate-100 text-slate-500 hover:bg-slate-200 p-4 rounded-2xl font-black transition-colors">
+
+                {/* NOUVEAU : LE FILTRE INTÉGRÉ À L'URGENCE */}
+                {access === 'Tous' && (
+                    <div className="flex bg-slate-100 rounded-xl p-1 items-center w-full sm:w-auto justify-center flex-shrink-0">
+                        <button onClick={() => setCategoryFilter('Tous')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Tous' ? 'bg-white text-car-dark shadow-sm' : 'text-slate-500 hover:text-car-dark'}`}>Tous</button>
+                        <button onClick={() => setCategoryFilter('Maternelle')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Maternelle' ? 'bg-car-yellow text-white shadow-sm' : 'text-slate-500 hover:text-car-yellow'}`}>Mat.</button>
+                        <button onClick={() => setCategoryFilter('Élémentaire')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Élémentaire' ? 'bg-car-blue text-white shadow-sm' : 'text-slate-500 hover:text-car-blue'}`}>Élém.</button>
+                    </div>
+                )}
+
+                <button onClick={onClose} className="w-full sm:w-auto bg-slate-100 text-slate-500 hover:bg-slate-200 p-3 sm:p-4 rounded-2xl font-black transition-colors">
                     FERMER
                 </button>
             </div>
             
             <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
                 <div className="max-w-4xl mx-auto">
-                    <div className="bg-white rounded-3xl p-6 shadow-xl mb-6 flex justify-between items-center">
-                        <span className="text-xl font-black text-car-dark">En sécurité :</span>
-                        <span className={`text-3xl font-black px-6 py-2 rounded-2xl ${safeChildren.size === presentChildren.length ? 'bg-car-green text-white animate-pulse' : 'bg-car-pink/20 text-car-pink'}`}>
-                            {safeChildren.size} / {presentChildren.length}
+                    <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-xl mb-6 flex justify-between items-center">
+                        <span className="text-lg sm:text-xl font-black text-car-dark">
+                            En sécurité {categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''} :
+                        </span>
+                        <span className={`text-2xl sm:text-3xl font-black px-4 sm:px-6 py-2 rounded-2xl ${currentSafeCount === currentTotalCount && currentTotalCount > 0 ? 'bg-car-green text-white animate-pulse' : 'bg-car-pink/20 text-car-pink'}`}>
+                            {currentSafeCount} / {currentTotalCount}
                         </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {presentChildren.map(record => {
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        {displayChildren.map(record => {
                             const isSafe = safeChildren.has(record._id);
                             return (
                                 <div key={record._id} onClick={() => toggleSafe(record._id)} 
-                                    className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex justify-between items-center ${isSafe ? 'bg-car-green/10 border-car-green text-car-green shadow-inner' : 'bg-white border-transparent shadow-lg text-car-dark'}`}>
+                                    className={`p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all flex justify-between items-center ${isSafe ? 'bg-car-green/10 border-car-green text-car-green shadow-inner' : 'bg-white border-transparent shadow-lg text-car-dark'}`}>
                                     <div>
-                                        <span className={`font-black text-xl block ${isSafe ? 'line-through opacity-50' : ''}`}>{record.child.lastName} <span className="font-medium">{record.child.firstName}</span></span>
+                                        <span className={`font-black text-lg sm:text-xl block ${isSafe ? 'line-through opacity-50' : ''}`}>{record.child.lastName} <span className="font-medium">{record.child.firstName}</span></span>
                                         <span className="text-xs font-bold uppercase tracking-widest opacity-60">{record.child.category}</span>
                                     </div>
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isSafe ? 'bg-car-green border-car-green text-white' : 'border-slate-200 text-transparent'}`}>
+                                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center border-2 ${isSafe ? 'bg-car-green border-car-green text-white' : 'border-slate-200 text-transparent'}`}>
                                         <Check strokeWidth={4} />
                                     </div>
                                 </div>
                             );
                         })}
+
+                        {displayChildren.length === 0 && (
+                            <div className="col-span-1 sm:col-span-2 text-center text-slate-400 font-bold p-8 bg-white/50 rounded-3xl">
+                                Aucun enfant dans cette catégorie actuellement.
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -882,6 +911,7 @@ const SessionView = () => {
                 attendance={attendance} 
                 allChildren={children} 
                 sessionType={type} 
+                access={access} 
                 onClose={() => setShowEmergency(false)} 
             />}
 
