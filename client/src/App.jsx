@@ -3,7 +3,7 @@ import axios from 'axios';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useParams } from 'react-router-dom';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, getDay, getISOWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Banknote, Wifi, WifiOff, Lock, Info, AlertTriangle, Phone, ShieldCheck, Utensils, FolderHeart, Save } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, CheckCircle, Search, Trash2, Plus, Users, Shield, RotateCcw, UserPlus, Download, Pencil, Check, X, Filter, StickyNote, CalendarDays, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Banknote, Wifi, WifiOff, Lock, Info, AlertTriangle, Phone, ShieldCheck, Utensils, FolderHeart, Save, Copy } from 'lucide-react';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -149,13 +149,12 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
 
 // --- MODALE D'INFORMATION ENFANT ---
 // --- MODALE D'INFORMATION ENFANT (Mise à jour avec la Famille) ---
+// --- MODALE D'INFORMATION ENFANT ---
 const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
 
-    // Si l'enfant est rattaché à une famille, on prend les contacts de la famille, 
-    // sinon on prend les anciens (pour la rétrocompatibilité le temps de la migration)
-    const responsables = child.family?.responsables?.length > 0 ? child.family.responsables : child.responsablesLegaux;
-    const personnesAutorisees = child.family?.personnesAutorisees?.length > 0 ? child.family.personnesAutorisees : child.personnesAutorisees;
+    // Les parents viennent de la famille, mais les personnes autorisées viennent de l'enfant !
+    const responsables = child.family?.responsables?.length > 0 ? child.family.responsables : [];
 
     return (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -194,7 +193,15 @@ const ChildInfoModal = ({ child, onClose }) => {
                         
                         {child.hasPAI && (
                             <div className="bg-car-pink/10 border-2 border-car-pink/30 p-4 rounded-xl mt-2">
-                                <div className="text-car-pink font-black uppercase tracking-widest mb-1 flex items-center gap-2"><AlertTriangle size={16}/> PAI ACTIF</div>
+                                <div className="flex justify-between items-center mb-2">
+                                    <div className="text-car-pink font-black uppercase tracking-widest flex items-center gap-2"><AlertTriangle size={16}/> PAI ACTIF</div>
+                                    {child.paiDocument && (
+                                        <button onClick={() => {
+                                            const win = window.open();
+                                            win.document.write(`<iframe src="${child.paiDocument}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                        }} className="bg-car-pink text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-600 transition-colors">VOIR LE DOCUMENT</button>
+                                    )}
+                                </div>
                                 <p className="text-car-dark font-medium text-sm">{child.paiDetails}</p>
                             </div>
                         )}
@@ -219,18 +226,21 @@ const ChildInfoModal = ({ child, onClose }) => {
                                     </div>
                                 ))}
                             </div>
-                        ) : <p className="text-slate-400 italic text-sm mb-4">Aucun responsable renseigné</p>}
+                        ) : <p className="text-slate-400 italic text-sm mb-4">Aucun responsable renseigné dans le dossier Famille.</p>}
                         
                         <div className="w-full h-px bg-slate-200 my-4"></div>
                         
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
                             <Users size={18}/> PERSONNES AUTORISÉES
                         </div>
-                        {Array.isArray(personnesAutorisees) && personnesAutorisees.length > 0 ? (
+                        {Array.isArray(child.personnesAutorisees) && child.personnesAutorisees.length > 0 ? (
                             <div className="space-y-2">
-                                {personnesAutorisees.map((c, i) => (
-                                    <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                                        <span className="font-bold text-car-dark">{c.lastName?.toUpperCase()} <span className="font-medium">{c.firstName}</span></span>
+                                {child.personnesAutorisees.map((c, i) => (
+                                    <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-car-dark">{c.lastName?.toUpperCase()} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
+                                            {c.isEmergency && <span className="text-[10px] font-black text-car-pink uppercase tracking-widest">En cas d'urgence</span>}
+                                        </div>
                                         <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg text-sm">{c.phone || 'Pas de numéro'}</span>
                                     </div>
                                 ))}
@@ -1886,8 +1896,6 @@ const FamilyManager = () => {
     const [searchOrphan, setSearchOrphan] = useState('');
     
     const [childInfoToView, setChildInfoToView] = useState(null);
-    
-    // NOUVEAU : État pour le grand formulaire de création/édition d'un enfant
     const [editingChild, setEditingChild] = useState(null);
 
     const navigate = useNavigate();
@@ -1994,35 +2002,66 @@ const FamilyManager = () => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onloadend = () => {
-            handleDocChange(docType, 'fileUrl', reader.result);
-        };
+        reader.onloadend = () => { handleDocChange(docType, 'fileUrl', reader.result); };
         reader.readAsDataURL(file);
     };
 
-    // --- LOGIQUE DU GRAND FORMULAIRE ENFANT ---
+    // --- LOGIQUE DU FORMULAIRE ENFANT ---
     const startAddChild = () => {
         setEditingChild({
-            _id: null, // null signifie qu'on crée
+            _id: null,
             firstName: '', lastName: selectedFamily.name, category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
             medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
-            hasPAI: false, paiDetails: '', isPAIAlimentaire: false, regimeAlimentaire: 'Standard'
+            hasPAI: false, paiDetails: '', isPAIAlimentaire: false, paiDocument: '', regimeAlimentaire: 'Standard',
+            personnesAutorisees: [] // On initialise vide
         });
     };
 
     const startEditChild = (child) => {
         setEditingChild({
-            _id: child._id, // Présence de l'ID = on modifie
+            _id: child._id,
             firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', sexe: child.sexe || '',
             birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
             droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
             medical: child.medical || { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
-            hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false, regimeAlimentaire: child.regimeAlimentaire || 'Standard'
+            hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false, paiDocument: child.paiDocument || '', regimeAlimentaire: child.regimeAlimentaire || 'Standard',
+            personnesAutorisees: child.personnesAutorisees || [] // On récupère les contacts
         });
+    };
+
+    // Upload du document PAI de l'enfant
+    const handleChildFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => { setEditingChild({...editingChild, paiDocument: reader.result}); };
+        reader.readAsDataURL(file);
+    };
+
+    // Changement d'un contact enfant
+    const handleChildContactChange = (index, field, value) => {
+        const newContacts = [...editingChild.personnesAutorisees];
+        newContacts[index] = { ...newContacts[index], [field]: value };
+        setEditingChild({ ...editingChild, personnesAutorisees: newContacts });
+    };
+
+    // Le bouton magique "Copier la fratrie"
+    const handleCopyContacts = () => {
+        const sibling = attachedChildren.find(c => c._id !== editingChild._id && c.personnesAutorisees?.length > 0);
+        if (sibling) {
+            setEditingChild({ ...editingChild, personnesAutorisees: [...sibling.personnesAutorisees] });
+        } else {
+            alert("Aucun frère ou sœur n'a de personnes autorisées renseignées pour le moment !");
+        }
     };
 
     const saveChild = async (e) => {
         e.preventDefault();
+        
+        if (editingChild.hasPAI && !editingChild.paiDocument) {
+            if(!window.confirm("Aucun document PAI n'a été joint. Voulez-vous quand même sauvegarder ?")) return;
+        }
+
         try {
             if (editingChild._id) {
                 await axios.put(`${API_URL}/children/${editingChild._id}`, editingChild);
@@ -2034,7 +2073,6 @@ const FamilyManager = () => {
         } catch (err) { alert("Erreur sauvegarde enfant."); }
     };
 
-    // Filtres corrigés (gestion de la présence du populate)
     const orphans = children.filter(c => !c.family);
     const filteredOrphans = searchOrphan.length >= 2 
         ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase()))
@@ -2139,7 +2177,6 @@ const FamilyManager = () => {
                                             <p className="text-slate-400 font-medium mb-6 italic text-sm">Aucun enfant rattaché.</p>
                                         )}
 
-                                        {/* Création ou Recherche */}
                                         <div className="mt-auto pt-4 border-t border-slate-200">
                                             <div className="relative mb-3">
                                                 <div className="flex items-center gap-2 mb-2">
@@ -2193,7 +2230,6 @@ const FamilyManager = () => {
                                             </div>
                                         </div>
 
-                                        {/* DOCUMENT JUSTIFICATIF */}
                                         <div className="bg-white p-4 rounded-2xl border border-slate-200 mt-4">
                                             <div className="flex justify-between items-center mb-3">
                                                 <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><FileText size={14}/> Justificatif CAF/Impot</h4>
@@ -2206,7 +2242,6 @@ const FamilyManager = () => {
                                                     </button>
                                                 )}
                                             </div>
-                                            
                                             <div className="flex flex-col gap-3">
                                                 <div className="flex gap-2">
                                                     <select className={`flex-1 p-2 rounded-lg text-sm font-bold border outline-none ${editFamily.documents?.attestationCAF?.status === 'Valide' ? 'bg-car-green/10 text-car-green border-car-green/20' : 'bg-slate-50 text-slate-600 border-slate-100'}`} 
@@ -2220,13 +2255,7 @@ const FamilyManager = () => {
                                                         value={editFamily.documents?.attestationCAF?.expiryDate ? editFamily.documents.attestationCAF.expiryDate.split('T')[0] : ''} 
                                                         onChange={e => handleDocChange('attestationCAF', 'expiryDate', e.target.value)} />
                                                 </div>
-                                                
-                                                <input 
-                                                    type="file" 
-                                                    accept=".pdf, image/jpeg, image/png" 
-                                                    onChange={(e) => handleFileUpload('attestationCAF', e)} 
-                                                    className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
-                                                />
+                                                <input type="file" accept=".pdf, image/jpeg, image/png" onChange={(e) => handleFileUpload('attestationCAF', e)} className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"/>
                                             </div>
                                         </div>
                                     </div>
@@ -2290,7 +2319,6 @@ const FamilyManager = () => {
                                         </div>
                                     </div>
                                 </div>
-                                
                             </div>
                         ) : (
                             <div className="bg-slate-100/50 rounded-[2rem] h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-200 p-10 text-center">
@@ -2306,7 +2334,7 @@ const FamilyManager = () => {
             {/* LECTURE DE FICHE ENFANT */}
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
 
-            {/* GRAND FORMULAIRE DE CRÉATION/ÉDITION ENFANT DANS LA FAMILLE */}
+            {/* GRAND FORMULAIRE DE CRÉATION/ÉDITION ENFANT */}
             {editingChild && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] p-8 w-full max-w-3xl shadow-2xl overflow-y-auto max-h-[90vh]">
@@ -2323,7 +2351,7 @@ const FamilyManager = () => {
                                 <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Identité</h4>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                     <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-black uppercase text-car-dark" placeholder="NOM" value={editingChild.lastName} onChange={e => setEditingChild({...editingChild, lastName: e.target.value.toUpperCase()})} required/>
-                                    <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-bold text-car-dark" placeholder="Prénom" value={editingChild.firstName} onChange={e => setEditingChild({...editingChild, firstName: e.target.value})} required/>
+                                    <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-bold text-car-dark capitalize" placeholder="Prénom" value={editingChild.firstName} onChange={e => setEditingChild({...editingChild, firstName: e.target.value})} required/>
                                     
                                     <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.sexe} onChange={e => setEditingChild({...editingChild, sexe: e.target.value})}>
                                         <option value="">Sexe...</option>
@@ -2338,9 +2366,39 @@ const FamilyManager = () => {
                                 </div>
                             </div>
 
+                            {/* PERSONNES AUTORISÉES */}
+                            <div>
+                                <div className="flex justify-between items-center mb-3">
+                                    <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase">Personnes Autorisées</h4>
+                                    <div className="flex gap-2">
+                                        {attachedChildren.length > 1 && (
+                                            <button type="button" onClick={handleCopyContacts} className="text-xs font-bold text-car-purple bg-car-purple/10 px-3 py-1.5 rounded-lg hover:bg-car-purple hover:text-white transition-colors flex items-center gap-1"><Copy size={14}/> Copier (Fratrie)</button>
+                                        )}
+                                        <button type="button" onClick={() => setEditingChild({...editingChild, personnesAutorisees: [...editingChild.personnesAutorisees, {firstName:'', lastName:'', phone:'', isEmergency: false}]})} className="text-xs font-bold text-car-blue bg-car-blue/10 px-3 py-1.5 rounded-lg hover:bg-car-blue hover:text-white transition-colors">+ AJOUTER</button>
+                                    </div>
+                                </div>
+                                <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    {editingChild.personnesAutorisees.map((c, i) => (
+                                        <div key={i} className="flex flex-wrap sm:flex-nowrap gap-2 items-center bg-white p-2 rounded-xl shadow-sm border border-slate-200">
+                                            <input className="flex-1 bg-slate-50 border-none p-2 rounded-lg text-sm font-bold uppercase outline-none" placeholder="NOM" value={c.lastName} onChange={e => handleChildContactChange(i, 'lastName', e.target.value.toUpperCase())}/>
+                                            <input className="flex-1 bg-slate-50 border-none p-2 rounded-lg text-sm font-bold capitalize outline-none" placeholder="Prénom" value={c.firstName} onChange={e => handleChildContactChange(i, 'firstName', e.target.value)}/>
+                                            <input className="flex-1 bg-slate-50 border-none p-2 rounded-lg text-sm font-bold outline-none" placeholder="Téléphone" value={c.phone} onChange={e => handleChildContactChange(i, 'phone', e.target.value)}/>
+                                            <label className="flex items-center gap-1 text-[10px] font-bold text-car-pink cursor-pointer px-2">
+                                                <input type="checkbox" className="accent-car-pink" checked={c.isEmergency} onChange={e => handleChildContactChange(i, 'isEmergency', e.target.checked)}/> Urgence
+                                            </label>
+                                            <button type="button" onClick={() => {
+                                                const newArr = editingChild.personnesAutorisees.filter((_, idx) => idx !== i);
+                                                setEditingChild({...editingChild, personnesAutorisees: newArr});
+                                            }} className="text-slate-400 hover:text-car-pink p-2"><X size={16}/></button>
+                                        </div>
+                                    ))}
+                                    {editingChild.personnesAutorisees.length === 0 && <p className="text-xs text-slate-400 italic text-center">Aucune personne autorisée renseignée.</p>}
+                                </div>
+                            </div>
+
                             {/* AUTORISATIONS */}
                             <div>
-                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Autorisations</h4>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Autorisations Mairie</h4>
                                 <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                     <label className="flex items-center gap-3 cursor-pointer">
                                         <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editingChild.droitImage} onChange={e => setEditingChild({...editingChild, droitImage: e.target.checked})} />
@@ -2349,7 +2407,7 @@ const FamilyManager = () => {
                                     {editingChild.category === 'Élémentaire' && (
                                         <label className="flex items-center gap-3 cursor-pointer">
                                             <input type="checkbox" className="w-5 h-5 accent-car-blue" checked={editingChild.autorisationSortieSeul} onChange={e => setEditingChild({...editingChild, autorisationSortieSeul: e.target.checked})} />
-                                            <span className="font-bold text-car-blue">Autorisation de quitter l'APS seul (Élémentaire uniquement)</span>
+                                            <span className="font-bold text-car-blue">Autorisation de quitter l'APS seul (Élémentaire)</span>
                                         </label>
                                     )}
                                 </div>
@@ -2385,6 +2443,19 @@ const FamilyManager = () => {
                                                     const isAlim = e.target.checked;
                                                     setEditingChild({...editingChild, isPAIAlimentaire: isAlim, regimeAlimentaire: isAlim ? 'PAI' : 'Standard'});
                                                 }} /> C'est un PAI Alimentaire</label>
+                                                
+                                                {/* NOUVEAU : UPLOAD DU DOC PAI */}
+                                                <div className="mt-2 bg-white p-3 rounded-xl border border-car-pink/30 flex items-center justify-between">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-car-pink uppercase">Joindre le document PAI</span>
+                                                        {editingChild.paiDocument ? (
+                                                            <span className="text-xs font-bold text-car-green flex items-center gap-1 mt-1"><Check size={14}/> Fichier chargé</span>
+                                                        ) : (
+                                                            <span className="text-[10px] text-slate-400 mt-1">Aucun fichier (requis)</span>
+                                                        )}
+                                                    </div>
+                                                    <input type="file" accept=".pdf, image/*" onChange={handleChildFileUpload} className="text-xs w-28 text-slate-400 file:rounded-lg file:border-0 file:bg-slate-100 file:text-[10px] file:font-bold hover:file:bg-slate-200 cursor-pointer"/>
+                                                </div>
                                             </>
                                         )}
                                     </div>
