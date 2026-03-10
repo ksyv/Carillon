@@ -10,6 +10,7 @@ const Child = require('./models/Child');
 const Attendance = require('./models/Attendance');
 const PlannedNote = require('./models/PlannedNote');
 const Billing = require('./models/Billing');
+const Family = require('./models/Family');
 
 const app = express();
 app.use(express.json());
@@ -126,6 +127,52 @@ app.delete('/api/children/:id', auth(['admin']), async (req, res) => {
     await Child.findByIdAndUpdate(req.params.id, { active: false });
     res.json({ success: true });
 });
+
+// --- Routes Familles ---
+
+// Lire toutes les familles (pour la liste admin)
+app.get('/api/families', auth(['admin', 'responsable']), async (req, res) => {
+    try {
+        const families = await Family.find().sort({ name: 1 });
+        res.json(families);
+    } catch (e) {
+        res.status(500).send('Erreur lors de la récupération des familles');
+    }
+});
+
+// Créer une nouvelle coquille vide (Dossier Famille)
+app.post('/api/families', auth(['admin']), async (req, res) => {
+    try {
+        const family = new Family(req.body);
+        await family.save();
+        res.json(family);
+    } catch (e) {
+        res.status(400).send('Erreur lors de la création de la famille');
+    }
+});
+
+// Mettre à jour un dossier (quand Charline remplit les infos CAF, adresse, etc.)
+app.put('/api/families/:id', auth(['admin']), async (req, res) => {
+    try {
+        const updated = await Family.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(updated);
+    } catch (e) {
+        res.status(400).send('Erreur lors de la modification de la famille');
+    }
+});
+
+// Supprimer une famille
+app.delete('/api/families/:id', auth(['admin']), async (req, res) => {
+    try {
+        await Family.findByIdAndDelete(req.params.id);
+        // SÉCURITÉ : Si on supprime une famille, on "rend orphelins" les enfants rattachés (sans les supprimer de la base !)
+        await Child.updateMany({ family: req.params.id }, { $set: { family: null } });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(400).send('Erreur lors de la suppression de la famille');
+    }
+});
+
 
 // --- Routes Pointage ---
 app.get('/api/attendance', auth(), async (req, res) => {
