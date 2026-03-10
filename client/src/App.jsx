@@ -1885,10 +1885,10 @@ const FamilyManager = () => {
     const [editFamily, setEditFamily] = useState(null); 
     const [searchOrphan, setSearchOrphan] = useState('');
     
-    // NOUVEAU : Affichage et Création rapide d'enfant
     const [childInfoToView, setChildInfoToView] = useState(null);
-    const [showQuickAdd, setShowQuickAdd] = useState(false);
-    const [newQuickChild, setNewQuickChild] = useState({ firstName: '', lastName: '', category: 'Maternelle' });
+    
+    // NOUVEAU : État pour le grand formulaire de création/édition d'un enfant
+    const [editingChild, setEditingChild] = useState(null);
 
     const navigate = useNavigate();
 
@@ -1918,9 +1918,6 @@ const FamilyManager = () => {
             };
             
             setEditFamily({ ...selectedFamily, responsables: resps, documents: docs });
-            // On pré-remplit le nom de famille pour la création rapide d'enfant
-            setNewQuickChild({ firstName: '', lastName: selectedFamily.name, category: 'Maternelle' });
-            setShowQuickAdd(false);
         } else {
             setEditFamily(null);
         }
@@ -1938,7 +1935,7 @@ const FamilyManager = () => {
     };
 
     const handleDeleteFamily = async (id) => {
-        if (window.confirm("Supprimer ce dossier ? Les enfants ne seront pas effacés, ils deviendront orphelins.")) {
+        if (window.confirm("Supprimer ce dossier ? Les enfants deviendront orphelins.")) {
             await axios.delete(`${API_URL}/families/${id}`);
             setSelectedFamily(null);
             loadData();
@@ -1958,20 +1955,6 @@ const FamilyManager = () => {
         }
     };
 
-    // NOUVEAU : Création rapide d'un enfant depuis le dossier
-    const handleQuickAddChild = async (e) => {
-        e.preventDefault();
-        try {
-            await axios.post(`${API_URL}/children`, {
-                ...newQuickChild,
-                lastName: newQuickChild.lastName.toUpperCase(),
-                family: selectedFamily._id
-            });
-            setShowQuickAdd(false);
-            loadData();
-        } catch (err) { alert("Erreur lors de la création de l'enfant."); }
-    };
-
     const handleSaveFamily = async () => {
         try {
             const res = await axios.put(`${API_URL}/families/${selectedFamily._id}`, editFamily);
@@ -1989,11 +1972,9 @@ const FamilyManager = () => {
         setEditFamily({ ...editFamily, responsables: newResps });
     };
 
-    // NOUVEAU : Calcul automatique du QF
     const handleQFChange = (field, value) => {
         const numValue = value === '' ? null : Number(value);
         const updated = { ...editFamily, [field]: numValue };
-        
         if (updated.revenuReference && updated.nombreParts) {
             updated.quotientFamilial = Math.round(updated.revenuReference / updated.nombreParts);
         } else {
@@ -2009,24 +1990,56 @@ const FamilyManager = () => {
         setEditFamily({ ...editFamily, documents: updatedDocs });
     };
 
-    const orphans = children.filter(c => !c.family);
-    const filteredOrphans = searchOrphan.length >= 2 
-        ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase()))
-        : [];
-        
-    const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id) : [];
-
     const handleFileUpload = (docType, e) => {
         const file = e.target.files[0];
         if (!file) return;
-        
-        // On transforme le fichier en Base64 pour le sauvegarder facilement dans MongoDB
         const reader = new FileReader();
         reader.onloadend = () => {
             handleDocChange(docType, 'fileUrl', reader.result);
         };
         reader.readAsDataURL(file);
     };
+
+    // --- LOGIQUE DU GRAND FORMULAIRE ENFANT ---
+    const startAddChild = () => {
+        setEditingChild({
+            _id: null, // null signifie qu'on crée
+            firstName: '', lastName: selectedFamily.name, category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
+            medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
+            hasPAI: false, paiDetails: '', isPAIAlimentaire: false, regimeAlimentaire: 'Standard'
+        });
+    };
+
+    const startEditChild = (child) => {
+        setEditingChild({
+            _id: child._id, // Présence de l'ID = on modifie
+            firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', sexe: child.sexe || '',
+            birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
+            droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
+            medical: child.medical || { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
+            hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false, regimeAlimentaire: child.regimeAlimentaire || 'Standard'
+        });
+    };
+
+    const saveChild = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingChild._id) {
+                await axios.put(`${API_URL}/children/${editingChild._id}`, editingChild);
+            } else {
+                await axios.post(`${API_URL}/children`, { ...editingChild, family: selectedFamily._id });
+            }
+            setEditingChild(null);
+            loadData();
+        } catch (err) { alert("Erreur sauvegarde enfant."); }
+    };
+
+    // Filtres corrigés (gestion de la présence du populate)
+    const orphans = children.filter(c => !c.family);
+    const filteredOrphans = searchOrphan.length >= 2 
+        ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase()))
+        : [];
+    const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id || c.family?._id === selectedFamily._id) : [];
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
@@ -2062,7 +2075,7 @@ const FamilyManager = () => {
                             </div>
                             <div className="overflow-y-auto flex-1 p-2">
                                 {families.map(fam => {
-                                    const famChildrenCount = children.filter(c => c.family === fam._id).length;
+                                    const famChildrenCount = children.filter(c => c.family === fam._id || c.family?._id === fam._id).length;
                                     return (
                                         <button key={fam._id} onClick={() => setSelectedFamily(fam)} className={`w-full text-left p-4 rounded-2xl mb-1 flex items-center justify-between transition-all ${selectedFamily?._id === fam._id ? 'bg-car-yellow text-white shadow-md' : 'hover:bg-slate-50 text-car-dark'}`}>
                                             <div>
@@ -2103,7 +2116,7 @@ const FamilyManager = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                                    {/* BLOC : ENFANTS RATTACHÉS (Le Tinder amélioré) */}
+                                    {/* BLOC : ENFANTS RATTACHÉS */}
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col">
                                         <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
                                         
@@ -2111,15 +2124,14 @@ const FamilyManager = () => {
                                             <div className="space-y-2 mb-6">
                                                 {attachedChildren.map(c => (
                                                     <div key={c._id} className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
-                                                        <div 
-                                                            onClick={() => setChildInfoToView(c)} 
-                                                            className="flex items-center gap-3 cursor-pointer flex-1"
-                                                            title="Voir la fiche de l'enfant"
-                                                        >
+                                                        <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
                                                             <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={18}/></div>
                                                             <span className="font-bold text-car-dark uppercase group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
                                                         </div>
-                                                        <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink font-bold text-xs bg-slate-50 px-3 py-2 rounded-lg transition-colors ml-2">Détacher</button>
+                                                        <div className="flex items-center gap-1">
+                                                            <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier le dossier de l'enfant"><Pencil size={18}/></button>
+                                                            <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher de la famille"><X size={18}/></button>
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -2129,49 +2141,27 @@ const FamilyManager = () => {
 
                                         {/* Création ou Recherche */}
                                         <div className="mt-auto pt-4 border-t border-slate-200">
-                                            {showQuickAdd ? (
-                                                <form onSubmit={handleQuickAddChild} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-2">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-xs font-bold text-car-green uppercase">Nouvel enfant</span>
-                                                        <button type="button" onClick={() => setShowQuickAdd(false)} className="text-slate-400 hover:text-car-pink"><X size={16}/></button>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <input className="w-1/2 bg-slate-50 border-none p-2 rounded-lg font-bold uppercase text-sm" value={newQuickChild.lastName} onChange={e => setNewQuickChild({...newQuickChild, lastName: e.target.value})} required placeholder="NOM"/>
-                                                        <input className="w-1/2 bg-slate-50 border-none p-2 rounded-lg font-medium text-sm" value={newQuickChild.firstName} onChange={e => setNewQuickChild({...newQuickChild, firstName: e.target.value})} required placeholder="Prénom" autoFocus/>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <select className="flex-1 bg-slate-50 border-none p-2 rounded-lg text-sm font-bold" value={newQuickChild.category} onChange={e => setNewQuickChild({...newQuickChild, category: e.target.value})}>
-                                                            <option value="Maternelle">Maternelle</option>
-                                                            <option value="Élémentaire">Élémentaire</option>
-                                                        </select>
-                                                        <button type="submit" className="bg-car-green text-white px-4 rounded-lg font-bold text-sm hover:bg-green-600 transition-colors">Créer</button>
-                                                    </div>
-                                                </form>
-                                            ) : (
-                                                <>
-                                                    <div className="relative mb-3">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <Search className="text-slate-400" size={16}/>
-                                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rattacher un enfant existant :</label>
-                                                        </div>
-                                                        <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:border-car-yellow outline-none font-bold text-car-dark text-sm" placeholder="Rechercher par prénom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
-                                                        
-                                                        {searchOrphan.length >= 2 && (
-                                                            <div className="absolute w-full mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
-                                                                {filteredOrphans.map(c => (
-                                                                    <div key={c._id} className="p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                                        <span className="font-bold text-car-dark uppercase">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
-                                                                        <button onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">+ Lier</button>
-                                                                    </div>
-                                                                ))}
+                                            <div className="relative mb-3">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Search className="text-slate-400" size={16}/>
+                                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rattacher un enfant existant :</label>
+                                                </div>
+                                                <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:border-car-yellow outline-none font-bold text-car-dark text-sm" placeholder="Rechercher par prénom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
+                                                
+                                                {searchOrphan.length >= 2 && (
+                                                    <div className="absolute w-full mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
+                                                        {filteredOrphans.map(c => (
+                                                            <div key={c._id} className="p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                                <span className="font-bold text-car-dark uppercase">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
+                                                                <button onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">+ Lier</button>
                                                             </div>
-                                                        )}
+                                                        ))}
                                                     </div>
-                                                    <button onClick={() => setShowQuickAdd(true)} className="w-full bg-car-yellow/10 text-car-yellow font-bold p-3 rounded-xl hover:bg-car-yellow hover:text-white transition-colors text-sm flex justify-center items-center gap-2">
-                                                        <Plus size={18}/> Créer un nouvel enfant
-                                                    </button>
-                                                </>
-                                            )}
+                                                )}
+                                            </div>
+                                            <button onClick={startAddChild} className="w-full bg-car-yellow/10 text-car-yellow font-bold p-3 rounded-xl hover:bg-car-yellow hover:text-white transition-colors text-sm flex justify-center items-center gap-2">
+                                                <Plus size={18}/> Créer et ajouter un enfant complet
+                                            </button>
                                         </div>
                                     </div>
 
@@ -2206,13 +2196,13 @@ const FamilyManager = () => {
                                         {/* DOCUMENT JUSTIFICATIF */}
                                         <div className="bg-white p-4 rounded-2xl border border-slate-200 mt-4">
                                             <div className="flex justify-between items-center mb-3">
-                                                <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><FileText size={14}/> Justificatif CAF / Imposition</h4>
+                                                <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><FileText size={14}/> Justificatif CAF/Impot</h4>
                                                 {editFamily.documents?.attestationCAF?.fileUrl && (
                                                     <button type="button" onClick={() => {
                                                         const win = window.open();
                                                         win.document.write(`<iframe src="${editFamily.documents.attestationCAF.fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                                                    }} className="text-car-blue bg-car-blue/10 px-3 py-1 rounded-lg font-bold text-xs hover:bg-car-blue hover:text-white transition-colors">
-                                                        👀 VOIR LE DOCUMENT
+                                                    }} className="text-car-blue bg-car-blue/10 px-3 py-1 rounded-lg font-bold text-[10px] hover:bg-car-blue hover:text-white transition-colors">
+                                                        👀 VOIR DOC
                                                     </button>
                                                 )}
                                             </div>
@@ -2231,7 +2221,6 @@ const FamilyManager = () => {
                                                         onChange={e => handleDocChange('attestationCAF', 'expiryDate', e.target.value)} />
                                                 </div>
                                                 
-                                                {/* NOUVEAU : BOUTON D'UPLOAD */}
                                                 <input 
                                                     type="file" 
                                                     accept=".pdf, image/jpeg, image/png" 
@@ -2313,8 +2302,114 @@ const FamilyManager = () => {
                     </div>
                 </div>
             </div>
-            {/* Permet d'afficher la fiche d'un enfant en cliquant sur son nom */}
+            
+            {/* LECTURE DE FICHE ENFANT */}
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
+
+            {/* GRAND FORMULAIRE DE CRÉATION/ÉDITION ENFANT DANS LA FAMILLE */}
+            {editingChild && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] p-8 w-full max-w-3xl shadow-2xl overflow-y-auto max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                            <h3 className="text-3xl font-black text-car-dark">
+                                {editingChild._id ? 'Modifier' : 'Créer'} la fiche enfant
+                            </h3>
+                            <button type="button" onClick={() => setEditingChild(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink transition-colors"><X size={24}/></button>
+                        </div>
+                        
+                        <form onSubmit={saveChild} className="space-y-8">
+                            {/* IDENTITÉ */}
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Identité</h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-black uppercase text-car-dark" placeholder="NOM" value={editingChild.lastName} onChange={e => setEditingChild({...editingChild, lastName: e.target.value.toUpperCase()})} required/>
+                                    <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-bold text-car-dark" placeholder="Prénom" value={editingChild.firstName} onChange={e => setEditingChild({...editingChild, firstName: e.target.value})} required/>
+                                    
+                                    <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.sexe} onChange={e => setEditingChild({...editingChild, sexe: e.target.value})}>
+                                        <option value="">Sexe...</option>
+                                        <option value="Féminin">Féminin</option>
+                                        <option value="Masculin">Masculin</option>
+                                    </select>
+                                    <input type="date" title="Date de naissance (CAF)" className="col-span-2 sm:col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-medium text-car-dark" value={editingChild.birthDate} onChange={e => setEditingChild({...editingChild, birthDate: e.target.value})} required/>
+                                    <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.category} onChange={e => setEditingChild({...editingChild, category: e.target.value})}>
+                                        <option value="Maternelle">Maternelle</option>
+                                        <option value="Élémentaire">Élémentaire</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* AUTORISATIONS */}
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Autorisations</h4>
+                                <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editingChild.droitImage} onChange={e => setEditingChild({...editingChild, droitImage: e.target.checked})} />
+                                        <span className="font-bold text-car-dark">Droit à l'image accordé</span>
+                                    </label>
+                                    {editingChild.category === 'Élémentaire' && (
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <input type="checkbox" className="w-5 h-5 accent-car-blue" checked={editingChild.autorisationSortieSeul} onChange={e => setEditingChild({...editingChild, autorisationSortieSeul: e.target.checked})} />
+                                            <span className="font-bold text-car-blue">Autorisation de quitter l'APS seul (Élémentaire uniquement)</span>
+                                        </label>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* MÉDICAL */}
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Santé & Médical</h4>
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.lunettes} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, lunettes: e.target.checked}})} /> Lunettes</label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.appareilAuditif} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, appareilAuditif: e.target.checked}})} /> Appareil Auditif</label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.appareilDentaire} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, appareilDentaire: e.target.checked}})} /> Appareil Dentaire</label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-green" checked={editingChild.medical.activitesPhysiques} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, activitesPhysiques: e.target.checked}})} /> Apte activités physiques</label>
+                                    </div>
+                                    <div className="flex gap-4 border-t border-slate-200 pt-4">
+                                        <input className="flex-1 bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow text-sm font-medium" placeholder="Nom du médecin traitant" value={editingChild.medical.medecinNom} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, medecinNom: e.target.value}})}/>
+                                        <input className="flex-1 bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow text-sm font-medium" placeholder="Téléphone du médecin" value={editingChild.medical.medecinPhone} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, medecinPhone: e.target.value}})}/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* PAI & RÉGIME */}
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">PAI & Cantine</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-car-pink/5 border border-car-pink/20 p-4 rounded-2xl flex flex-col gap-3">
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-pink"><input type="checkbox" className="w-5 h-5 accent-car-pink" checked={editingChild.hasPAI} onChange={e => setEditingChild({...editingChild, hasPAI: e.target.checked})} /> L'enfant a un PAI</label>
+                                        {editingChild.hasPAI && (
+                                            <>
+                                                <input className="bg-white border border-car-pink/30 p-3 rounded-xl outline-none focus:border-car-pink text-sm font-medium" placeholder="Motif du PAI (ex: Asthme...)" value={editingChild.paiDetails} onChange={e => setEditingChild({...editingChild, paiDetails: e.target.value})}/>
+                                                <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-pink"><input type="checkbox" className="w-5 h-5 accent-car-pink" checked={editingChild.isPAIAlimentaire} onChange={e => {
+                                                    const isAlim = e.target.checked;
+                                                    setEditingChild({...editingChild, isPAIAlimentaire: isAlim, regimeAlimentaire: isAlim ? 'PAI' : 'Standard'});
+                                                }} /> C'est un PAI Alimentaire</label>
+                                            </>
+                                        )}
+                                    </div>
+                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+                                        <label className="text-xs font-bold text-slate-500 block mb-2">Régime Alimentaire (Cantine)</label>
+                                        <select className="w-full bg-white border border-slate-200 p-3 rounded-xl outline-none font-bold text-car-dark" value={editingChild.regimeAlimentaire} onChange={e => setEditingChild({...editingChild, regimeAlimentaire: e.target.value})} disabled={editingChild.isPAIAlimentaire}>
+                                            <option value="Standard">Standard</option>
+                                            <option value="Sans-porc">Sans-porc</option>
+                                            <option value="Végétarien">Végétarien</option>
+                                            <option value="PAI">PAI</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-6 border-t border-slate-100 flex justify-end gap-4">
+                                <button type="button" onClick={() => setEditingChild(null)} className="px-6 py-4 font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-2xl transition-colors">Annuler</button>
+                                <button type="submit" className="px-8 py-4 font-black text-white bg-car-green hover:bg-green-600 rounded-2xl shadow-lg shadow-car-green/20 transition-all flex items-center gap-2">
+                                    <Check size={20}/> ENREGISTRER LA FICHE
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
