@@ -43,14 +43,11 @@ const CategoryFilter = ({ value, onChange, access }) => {
 };
 
 // --- MODALE FICHE D'URGENCE ---
-// --- MODALE FICHE D'URGENCE ---
 const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access }) => {
     const isMidi = sessionType === 'MIDI';
     
-    // On initialise le filtre sur les droits de l'utilisateur (ou 'Tous')
     const [categoryFilter, setCategoryFilter] = useState(access === 'Tous' ? 'Tous' : access);
 
-    // Logique inversée : Qui est VRAIMENT présent ?
     let presentRecords = [];
     
     if (isMidi) {
@@ -62,7 +59,6 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
         presentRecords = attendance.filter(a => !a.checkOut);
     }
 
-    // Application du filtre Mat/Élém
     const filteredRecords = presentRecords.filter(record => 
         categoryFilter === 'Tous' || record.child.category === categoryFilter
     );
@@ -77,7 +73,6 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
         setSafeChildren(newSafe);
     };
 
-    // Les compteurs s'adaptent au filtre sélectionné !
     const currentSafeCount = displayChildren.filter(r => safeChildren.has(r._id)).length;
     const currentTotalCount = displayChildren.length;
 
@@ -93,7 +88,6 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
                     </p>
                 </div>
 
-                {/* NOUVEAU : LE FILTRE INTÉGRÉ À L'URGENCE */}
                 {access === 'Tous' && (
                     <div className="flex bg-slate-100 rounded-xl p-1 items-center w-full sm:w-auto justify-center flex-shrink-0">
                         <button onClick={() => setCategoryFilter('Tous')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Tous' ? 'bg-white text-car-dark shadow-sm' : 'text-slate-500 hover:text-car-dark'}`}>Tous</button>
@@ -148,13 +142,11 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
 };
 
 // --- MODALE D'INFORMATION ENFANT ---
-// --- MODALE D'INFORMATION ENFANT ---
 const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
 
     const responsables = child.family?.responsables?.length > 0 ? child.family.responsables : [];
 
-    // Fonction d'aide pour joindre les images au PDF
     const appendDocumentToPDF = (doc, fileUrl, title) => {
         if (!fileUrl) return;
         if (fileUrl.startsWith('data:image')) {
@@ -163,7 +155,7 @@ const ChildInfoModal = ({ child, onClose }) => {
             doc.setTextColor(0);
             doc.text(`ANNEXE : ${title.toUpperCase()}`, 14, 20);
             try {
-                doc.addImage(fileUrl, 14, 30, 180, 0); // 0 auto-adapte la hauteur
+                doc.addImage(fileUrl, 14, 30, 180, 0); 
             } catch(e) { console.error("Erreur image", e); }
         } else if (fileUrl.startsWith('data:application/pdf')) {
             doc.addPage();
@@ -186,9 +178,9 @@ const ChildInfoModal = ({ child, onClose }) => {
         doc.text(`FICHE ENFANT : ${child.lastName.toUpperCase()} ${child.firstName}`, 14, yPos);
         yPos += 10;
 
-        // 1. INFOS
         const mainInfo = [
             ['Catégorie', child.category || 'Maternelle'],
+            ['Sexe', child.sexe || 'Non renseigné'],
             ['Date de naissance', child.birthDate ? new Date(child.birthDate).toLocaleDateString('fr-FR') : 'Non renseignée'],
             ['Régime Alimentaire', child.regimeAlimentaire],
             ['Droit à l\'image', child.droitImage ? 'OUI' : 'NON'],
@@ -197,7 +189,6 @@ const ChildInfoModal = ({ child, onClose }) => {
         autoTable(doc, { startY: yPos, head: [['Informations Générales', '']], body: mainInfo, theme: 'grid', headStyles: { fillColor: [84, 132, 164] } });
         yPos = doc.lastAutoTable.finalY + 10;
 
-        // 2. MÉDICAL & DOCUMENTS
         const medicalInfo = [
             ['Médecin', `${child.medical?.medecinNom || '-'} (${child.medical?.medecinPhone || '-'})`],
             ['Détails', `Lunettes: ${child.medical?.lunettes?'OUI':'NON'} | Audition: ${child.medical?.appareilAuditif?'OUI':'NON'} | Dents: ${child.medical?.appareilDentaire?'OUI':'NON'}`],
@@ -212,20 +203,17 @@ const ChildInfoModal = ({ child, onClose }) => {
         autoTable(doc, { startY: yPos, head: [['Santé & Documents', '']], body: medicalInfo, theme: 'grid', headStyles: { fillColor: [244, 63, 94] } });
         yPos = doc.lastAutoTable.finalY + 10;
 
-        // 3. RESPONSABLES
         if (responsables.length > 0) {
             const respData = responsables.map(r => [`${r.lastName?.toUpperCase()} ${r.firstName} (${r.qualite || 'Resp'})`, r.phoneMobile || r.phoneFixe || '-']);
             autoTable(doc, { startY: yPos, head: [['Responsables Légaux', 'Téléphone']], body: respData, theme: 'grid' });
             yPos = doc.lastAutoTable.finalY + 10;
         }
 
-        // 4. AUTORISÉS
         if (child.personnesAutorisees && child.personnesAutorisees.length > 0) {
             const authData = child.personnesAutorisees.map(p => [`${p.lastName?.toUpperCase()} ${p.firstName}`, p.phone || '-', p.isEmergency ? 'OUI' : 'NON']);
             autoTable(doc, { startY: yPos, head: [['Personnes Autorisées', 'Téléphone', 'Urgence']], body: authData, theme: 'grid', headStyles: { fillColor: [156, 163, 175] } });
         }
 
-        // 5. AJOUT DES PIÈCES JOINTES EN ANNEXE
         if (child.paiDocument) appendDocumentToPDF(doc, child.paiDocument, "Protocole PAI");
         if (child.documents?.vaccins?.fileUrl) appendDocumentToPDF(doc, child.documents.vaccins.fileUrl, "Carnet de Vaccination");
         if (child.documents?.assurance?.fileUrl) appendDocumentToPDF(doc, child.documents.assurance.fileUrl, "Assurance Responsabilité Civile");
@@ -639,7 +627,6 @@ const SessionView = () => {
     const [search, setSearch] = useState('');
     
     const [noteModal, setNoteModal] = useState({ show: false, attendanceId: null, text: '', amNote: '' });
-    // Update de la modale de lecture pour gérer la sauvegarde pour demain
     const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' });
     const [plannedNotes, setPlannedNotes] = useState([]);
     const [childInfoToView, setChildInfoToView] = useState(null); 
@@ -859,7 +846,6 @@ const SessionView = () => {
     const totalCategoryChildren = children.filter(c => categoryFilter === 'Tous' || c.category === categoryFilter).length;
     const midiPresents = totalCategoryChildren - totalCount; 
 
-    // MODIFIÉ : Fusionne la note du jour + note persistante
     const handleDepartureClick = (record) => {
         const amRecord = type === 'SOIR' ? amAttendance.find(a => a.child._id === record.child._id) : null;
         const amNote = amRecord?.note || '';
@@ -904,7 +890,6 @@ const SessionView = () => {
                     <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors w-full sm:w-auto text-left">← Retour</button>
                     
                     <div className="flex items-center gap-3">
-                        {/* NOUVEAU : BOUTON URGENCE */}
                         <button onClick={() => setShowEmergency(true)} className="flex items-center gap-2 bg-car-pink text-white px-4 py-2 rounded-xl text-sm font-black tracking-widest hover:bg-red-600 transition-colors shadow-md shadow-car-pink/30 animate-pulse">
                             <AlertTriangle size={18} /> URGENCE
                         </button>
@@ -976,7 +961,6 @@ const SessionView = () => {
                     const amRecord = type === 'SOIR' ? amAttendance.find(a => a.child._id === record.child._id) : null;
                     const amNote = amRecord?.note || '';
                     const persistentNote = record.child.persistentNote || '';
-                    // Indicateur global de message en attente
                     const hasAnyNote = record.note || (type === 'SOIR' && amNote) || persistentNote;
 
                     return (
@@ -1038,7 +1022,6 @@ const SessionView = () => {
 
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
             
-            {/* NOUVEAU : Appel de la modale d'urgence corrigée */}
             {showEmergency && <EmergencyModal 
                 attendance={attendance} 
                 allChildren={children} 
@@ -1072,7 +1055,6 @@ const SessionView = () => {
                 </div>
             )}
 
-            {/* MODIFIÉ : Modale de lecture avec sauvegarde persistante */}
             {readNoteModal.show && (
                 <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className={`${readNoteModal.color} rounded-[2rem] p-8 w-full max-w-md shadow-2xl transform rotate-1 scale-105 transition-transform`}>
@@ -1086,7 +1068,6 @@ const SessionView = () => {
                         </div>
                         
                         <div className="space-y-3">
-                            {/* BOUTON TRANSMIS : Valide le départ et EFFACE la note persistante de l'enfant */}
                             <button onClick={() => { 
                                 handleCheckOut(readNoteModal.attendanceId); 
                                 axios.put(`${API_URL}/children/${readNoteModal.childId}`, { persistentNote: "" }).then(() => loadData());
@@ -1095,7 +1076,6 @@ const SessionView = () => {
                                 <CheckCircle size={24}/> J'AI TRANSMIS, DÉPART
                             </button>
                             
-                            {/* NOUVEAU BOUTON NON TRANSMIS : Valide le départ et SAUVEGARDE la note pour demain */}
                             <button onClick={() => { 
                                 handleCheckOut(readNoteModal.attendanceId); 
                                 axios.put(`${API_URL}/children/${readNoteModal.childId}`, { persistentNote: readNoteModal.textToSave }).then(() => loadData());
@@ -1661,7 +1641,6 @@ const UserManager = () => {
     const [users, setUsers] = useState([]);
     const [newUser, setNewUser] = useState({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
     
-    // NOUVEAU : États pour l'édition
     const [editingId, setEditingId] = useState(null);
     const [editForm, setEditForm] = useState({ role: 'staff', categoryAccess: 'Tous' });
 
@@ -1679,7 +1658,6 @@ const UserManager = () => {
         } catch (e) { alert("Erreur."); }
     };
 
-    // NOUVEAU : Fonctions d'édition
     const startEdit = (user) => {
         setEditingId(user._id);
         setEditForm({ role: user.role, categoryAccess: user.categoryAccess || 'Tous' });
@@ -1718,7 +1696,6 @@ const UserManager = () => {
                     <button type="submit" className="bg-car-purple text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-purple/30 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"><UserPlus size={22}/> CRÉER</button>
                 </form>
 
-                {/* GRILLE DE CARTES EQUIPE */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {users.map(u => (
                         <div key={u._id} className={`bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100 transition-all duration-300 ${editingId === u._id ? 'md:col-span-2 ring-4 ring-car-purple/10' : 'hover:-translate-y-1 hover:shadow-lg'}`}>
@@ -2107,7 +2084,6 @@ const FamilyManager = () => {
         reader.readAsDataURL(file);
     };
 
-    // LOGIQUE DE L'ENFANT
     const startAddChild = () => {
         setEditingChild({
             _id: null,
@@ -2184,13 +2160,11 @@ const FamilyManager = () => {
         } catch (err) { alert("Erreur sauvegarde enfant."); }
     };
 
-    // L'EXPORT COMPLET DE LA FAMILLE (AVEC PIÈCES JOINTES)
     const exportFamilyPDF = () => {
         if (!editFamily) return;
         const doc = new jsPDF();
         let yPos = 20;
 
-        // Fonction pour joindre les images à la fin
         const appendDocumentToPDF = (fileUrl, title) => {
             if (!fileUrl) return;
             if (fileUrl.startsWith('data:image')) {
@@ -2277,7 +2251,6 @@ const FamilyManager = () => {
             });
         }
 
-        // On annexe tous les documents !
         if (editFamily.documents?.attestationCAF?.fileUrl) appendDocumentToPDF(editFamily.documents.attestationCAF.fileUrl, "Justificatif CAF Famille");
         attachedChildren.forEach(child => {
             if (child.paiDocument) appendDocumentToPDF(child.paiDocument, `Protocole PAI - ${child.firstName}`);
@@ -2358,15 +2331,8 @@ const FamilyManager = () => {
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille"><Trash2 size={24}/></button>
-                                        
-                                        {/* LE BOUTON D'EXPORT PDF */}
-                                        <button onClick={exportFamilyPDF} className="text-slate-400 hover:text-white hover:bg-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet">
-                                            <Download size={24}/>
-                                        </button>
-
-                                        <button onClick={handleSaveFamily} className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest hover:bg-green-600 transition-all flex items-center gap-2 shadow-lg shadow-car-green/20">
-                                            <Save size={20}/> SAUVEGARDER LE DOSSIER
-                                        </button>
+                                        <button onClick={exportFamilyPDF} className="text-slate-400 hover:text-white hover:bg-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet"><Download size={24}/></button>
+                                        <button onClick={handleSaveFamily} className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest hover:bg-green-600 transition-all flex items-center gap-2 shadow-lg shadow-car-green/20"><Save size={20}/> SAUVEGARDER LE DOSSIER</button>
                                     </div>
                                 </div>
 
@@ -2390,6 +2356,23 @@ const FamilyManager = () => {
                                             </div>
                                         ) : ( <p className="text-slate-400 font-medium mb-6 italic text-sm">Aucun enfant rattaché.</p> )}
                                         <div className="mt-auto pt-4 border-t border-slate-200">
+                                            <div className="relative mb-3">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Search className="text-slate-400" size={16}/>
+                                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rattacher un enfant existant :</label>
+                                                </div>
+                                                <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:border-car-yellow outline-none font-bold text-car-dark text-sm" placeholder="Rechercher par prénom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
+                                                {searchOrphan.length >= 2 && (
+                                                    <div className="absolute w-full mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
+                                                        {filteredOrphans.map(c => (
+                                                            <div key={c._id} className="p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                                <span className="font-bold text-car-dark uppercase">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
+                                                                <button onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">+ Lier</button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
                                             <button onClick={startAddChild} className="w-full bg-car-yellow/10 text-car-yellow font-bold p-3 rounded-xl hover:bg-car-yellow hover:text-white transition-colors text-sm flex justify-center items-center gap-2">
                                                 <Plus size={18}/> Créer et ajouter un enfant complet
                                             </button>
@@ -2422,6 +2405,12 @@ const FamilyManager = () => {
                                         <div className="bg-white p-4 rounded-2xl border border-slate-200 mt-4">
                                             <div className="flex justify-between items-center mb-3">
                                                 <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><FileText size={14}/> Justificatif CAF/Impot</h4>
+                                                {editFamily.documents?.attestationCAF?.fileUrl && (
+                                                    <button type="button" onClick={() => {
+                                                        const win = window.open();
+                                                        win.document.write(`<iframe src="${editFamily.documents.attestationCAF.fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                    }} className="text-car-blue bg-car-blue/10 px-3 py-1 rounded-lg font-bold text-[10px] hover:bg-car-blue hover:text-white transition-colors">👀 VOIR DOC</button>
+                                                )}
                                             </div>
                                             <div className="flex flex-col gap-3">
                                                 <div className="flex gap-2">
@@ -2437,7 +2426,6 @@ const FamilyManager = () => {
                                     </div>
                                 </div>
 
-                                {/* BLOC : RESPONSABLES LÉGAUX */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     <div className="bg-white border border-slate-200 p-6 rounded-3xl">
                                         <h3 className="font-black text-car-blue mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 1</h3>
@@ -2450,6 +2438,16 @@ const FamilyManager = () => {
                                             <div className="flex gap-2">
                                                 <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[0].phoneMobile} onChange={e => handleRespChange(0, 'phoneMobile', e.target.value)}/>
                                                 <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Email" value={editFamily.responsables[0].email} onChange={e => handleRespChange(0, 'email', e.target.value)}/>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Profession" value={editFamily.responsables[0].profession} onChange={e => handleRespChange(0, 'profession', e.target.value)}/>
+                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Employeur" value={editFamily.responsables[0].employeur} onChange={e => handleRespChange(0, 'employeur', e.target.value)}/>
+                                            </div>
+                                            <div className="flex gap-2 pt-2 border-t border-slate-100">
+                                                <select className="w-1/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold text-slate-500" value={editFamily.responsables[0].couvertureSociale} onChange={e => handleRespChange(0, 'couvertureSociale', e.target.value)}>
+                                                    <option value="CPAM">CPAM</option><option value="MSA">MSA</option><option value="AUTRE">Autre</option>
+                                                </select>
+                                                <input type="text" className="w-2/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="N° Allocataire" value={editFamily.responsables[0].numAllocataireCAF} onChange={e => handleRespChange(0, 'numAllocataireCAF', e.target.value)}/>
                                             </div>
                                         </div>
                                     </div>
@@ -2464,6 +2462,16 @@ const FamilyManager = () => {
                                             <div className="flex gap-2">
                                                 <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[1].phoneMobile} onChange={e => handleRespChange(1, 'phoneMobile', e.target.value)}/>
                                                 <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Email" value={editFamily.responsables[1].email} onChange={e => handleRespChange(1, 'email', e.target.value)}/>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Profession" value={editFamily.responsables[1].profession} onChange={e => handleRespChange(1, 'profession', e.target.value)}/>
+                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Employeur" value={editFamily.responsables[1].employeur} onChange={e => handleRespChange(1, 'employeur', e.target.value)}/>
+                                            </div>
+                                            <div className="flex gap-2 pt-2 border-t border-slate-100">
+                                                <select className="w-1/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold text-slate-500" value={editFamily.responsables[1].couvertureSociale} onChange={e => handleRespChange(1, 'couvertureSociale', e.target.value)}>
+                                                    <option value="CPAM">CPAM</option><option value="MSA">MSA</option><option value="AUTRE">Autre</option>
+                                                </select>
+                                                <input type="text" className="w-2/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="N° Allocataire" value={editFamily.responsables[1].numAllocataireCAF} onChange={e => handleRespChange(1, 'numAllocataireCAF', e.target.value)}/>
                                             </div>
                                         </div>
                                     </div>
@@ -2481,7 +2489,6 @@ const FamilyManager = () => {
             
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
 
-            {/* FORMULAIRE ENFANT (AVEC VACCINS & RC) */}
             {editingChild && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
@@ -2496,15 +2503,16 @@ const FamilyManager = () => {
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                     <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-black uppercase text-car-dark" placeholder="NOM" value={editingChild.lastName} onChange={e => setEditingChild({...editingChild, lastName: e.target.value.toUpperCase()})} required/>
                                     <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-bold text-car-dark capitalize" placeholder="Prénom" value={editingChild.firstName} onChange={e => setEditingChild({...editingChild, firstName: e.target.value})} required/>
-                                    <input type="date" className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-medium text-car-dark" value={editingChild.birthDate} onChange={e => setEditingChild({...editingChild, birthDate: e.target.value})} required/>
-                                    <select className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.category} onChange={e => setEditingChild({...editingChild, category: e.target.value})}>
-                                        <option value="Maternelle">Maternelle</option>
-                                        <option value="Élémentaire">Élémentaire</option>
+                                    <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.sexe} onChange={e => setEditingChild({...editingChild, sexe: e.target.value})}>
+                                        <option value="">Sexe...</option><option value="Féminin">Féminin</option><option value="Masculin">Masculin</option>
+                                    </select>
+                                    <input type="date" className="col-span-2 sm:col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-medium text-car-dark" value={editingChild.birthDate} onChange={e => setEditingChild({...editingChild, birthDate: e.target.value})} required/>
+                                    <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.category} onChange={e => setEditingChild({...editingChild, category: e.target.value})}>
+                                        <option value="Maternelle">Maternelle</option><option value="Élémentaire">Élémentaire</option>
                                     </select>
                                 </div>
                             </div>
 
-                            {/* NOUVEAU BLOC : VACCINS & ASSURANCE RC */}
                             <div>
                                 <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Documents Administratifs</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2536,7 +2544,7 @@ const FamilyManager = () => {
                                     <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase">Personnes Autorisées</h4>
                                     <div className="flex gap-2">
                                         {attachedChildren.length > 1 && (
-                                            <button type="button" onClick={handleCopyContacts} className="text-xs font-bold text-car-purple bg-car-purple/10 px-3 py-1.5 rounded-lg flex items-center gap-1"><Copy size={14}/> Copier</button>
+                                            <button type="button" onClick={handleCopyContacts} className="text-xs font-bold text-car-purple bg-car-purple/10 px-3 py-1.5 rounded-lg flex items-center gap-1"><Copy size={14}/> Copier (Fratrie)</button>
                                         )}
                                         <button type="button" onClick={() => setEditingChild({...editingChild, personnesAutorisees: [...editingChild.personnesAutorisees, {firstName:'', lastName:'', phone:'', isEmergency: false}]})} className="text-xs font-bold text-car-blue bg-car-blue/10 px-3 py-1.5 rounded-lg">+ AJOUTER</button>
                                     </div>
@@ -2556,7 +2564,39 @@ const FamilyManager = () => {
                                             }} className="text-slate-400 hover:text-car-pink p-2"><X size={16}/></button>
                                         </div>
                                     ))}
-                                    {editingChild.personnesAutorisees.length === 0 && <p className="text-xs text-slate-400 italic text-center">Aucune personne autorisée.</p>}
+                                    {editingChild.personnesAutorisees.length === 0 && <p className="text-xs text-slate-400 italic text-center">Aucune personne autorisée renseignée.</p>}
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Autorisations Mairie</h4>
+                                <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editingChild.droitImage} onChange={e => setEditingChild({...editingChild, droitImage: e.target.checked})} />
+                                        <span className="font-bold text-car-dark">Droit à l'image accordé</span>
+                                    </label>
+                                    {editingChild.category === 'Élémentaire' && (
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <input type="checkbox" className="w-5 h-5 accent-car-blue" checked={editingChild.autorisationSortieSeul} onChange={e => setEditingChild({...editingChild, autorisationSortieSeul: e.target.checked})} />
+                                            <span className="font-bold text-car-blue">Autorisation de quitter l'APS seul (Élémentaire)</span>
+                                        </label>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Santé & Médical</h4>
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.lunettes} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, lunettes: e.target.checked}})} /> Lunettes</label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.appareilAuditif} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, appareilAuditif: e.target.checked}})} /> Appareil Auditif</label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.appareilDentaire} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, appareilDentaire: e.target.checked}})} /> Appareil Dentaire</label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-green" checked={editingChild.medical.activitesPhysiques} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, activitesPhysiques: e.target.checked}})} /> Apte activités physiques</label>
+                                    </div>
+                                    <div className="flex gap-4 border-t border-slate-200 pt-4">
+                                        <input className="flex-1 bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow text-sm font-medium" placeholder="Nom du médecin traitant" value={editingChild.medical.medecinNom} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, medecinNom: e.target.value}})}/>
+                                        <input className="flex-1 bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow text-sm font-medium" placeholder="Téléphone du médecin" value={editingChild.medical.medecinPhone} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, medecinPhone: e.target.value}})}/>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2572,7 +2612,17 @@ const FamilyManager = () => {
                                                     const isAlim = e.target.checked;
                                                     setEditingChild({...editingChild, isPAIAlimentaire: isAlim, regimeAlimentaire: isAlim ? 'PAI' : 'Standard'});
                                                 }} /> C'est un PAI Alimentaire</label>
-                                                <input type="file" accept=".pdf, image/*" onChange={handleChildFileUpload} className="text-xs w-full text-slate-500 file:rounded-lg file:border-0 file:bg-slate-100 file:px-2 file:py-1 mt-2 cursor-pointer"/>
+                                                <div className="mt-2 bg-white p-3 rounded-xl border border-car-pink/30 flex items-center justify-between">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-car-pink uppercase">Joindre le document PAI</span>
+                                                        {editingChild.paiDocument ? (
+                                                            <span className="text-xs font-bold text-car-green flex items-center gap-1 mt-1"><Check size={14}/> Fichier chargé</span>
+                                                        ) : (
+                                                            <span className="text-[10px] text-slate-400 mt-1">Aucun fichier (requis)</span>
+                                                        )}
+                                                    </div>
+                                                    <input type="file" accept=".pdf, image/*" onChange={handleChildFileUpload} className="text-xs w-28 text-slate-400 file:rounded-lg file:border-0 file:bg-slate-100 file:text-[10px] file:font-bold hover:file:bg-slate-200 cursor-pointer"/>
+                                                </div>
                                             </>
                                         )}
                                     </div>
@@ -2598,26 +2648,3 @@ const FamilyManager = () => {
         </div>
     );
 };
-
-// --- ROUTER ---
-export default function App() {
-  const [auth, setAuth] = useState({ token: localStorage.getItem('token'), role: localStorage.getItem('role') });
-  
-  if (!auth.token) return <Login setAuth={setAuth} />;
-  
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/session/:date/:type" element={<SessionView />} />
-        <Route path="/report" element={<Report />} />
-        <Route path="/admin/children" element={<ChildrenManager />} />
-        <Route path="/admin/users" element={<UserManager />} />
-        <Route path="/admin/planned-notes" element={<PlannedNotesManager />} />
-        <Route path="/admin/billing" element={<BillingManager />} />
-        <Route path="/admin/families" element={<FamilyManager />} />
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </BrowserRouter>
-  );
-}
