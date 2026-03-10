@@ -2648,3 +2648,26 @@ const FamilyManager = () => {
         </div>
     );
 };
+
+// --- ROUTER ---
+export default function App() {
+  const [auth, setAuth] = useState({ token: localStorage.getItem('token'), role: localStorage.getItem('role') });
+  
+  if (!auth.token) return <Login setAuth={setAuth} />;
+  
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/session/:date/:type" element={<SessionView />} />
+        <Route path="/report" element={<Report />} />
+        <Route path="/admin/children" element={<ChildrenManager />} />
+        <Route path="/admin/users" element={<UserManager />} />
+        <Route path="/admin/planned-notes" element={<PlannedNotesManager />} />
+        <Route path="/admin/billing" element={<BillingManager />} />
+        <Route path="/admin/families" element={<FamilyManager />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
