@@ -11,21 +11,18 @@ const Attendance = require('./models/Attendance');
 const PlannedNote = require('./models/PlannedNote');
 const Billing = require('./models/Billing');
 const Family = require('./models/Family');
-const EmailTemplate = require('./models/EmailTemplate');
 const nodemailer = require('nodemailer');
 
-// On utilise un modèle simple pour stocker la signature (Settings)
-const SettingsSchema = new mongoose.Schema({ key: String, value: String });
-const Settings = mongoose.model('Settings', SettingsSchema);
-
 const app = express();
-
+// On augmente la limite à 50 méga-octets pour accepter les PDF et images en Base64
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors());
 
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB Connected'))
+  .then(async () => {
+      console.log('MongoDB Connected');
+  })
   .catch(err => console.log(err));
 
 // Middleware Auth
@@ -40,17 +37,18 @@ const auth = (roles = []) => (req, res, next) => {
     } catch (e) { res.status(400).send('Token invalide'); }
 };
 
-// --- AUTH ---
+// --- Routes Auth ---
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
     if (!user || !(await bcrypt.compare(password, user.password))) 
         return res.status(400).send('Identifiants incorrects');
+    
     const token = jwt.sign({ _id: user._id, role: user.role, categoryAccess: user.categoryAccess || 'Tous' }, process.env.JWT_SECRET);
     res.json({ token, role: user.role, categoryAccess: user.categoryAccess || 'Tous' });
 });
 
-// --- USERS ---
+// --- Routes Utilisateurs (Admin) ---
 app.get('/api/users', auth(['admin']), async (req, res) => {
     const users = await User.find({}, '-password');
     res.json(users);
@@ -59,42 +57,144 @@ app.get('/api/users', auth(['admin']), async (req, res) => {
 app.post('/api/users', auth(['admin']), async (req, res) => {
     try {
         const hash = await bcrypt.hash(req.body.password, 10);
-        const user = new User({ username: req.body.username, password: hash, role: req.body.role, categoryAccess: req.body.categoryAccess || 'Tous' });
+        const user = new User({ 
+            username: req.body.username, 
+            password: hash, 
+            role: req.body.role,
+            categoryAccess: req.body.categoryAccess || 'Tous'
+        });
         await user.save();
-        res.json(user);
-    } catch (e) { res.status(400).send('Erreur création'); }
+        res.json({ _id: user._id, username: user.username, role: user.role, categoryAccess: user.categoryAccess });
+    } catch (e) {
+        res.status(400).send('Erreur création utilisateur (nom déjà pris ?)');
+    }
 });
 
-// --- ENFANTS & FAMILLES ---
+app.put('/api/users/:id', auth(['admin']), async (req, res) => {
+    try {
+        const updated = await User.findByIdAndUpdate(
+            req.params.id, 
+            { 
+                role: req.body.role, 
+                categoryAccess: req.body.categoryAccess 
+            }, 
+            { new: true }
+        );
+        res.json(updated);
+    } catch (e) {
+        res.status(400).send('Erreur modification utilisateur');
+    }
+});
+
+app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// --- Routes Enfants ---
+// Tous les connectés peuvent lire la base (indispensable pour l'appli hors-ligne des animateurs)
 app.get('/api/children', auth(), async (req, res) => {
-    const children = await Child.find().sort({ lastName: 1, firstName: 1 }).populate('family'); 
+    // Le .populate('family') permet d'inclure toutes les infos des parents !
+    const children = await Child.find()
+        .sort({ lastName: 1, firstName: 1 })
+        .populate('family'); 
     res.json(children);
 });
 
+// Seul l'admin peut créer ou supprimer
+app.post('/api/children', auth(['admin']), async (req, res) => {
+    const child = new Child(req.body);
+    await child.save();
+    res.json(child);
+});
+
+// MODIFIÉ : On laisse passer tout le monde, mais on filtre ce qu'ils ont le droit de faire
 app.put('/api/children/:id', auth(), async (req, res) => {
-    if (req.user.role !== 'admin') {
-        const keys = Object.keys(req.body);
-        if (keys.length === 1 && keys.includes('persistentNote')) {
-            const updated = await Child.findByIdAndUpdate(req.params.id, { persistentNote: req.body.persistentNote }, { new: true });
-            return res.json(updated);
+    try {
+        // Si ce n'est pas un admin, on vérifie qu'il n'essaie de modifier QUE la note persistante
+        if (req.user.role !== 'admin') {
+            const keys = Object.keys(req.body);
+            if (keys.length === 1 && keys.includes('persistentNote')) {
+                const updated = await Child.findByIdAndUpdate(req.params.id, { persistentNote: req.body.persistentNote }, { new: true });
+                return res.json(updated);
+            }
+            return res.status(403).send("Seul un admin peut modifier la fiche complète de l'enfant.");
         }
-        return res.status(403).send("Admin requis");
+
+        // Si c'est un admin, on met à jour toute la fiche sans restriction
+        const updated = await Child.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(updated);
+    } catch (e) {
+        res.status(400).send('Erreur modification enfant');
     }
-    const updated = await Child.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(updated);
 });
 
+// --- Supprimer un enfant DÉFINITIVEMENT (Hard Delete) ---
+app.delete('/api/children/:id', auth(['admin']), async (req, res) => {
+    try {
+        const childId = req.params.id;
+
+        // 1. On supprime définitivement l'enfant
+        await Child.findByIdAndDelete(childId);
+
+        // 2. NETTOYAGE : On supprime aussi ses pointages et ses notes pour éviter les bugs d'affichage
+        await Attendance.deleteMany({ child: childId });
+        await PlannedNote.deleteMany({ child: childId });
+
+        res.json({ success: true, message: "Enfant et historique supprimés définitivement" });
+    } catch (e) {
+        console.error("Erreur de suppression:", e);
+        res.status(500).send('Erreur lors de la suppression');
+    }
+});
+
+// --- Routes Familles ---
+
+// Lire toutes les familles (pour la liste admin)
 app.get('/api/families', auth(['admin', 'responsable']), async (req, res) => {
-    const families = await Family.find().sort({ name: 1 });
-    res.json(families);
+    try {
+        const families = await Family.find().sort({ name: 1 });
+        res.json(families);
+    } catch (e) {
+        res.status(500).send('Erreur lors de la récupération des familles');
+    }
 });
 
+// Créer une nouvelle coquille vide (Dossier Famille)
+app.post('/api/families', auth(['admin']), async (req, res) => {
+    try {
+        const family = new Family(req.body);
+        await family.save();
+        res.json(family);
+    } catch (e) {
+        res.status(400).send('Erreur lors de la création de la famille');
+    }
+});
+
+// Mettre à jour un dossier (quand Charline remplit les infos CAF, adresse, etc.)
 app.put('/api/families/:id', auth(['admin']), async (req, res) => {
-    const updated = await Family.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(updated);
+    try {
+        const updated = await Family.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(updated);
+    } catch (e) {
+        res.status(400).send('Erreur lors de la modification de la famille');
+    }
 });
 
-// --- POINTAGE & SYNC ---
+// Supprimer une famille
+app.delete('/api/families/:id', auth(['admin']), async (req, res) => {
+    try {
+        await Family.findByIdAndDelete(req.params.id);
+        // SÉCURITÉ : Si on supprime une famille, on "rend orphelins" les enfants rattachés (sans les supprimer de la base !)
+        await Child.updateMany({ family: req.params.id }, { $set: { family: null } });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(400).send('Erreur lors de la suppression de la famille');
+    }
+});
+
+
+// --- Routes Pointage ---
 app.get('/api/attendance', auth(), async (req, res) => {
     const { date, sessionType } = req.query;
     const list = await Attendance.find({ date, sessionType }).populate('child');
@@ -103,99 +203,361 @@ app.get('/api/attendance', auth(), async (req, res) => {
 
 app.post('/api/attendance/checkin', auth(), async (req, res) => {
     const { childId, date, sessionType } = req.body;
-    const att = new Attendance({ date, sessionType, child: childId, lastUpdated: Date.now() });
-    await att.save();
-    await att.populate('child');
-    res.json(att);
+    try {
+        const att = new Attendance({ date, sessionType, child: childId, lastUpdated: Date.now() });
+        await att.save();
+        await att.populate('child');
+        res.json(att);
+    } catch (e) { res.status(400).send('Déjà pointé'); }
 });
 
 app.put('/api/attendance/checkout/:id', auth(), async (req, res) => {
     const attRecord = await Attendance.findById(req.params.id);
     const now = new Date();
     let isLate = false;
-    if (attRecord?.sessionType === 'SOIR') {
-        const limit = new Date(); limit.setHours(18, 35, 0, 0);
+    
+    // On ne calcule le retard de 18h35 QUE si c'est la session du SOIR
+    if (attRecord && attRecord.sessionType === 'SOIR') {
+        const limit = new Date();
+        limit.setHours(18, 35, 0, 0);
         isLate = now > limit;
     }
+
     const att = await Attendance.findByIdAndUpdate(req.params.id, { checkOut: now, isLate, lastUpdated: Date.now() }, { new: true }).populate('child');
     res.json(att);
 });
 
-// --- FACTURATION & NOTES ---
+app.put('/api/attendance/note/:id', auth(), async (req, res) => {
+    const { note } = req.body;
+    const updated = await Attendance.findByIdAndUpdate(req.params.id, { note, lastUpdated: Date.now() }, { new: true }).populate('child');
+    res.json(updated);
+});
+
+app.put('/api/attendance/remove-late/:id', auth(['staff', 'responsable', 'admin']), async (req, res) => {
+    const updated = await Attendance.findByIdAndUpdate(req.params.id, { isLate: false, lastUpdated: Date.now() }, { new: true }).populate('child');
+    res.json(updated);
+});
+
+app.put('/api/attendance/undo-checkout/:id', auth(), async (req, res) => {
+    const updated = await Attendance.findByIdAndUpdate(req.params.id, { 
+        checkOut: null, 
+        isLate: false,
+        lastUpdated: Date.now()
+    }, { new: true }).populate('child');
+    res.json(updated);
+});
+
+app.delete('/api/attendance/:id', auth(), async (req, res) => {
+    await Attendance.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// --- ROUTE DE SYNCHRONISATION (Mode Hors-Ligne) ---
+app.post('/api/attendance/sync', auth(), async (req, res) => {
+    const { actions } = req.body;
+    let successCount = 0;
+    let ignoredCount = 0;
+
+    for (const action of actions) {
+        try {
+            let att = await Attendance.findOne({ 
+                child: action.childId, 
+                date: action.date, 
+                sessionType: action.sessionType 
+            });
+
+            if (att && att.lastUpdated >= action.timestamp) {
+                ignoredCount++; 
+                continue; 
+            }
+
+            if (action.type === 'CHECK_IN') {
+                if (!att) {
+                    att = new Attendance({ 
+                        child: action.childId, 
+                        date: action.date, 
+                        sessionType: action.sessionType,
+                        checkIn: new Date(action.timestamp),
+                        lastUpdated: action.timestamp
+                    });
+                    await att.save();
+                    successCount++;
+                } else {
+                    att.checkOut = null;
+                    att.isLate = false;
+                    att.lastUpdated = action.timestamp;
+                    await att.save();
+                    successCount++;
+                }
+            } 
+            else if (action.type === 'CHECK_OUT') {
+                if (att) {
+                    att.checkOut = new Date(action.timestamp);
+                    att.lastUpdated = action.timestamp;
+                    
+                    // Calcul retard uniquement le SOIR
+                    if (att.sessionType === 'SOIR') {
+                        const limit = new Date(action.timestamp);
+                        limit.setHours(18, 35, 0, 0);
+                        att.isLate = limit < new Date(action.timestamp);
+                    }
+                    
+                    await att.save();
+                    successCount++;
+                }
+            }
+            else if (action.type === 'DELETE') {
+                if (att) {
+                    await Attendance.findByIdAndDelete(att._id);
+                    successCount++;
+                }
+            }
+            else if (action.type === 'ADD_NOTE') {
+                if (att) {
+                    att.note = action.note;
+                    att.lastUpdated = action.timestamp;
+                    await att.save();
+                    successCount++;
+                }
+            }
+        } catch (error) {
+            console.error("Erreur synchro:", error);
+        }
+    }
+
+    res.json({ message: "Synchronisation terminée", successCount, ignoredCount });
+});
+
+// --- Routes Notes Planifiées ---
+app.get('/api/planned-notes/date', auth(), async (req, res) => {
+    const { date } = req.query;
+    if (!date) return res.json([]);
+    const notes = await PlannedNote.find({ dates: date });
+    res.json(notes);
+});
+
+app.get('/api/planned-notes/child/:childId', auth(['admin']), async (req, res) => {
+    const notes = await PlannedNote.find({ child: req.params.childId });
+    res.json(notes);
+});
+
+app.post('/api/planned-notes', auth(['admin']), async (req, res) => {
+    const { childId, note, dates } = req.body;
+    const plannedNote = new PlannedNote({ child: childId, note, dates });
+    await plannedNote.save();
+    res.json(plannedNote);
+});
+
+app.delete('/api/planned-notes/:id', auth(['admin']), async (req, res) => {
+    await PlannedNote.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+
+// --- Routes Facturation Alternée ---
+app.get('/api/billing/child/:childId', auth(['admin']), async (req, res) => {
+    const rules = await Billing.find({ child: req.params.childId });
+    res.json(rules);
+});
+
 app.post('/api/billing', auth(['admin']), async (req, res) => {
-    const rule = new Billing(req.body);
+    const { childId, billTo, dates } = req.body;
+    const rule = new Billing({ child: childId, billTo, dates });
     await rule.save();
     res.json(rule);
 });
 
+app.delete('/api/billing/:id', auth(['admin']), async (req, res) => {
+    await Billing.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+
+// --- Route Rapport (Matin, Midi, Soir) ---
+// Réservé aux admins
 app.get('/api/report', auth(['admin']), async (req, res) => {
     const { date } = req.query;
     const children = await Child.find().sort({ lastName: 1 });
     const atts = await Attendance.find({ date });
-    const billings = await Billing.find({ dates: date });
+    
+    const billingsForDate = await Billing.find({ dates: date });
+    
+    // On construit le rapport global
     const report = children.map(c => {
         const am = atts.find(a => a.child.toString() == c._id && a.sessionType === 'MATIN');
         const midi = atts.find(a => a.child.toString() == c._id && a.sessionType === 'MIDI');
         const pm = atts.find(a => a.child.toString() == c._id && a.sessionType === 'SOIR');
-        const bill = billings.find(b => b.child.toString() == c._id);
-        return { child: c, matin: !!am, midiAbsent: !!midi, soir: !!pm, checkOut: pm?.checkOut, isLate: !!pm?.isLate, billTo: bill?.billTo || '' };
+        
+        const billingRule = billingsForDate.find(b => b.child.toString() == c._id);
+        
+        return { 
+            child: c, 
+            matin: !!am, 
+            midiAbsent: !!midi, // Logique inversée : présence d'une ligne = absent
+            soir: !!pm, 
+            checkOut: pm ? pm.checkOut : null,
+            isLate: pm ? pm.isLate : false,
+            pmId: pm ? pm._id : null,
+            billTo: billingRule ? billingRule.billTo : '' 
+        };
     });
+    
     res.json(report);
 });
 
-// --- STATS CAF ---
+// --- Route Statistiques CAF (Période personnalisée + Détail) ---
 app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
-    const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } }).populate('child');
-    let global = { matin: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } }, soir: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } }, total: { acts: 0, hours: 0 } };
-    let daily = {};
-    attendances.forEach(att => {
-        if (!att.child?.birthDate) return;
-        const sDate = new Date(att.date); const bDate = new Date(att.child.birthDate);
-        let age = sDate.getFullYear() - bDate.getFullYear();
-        if (sDate.getMonth() < bDate.getMonth() || (sDate.getMonth() === bDate.getMonth() && sDate.getDate() < bDate.getDate())) age--;
-        const grp = age < 6 ? 'under6' : 'over6';
-        if (!daily[att.date]) daily[att.date] = { date: att.date, matin: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } }, soir: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } } };
-        if (att.sessionType === 'MATIN') { global.matin[grp].acts++; global.matin[grp].hours++; global.total.acts++; global.total.hours++; daily[att.date].matin[grp].acts++; daily[att.date].matin[grp].hours++; }
-        else if (att.sessionType === 'SOIR' && (att.checkOut || att.isLate)) { global.soir[grp].acts++; global.soir[grp].hours += 2.5; global.total.acts++; global.total.hours += 2.5; daily[att.date].soir[grp].acts++; daily[att.date].soir[grp].hours += 2.5; }
-    });
-    res.json({ global, daily: Object.values(daily).sort((a,b) => a.date.localeCompare(b.date)) });
+    
+    try {
+        const attendances = await Attendance.find({ 
+            date: { $gte: startDate, $lte: endDate } 
+        }).populate('child');
+
+        // Structure du rapport Global
+        let globalStats = {
+            matin: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } },
+            soir: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } },
+            total: { acts: 0, hours: 0 }
+        };
+
+        // Structure du détail Journalier
+        let dailyStats = {};
+
+        attendances.forEach(att => {
+            if (!att.child || !att.child.birthDate) return; 
+
+            // Calcul de l'âge EXACT le jour du pointage
+            const sessionDate = new Date(att.date);
+            const birthDate = new Date(att.child.birthDate);
+            
+            let age = sessionDate.getFullYear() - birthDate.getFullYear();
+            const m = sessionDate.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && sessionDate.getDate() < birthDate.getDate())) {
+                age--;
+            }
+
+            const ageGroup = age < 6 ? 'under6' : 'over6';
+
+            // Initialiser le jour s'il n'existe pas encore dans le détail
+            if (!dailyStats[att.date]) {
+                dailyStats[att.date] = {
+                    date: att.date,
+                    matin: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } },
+                    soir: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } }
+                };
+            }
+
+            // MATIN (1 Acte = 1h)
+            if (att.sessionType === 'MATIN') {
+                globalStats.matin[ageGroup].acts += 1;
+                globalStats.matin[ageGroup].hours += 1;
+                globalStats.total.acts += 1;
+                globalStats.total.hours += 1;
+
+                dailyStats[att.date].matin[ageGroup].acts += 1;
+                dailyStats[att.date].matin[ageGroup].hours += 1;
+            } 
+            // SOIR (1 Acte = 2h30, uniquement si départ validé ou en retard)
+            else if (att.sessionType === 'SOIR' && (att.checkOut || att.isLate)) {
+                globalStats.soir[ageGroup].acts += 1;
+                globalStats.soir[ageGroup].hours += 2.5;
+                globalStats.total.acts += 1;
+                globalStats.total.hours += 2.5;
+
+                dailyStats[att.date].soir[ageGroup].acts += 1;
+                dailyStats[att.date].soir[ageGroup].hours += 2.5;
+            }
+        });
+
+        // Convertir l'objet des jours en tableau trié par date (du plus ancien au plus récent)
+        const dailyArray = Object.values(dailyStats).sort((a, b) => a.date.localeCompare(b.date));
+
+        res.json({ global: globalStats, daily: dailyArray });
+    } catch (e) {
+        console.error("Erreur Stats CAF:", e);
+        res.status(500).send('Erreur lors du calcul des statistiques');
+    }
 });
 
-// --- MAILING, TEMPLATES & SIGNATURE ---
+// --- Route Mailing (Envoi groupé avec Pièces Jointes) ---
 app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
     const { subject, message, recipients, attachments } = req.body;
+
+    if (!recipients || recipients.length === 0) {
+        return res.status(400).send("Aucun destinataire sélectionné.");
+    }
+    if (!subject || !message) {
+        return res.status(400).send("Le sujet et le message sont obligatoires.");
+    }
+
     try {
-        const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
-        await transporter.sendMail({
-            from: `"Périscolaire Carignan" <${process.env.EMAIL_USER}>`,
-            bcc: recipients,
-            replyTo: 'servicescolaire@carignandebordeaux.fr',
-            subject,
-            html: `<div style="font-family: Arial;">${message}</div>`,
-            attachments: attachments || []
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
         });
-        res.status(200).send("OK");
-    } catch (e) { res.status(500).send("Erreur"); }
+
+        // Le message vient maintenant de l'éditeur riche, il est déjà en HTML.
+        // On l'enveloppe juste dans une jolie div.
+        const htmlMessage = `
+            <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+                ${message}
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 12px; color: #888;">
+                    <i>Ceci est un message automatique envoyé depuis l'application Carillon.<br>
+                    Ne répondez pas directement à cette adresse.</i>
+                </p>
+            </div>
+        `;
+
+        const mailOptions = {
+            from: '"Périscolaire Carignan" <' + process.env.EMAIL_USER + '>',
+            to: [], 
+            bcc: recipients,
+            replyTo: 'adresse.de.charline@carignandebordeaux.fr', // <-- À remplacer par sa vraie adresse
+            subject: subject,
+            html: htmlMessage,
+            attachments: attachments || [] // Nodemailer s'occupe de tout si on lui passe le bon format
+        };
+
+        await transporter.sendMail(mailOptions);
+        res.status(200).send("Emails envoyés avec succès !");
+    } catch (error) {
+        console.error("Erreur Mailing:", error);
+        res.status(500).send("Erreur lors de l'envoi des emails.");
+    }
 });
 
-app.get('/api/mail/templates', auth(), async (req, res) => { res.json(await EmailTemplate.find()); });
-app.post('/api/mail/templates', auth(), async (req, res) => { const t = new EmailTemplate(req.body); await t.save(); res.json(t); });
+const EmailTemplate = require('./models/EmailTemplate');
 
-app.get('/api/settings/signature', auth(), async (req, res) => {
-    const s = await Settings.findOne({ key: 'mail_signature' });
-    res.json({ signature: s ? s.value : '' });
+// Récupérer tous les modèles
+app.get('/api/mail/templates', auth(['admin', 'responsable']), async (req, res) => {
+    try {
+        const templates = await EmailTemplate.find();
+        res.json(templates);
+    } catch (e) { res.status(500).send(e); }
 });
 
-app.post('/api/settings/signature', auth(['admin']), async (req, res) => {
-    await Settings.findOneAndUpdate({ key: 'mail_signature' }, { value: req.body.signature }, { upsert: true });
-    res.send("OK");
+// Enregistrer un nouveau modèle
+app.post('/api/mail/templates', auth(['admin', 'responsable']), async (req, res) => {
+    try {
+        const newTemplate = new EmailTemplate(req.body);
+        await newTemplate.save();
+        res.status(201).json(newTemplate);
+    } catch (e) { res.status(500).send(e); }
 });
 
-// --- PROD ---
+// --- DEPLOIEMENT PRODUCTION ---
 const path = require('path');
 if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../client/dist')));
-    app.get(/.*/, (req, res) => res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html')));
+    app.get(/.*/, (req, res) => {
+        res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html'));
+    });
 }
-app.listen(process.env.PORT || 5000, () => console.log('Server running'));
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));
