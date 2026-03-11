@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Send, Filter, Users, AlertTriangle, CheckCircle, Loader, Paperclip, X, FileText as FileIcon } from 'lucide-react';
 import api from '../api';
-import ReactQuill from 'react-quill';
+import ReactQuill from 'react-quill-new';
 import 'react-quill/dist/quill.snow.css'; // Le style de l'éditeur !
 
 const Mailing = () => {
