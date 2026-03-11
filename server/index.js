@@ -442,19 +442,24 @@ app.post('/api/mail/templates', auth(['admin', 'responsable']), async (req, res)
     res.json(newTemplate);
 });
 
-// --- AJOUT ROUTES SIGNATURE ---
+// Récupérer la signature de l'utilisateur connecté
 app.get('/api/settings/signature', auth(), async (req, res) => {
     try {
-        const settings = await Settings.findOne({ key: 'mail_signature' });
-        res.json({ signature: settings ? settings.value : '' });
-    } catch (e) { res.status(500).send(e); }
+        const user = await User.findById(req.user._id);
+        res.json({ signature: user.signature || '' });
+    } catch (e) { 
+        res.status(500).send(e); 
+    }
 });
 
-app.post('/api/settings/signature', auth(['admin']), async (req, res) => {
+// Enregistrer la signature pour l'utilisateur connecté
+app.post('/api/settings/signature', auth(), async (req, res) => {
     try {
-        await Settings.findOneAndUpdate({ key: 'mail_signature' }, { value: req.body.signature }, { upsert: true });
-        res.send("Signature enregistrée");
-    } catch (e) { res.status(500).send(e); }
+        await User.findByIdAndUpdate(req.user._id, { signature: req.body.signature });
+        res.send("Signature personnelle enregistrée");
+    } catch (e) { 
+        res.status(500).send(e); 
+    }
 });
 
 // --- DEPLOIEMENT ---
