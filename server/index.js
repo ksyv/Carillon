@@ -94,7 +94,7 @@ app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
 // Tous les connectés peuvent lire la base (indispensable pour l'appli hors-ligne des animateurs)
 app.get('/api/children', auth(), async (req, res) => {
     // Le .populate('family') permet d'inclure toutes les infos des parents !
-    const children = await Child.find({ active: true })
+    const children = await Child.find()
         .sort({ lastName: 1, firstName: 1 })
         .populate('family'); 
     res.json(children);
