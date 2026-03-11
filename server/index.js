@@ -11,6 +11,7 @@ const Attendance = require('./models/Attendance');
 const PlannedNote = require('./models/PlannedNote');
 const Billing = require('./models/Billing');
 const Family = require('./models/Family');
+const nodemailer = require('nodemailer');
 
 const app = express();
 // On augmente la limite à 50 méga-octets pour accepter les PDF et images en Base64
@@ -476,6 +477,60 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
     } catch (e) {
         console.error("Erreur Stats CAF:", e);
         res.status(500).send('Erreur lors du calcul des statistiques');
+    }
+});
+
+// --- Route Mailing (Envoi groupé) ---
+app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
+    const { subject, message, recipients } = req.body;
+
+    // Sécurité de base
+    if (!recipients || recipients.length === 0) {
+        return res.status(400).send("Aucun destinataire sélectionné.");
+    }
+    if (!subject || !message) {
+        return res.status(400).send("Le sujet et le message sont obligatoires.");
+    }
+
+    try {
+        // 1. Configuration du "Transporteur" (connexion à Gmail)
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
+
+        // 2. Formatage du message (On remplace les retours à la ligne \n par des vrais sauts HTML <br>)
+        const htmlMessage = `
+            <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+                <p>${message.replace(/\n/g, '<br>')}</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 12px; color: #888;">
+                    <i>Ceci est un message automatique envoyé depuis l'application périscolaire Carillon.<br>
+                    Ne répondez pas directement à cette adresse.</i>
+                </p>
+            </div>
+        `;
+
+        // 3. Configuration de l'email
+        const mailOptions = {
+            from: '"Périscolaire Carignan" <' + process.env.EMAIL_USER + '>', // L'expéditeur
+            to: [], // On laisse vide pour le RGPD
+            bcc: recipients, // BCC = Copie Cachée : Personne ne voit les adresses des autres parents !
+            replyTo: 'Servicescolaire@carignandebordeaux.fr', 
+            subject: subject,
+            html: htmlMessage // Le contenu mis en forme
+        };
+
+        // 4. Envoi
+        await transporter.sendMail(mailOptions);
+        
+        res.status(200).send("Emails envoyés avec succès !");
+    } catch (error) {
+        console.error("Erreur Mailing:", error);
+        res.status(500).send("Erreur lors de l'envoi des emails.");
     }
 });
 
