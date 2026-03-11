@@ -128,9 +128,23 @@ app.put('/api/children/:id', auth(), async (req, res) => {
     }
 });
 
+// --- Supprimer un enfant DÉFINITIVEMENT (Hard Delete) ---
 app.delete('/api/children/:id', auth(['admin']), async (req, res) => {
-    await Child.findByIdAndUpdate(req.params.id, { active: false });
-    res.json({ success: true });
+    try {
+        const childId = req.params.id;
+
+        // 1. On supprime définitivement l'enfant
+        await Child.findByIdAndDelete(childId);
+
+        // 2. NETTOYAGE : On supprime aussi ses pointages et ses notes pour éviter les bugs d'affichage
+        await Attendance.deleteMany({ child: childId });
+        await PlannedNote.deleteMany({ child: childId });
+
+        res.json({ success: true, message: "Enfant et historique supprimés définitivement" });
+    } catch (e) {
+        console.error("Erreur de suppression:", e);
+        res.status(500).send('Erreur lors de la suppression');
+    }
 });
 
 // --- Routes Familles ---
@@ -362,7 +376,7 @@ app.delete('/api/billing/:id', auth(['admin']), async (req, res) => {
 // Réservé aux admins
 app.get('/api/report', auth(['admin']), async (req, res) => {
     const { date } = req.query;
-    const children = await Child.find({ active: true }).sort({ lastName: 1 });
+    const children = await Child.find().sort({ lastName: 1 });
     const atts = await Attendance.find({ date });
     
     const billingsForDate = await Billing.find({ dates: date });
