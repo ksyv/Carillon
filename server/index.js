@@ -404,15 +404,15 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
     res.json(report);
 });
 
-// --- Route Statistiques CAF (Mensuelles) ---
+// --- Route Statistiques CAF (Période personnalisée) ---
 app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
-    const { month, year } = req.query;
-    
-    // On cherche tous les pointages qui commencent par "YYYY-MM" (ex: "2026-03")
-    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+    const { startDate, endDate } = req.query;
     
     try {
-        const attendances = await Attendance.find({ date: { $regex: `^${monthStr}` } }).populate('child');
+        // On cherche tous les pointages compris entre la date de début et de fin
+        const attendances = await Attendance.find({ 
+            date: { $gte: startDate, $lte: endDate } 
+        }).populate('child');
 
         // Structure du rapport CAF
         let stats = {
@@ -422,7 +422,7 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
         };
 
         attendances.forEach(att => {
-            if (!att.child || !att.child.birthDate) return; // On ignore si pas de date de naissance
+            if (!att.child || !att.child.birthDate) return; 
 
             // Calcul de l'âge EXACT le jour du pointage
             const sessionDate = new Date(att.date);

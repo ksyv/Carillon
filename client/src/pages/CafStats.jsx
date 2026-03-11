@@ -4,22 +4,30 @@ import { Calculator, Download, Sun, Moon, BarChart } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api from '../api';
+// On importe des outils pour initialiser les dates au début et à la fin du mois actuel
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 const CafStats = () => {
     const navigate = useNavigate();
-    const [month, setMonth] = useState(new Date().getMonth() + 1);
-    const [year, setYear] = useState(new Date().getFullYear());
+    
+    // NOUVEAU : Sélection libre des dates (Par défaut : du 1er au dernier jour du mois en cours)
+    const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+    const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+    
     const [stats, setStats] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        loadStats();
-    }, [month, year]);
+        if (startDate && endDate) {
+            loadStats();
+        }
+    }, [startDate, endDate]);
 
     const loadStats = async () => {
         setIsLoading(true);
         try {
-            const { data } = await api.get(`/stats/caf?month=${month}&year=${year}`);
+            // On envoie la période exacte au serveur
+            const { data } = await api.get(`/stats/caf?startDate=${startDate}&endDate=${endDate}`);
             setStats(data);
         } catch (error) {
             console.error("Erreur lors du chargement des stats CAF");
@@ -30,7 +38,9 @@ const CafStats = () => {
     const exportPDF = () => {
         if (!stats) return;
         const doc = new jsPDF();
-        const monthName = new Date(year, month - 1, 1).toLocaleString('fr-FR', { month: 'long' }).toUpperCase();
+        
+        const startStr = new Date(startDate).toLocaleDateString('fr-FR');
+        const endStr = new Date(endDate).toLocaleDateString('fr-FR');
         
         doc.setFontSize(22);
         doc.setTextColor(30, 58, 138); // Bleu foncé
@@ -38,7 +48,7 @@ const CafStats = () => {
         
         doc.setFontSize(14);
         doc.setTextColor(100);
-        doc.text(`Périscolaire - Mois de ${monthName} ${year}`, 14, 30);
+        doc.text(`Période du ${startStr} au ${endStr}`, 14, 30);
 
         const tableColumn = ["Période & Tranche d'âge", "Actes (Présences)", "Heures facturées"];
         const tableRows = [
@@ -49,7 +59,7 @@ const CafStats = () => {
         ];
         
         const footData = [
-            ["TOTAL MENSUEL GLOBAL", stats.total.acts.toString(), `${stats.total.hours} h`]
+            ["TOTAL GLOBAL SUR LA PÉRIODE", stats.total.acts.toString(), `${stats.total.hours} h`]
         ];
 
         autoTable(doc, {
@@ -72,7 +82,7 @@ const CafStats = () => {
         doc.setTextColor(150);
         doc.text(`Document généré le ${new Date().toLocaleDateString('fr-FR')} par le logiciel Carillon.`, 14, doc.lastAutoTable.finalY + 15);
 
-        doc.save(`CAF_PSO_${monthName}_${year}.pdf`);
+        doc.save(`CAF_PSO_${startDate}_au_${endDate}.pdf`);
     };
 
     return (
@@ -87,17 +97,28 @@ const CafStats = () => {
                         </div>
                         <div>
                             <h1 className="text-4xl font-black text-car-dark">Statistiques CAF</h1>
-                            <p className="text-slate-500 font-medium mt-1">Déclaration mensuelle PSO (Actes & Heures)</p>
+                            <p className="text-slate-500 font-medium mt-1">Déclaration PSO (Actes & Heures)</p>
                         </div>
                     </div>
                     
-                    <div className="flex gap-4 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-                        <select className="bg-slate-50 p-3 rounded-xl outline-none font-black text-car-dark cursor-pointer text-center hover:bg-slate-100 transition-colors" value={month} onChange={e => setMonth(Number(e.target.value))}>
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                                <option key={m} value={m}>{new Date(2000, m - 1, 1).toLocaleString('fr-FR', { month: 'long' }).toUpperCase()}</option>
-                            ))}
-                        </select>
-                        <input type="number" className="bg-slate-50 p-3 rounded-xl outline-none font-black text-car-dark w-24 cursor-pointer text-center hover:bg-slate-100 transition-colors" value={year} onChange={e => setYear(Number(e.target.value))} />
+                    {/* NOUVEAU : Sélecteur de période libre */}
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex-wrap sm:flex-nowrap">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-2">Période :</span>
+                        <div className="flex items-center gap-2">
+                            <input 
+                                type="date" 
+                                className="bg-slate-50 p-3 rounded-xl outline-none font-black text-car-dark cursor-pointer text-sm hover:bg-slate-100 transition-colors" 
+                                value={startDate} 
+                                onChange={e => setStartDate(e.target.value)} 
+                            />
+                            <span className="text-slate-300 font-bold">au</span>
+                            <input 
+                                type="date" 
+                                className="bg-slate-50 p-3 rounded-xl outline-none font-black text-car-dark cursor-pointer text-sm hover:bg-slate-100 transition-colors" 
+                                value={endDate} 
+                                onChange={e => setEndDate(e.target.value)} 
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -111,8 +132,10 @@ const CafStats = () => {
                         <div className="bg-car-purple text-white p-8 rounded-[2rem] shadow-lg flex flex-col md:flex-row justify-between items-center overflow-hidden relative">
                             <BarChart className="absolute -right-10 -bottom-10 w-64 h-64 text-white/10 rotate-12" />
                             <div className="relative z-10 text-center md:text-left mb-6 md:mb-0">
-                                <h2 className="text-sm font-bold tracking-widest opacity-80 uppercase mb-1">Total Global du Mois</h2>
-                                <p className="text-3xl font-black">{new Date(year, month - 1, 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()}</p>
+                                <h2 className="text-sm font-bold tracking-widest opacity-80 uppercase mb-1">Total sur la période</h2>
+                                <p className="text-2xl font-black">
+                                    Du {new Date(startDate).toLocaleDateString('fr-FR')} au {new Date(endDate).toLocaleDateString('fr-FR')}
+                                </p>
                             </div>
                             <div className="relative z-10 flex gap-8 text-center bg-black/20 p-6 rounded-3xl backdrop-blur-sm border border-white/10">
                                 <div>
