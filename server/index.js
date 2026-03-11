@@ -404,22 +404,24 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
     res.json(report);
 });
 
-// --- Route Statistiques CAF (Période personnalisée) ---
+// --- Route Statistiques CAF (Période personnalisée + Détail) ---
 app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
     
     try {
-        // On cherche tous les pointages compris entre la date de début et de fin
         const attendances = await Attendance.find({ 
             date: { $gte: startDate, $lte: endDate } 
         }).populate('child');
 
-        // Structure du rapport CAF
-        let stats = {
+        // Structure du rapport Global
+        let globalStats = {
             matin: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } },
             soir: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } },
             total: { acts: 0, hours: 0 }
         };
+
+        // Structure du détail Journalier
+        let dailyStats = {};
 
         attendances.forEach(att => {
             if (!att.child || !att.child.birthDate) return; 
@@ -436,22 +438,41 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
 
             const ageGroup = age < 6 ? 'under6' : 'over6';
 
-            // APPLICATION DES RÈGLES DE CALCUL (Heures)
+            // Initialiser le jour s'il n'existe pas encore dans le détail
+            if (!dailyStats[att.date]) {
+                dailyStats[att.date] = {
+                    date: att.date,
+                    matin: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } },
+                    soir: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } }
+                };
+            }
+
+            // MATIN (1 Acte = 1h)
             if (att.sessionType === 'MATIN') {
-                stats.matin[ageGroup].acts += 1;
-                stats.matin[ageGroup].hours += 1; // 1h pour le matin
-                stats.total.acts += 1;
-                stats.total.hours += 1;
-            } else if (att.sessionType === 'SOIR' && (att.checkOut || att.isLate)) {
-                // On compte le soir uniquement si l'enfant est bien parti (checkOut validé)
-                stats.soir[ageGroup].acts += 1;
-                stats.soir[ageGroup].hours += 2.5; // 2h30 pour le soir
-                stats.total.acts += 1;
-                stats.total.hours += 2.5;
+                globalStats.matin[ageGroup].acts += 1;
+                globalStats.matin[ageGroup].hours += 1;
+                globalStats.total.acts += 1;
+                globalStats.total.hours += 1;
+
+                dailyStats[att.date].matin[ageGroup].acts += 1;
+                dailyStats[att.date].matin[ageGroup].hours += 1;
+            } 
+            // SOIR (1 Acte = 2h30, uniquement si départ validé ou en retard)
+            else if (att.sessionType === 'SOIR' && (att.checkOut || att.isLate)) {
+                globalStats.soir[ageGroup].acts += 1;
+                globalStats.soir[ageGroup].hours += 2.5;
+                globalStats.total.acts += 1;
+                globalStats.total.hours += 2.5;
+
+                dailyStats[att.date].soir[ageGroup].acts += 1;
+                dailyStats[att.date].soir[ageGroup].hours += 2.5;
             }
         });
 
-        res.json(stats);
+        // Convertir l'objet des jours en tableau trié par date (du plus ancien au plus récent)
+        const dailyArray = Object.values(dailyStats).sort((a, b) => a.date.localeCompare(b.date));
+
+        res.json({ global: globalStats, daily: dailyArray });
     } catch (e) {
         console.error("Erreur Stats CAF:", e);
         res.status(500).send('Erreur lors du calcul des statistiques');
