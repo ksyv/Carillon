@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Send, Filter, Users, AlertTriangle, CheckCircle, Loader, Paperclip, X, FileText as FileIcon } from 'lucide-react';
 import api from '../api';
 import ReactQuill from 'react-quill-new';
-import 'react-quill/dist/quill.snow.css'; // Le style de l'éditeur !
+import 'react-quill-new/dist/quill.snow.css'; // Le style de l'éditeur !
 
 const Mailing = () => {
     const navigate = useNavigate();
