@@ -531,6 +531,25 @@ app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
     }
 });
 
+const EmailTemplate = require('./models/EmailTemplate');
+
+// Récupérer tous les modèles
+app.get('/api/mail/templates', auth(['admin', 'responsable']), async (req, res) => {
+    try {
+        const templates = await EmailTemplate.find();
+        res.json(templates);
+    } catch (e) { res.status(500).send(e); }
+});
+
+// Enregistrer un nouveau modèle
+app.post('/api/mail/templates', auth(['admin', 'responsable']), async (req, res) => {
+    try {
+        const newTemplate = new EmailTemplate(req.body);
+        await newTemplate.save();
+        res.status(201).json(newTemplate);
+    } catch (e) { res.status(500).send(e); }
+});
+
 // --- DEPLOIEMENT PRODUCTION ---
 const path = require('path');
 if (process.env.NODE_ENV === 'production') {
