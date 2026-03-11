@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { CalendarDays, Search, Users, Trash2, Check } from 'lucide-react';
 import InteractiveCalendar from '../components/InteractiveCalendar';
 
-
 const PlannedNotesManager = () => {
     const [children, setChildren] = useState([]);
     const [search, setSearch] = useState('');
@@ -16,60 +15,123 @@ const PlannedNotesManager = () => {
 
     const navigate = useNavigate();
 
-    useEffect(() => { api.get(`api./children`).then(res => setChildren(res.data)); }, []);
+    // --- CHARGEMENT DES ENFANTS ---
+    // Correction : On utilise directement '/children' car Axios ajoute déjà le préfixe /api
+    useEffect(() => { 
+        api.get('/children')
+            .then(res => {
+                setChildren(Array.isArray(res.data) ? res.data : []);
+            })
+            .catch(err => {
+                console.error("Erreur API Children:", err);
+                setChildren([]);
+            });
+    }, []);
 
+    // --- FILTRAGE SÉCURISÉ (Le fameux crash au clavier) ---
     const filteredSearch = useMemo(() => {
         if (search.length < 2) return [];
-        return children.filter(c => c.lastName.toLowerCase().includes(search.toLowerCase()) || c.firstName.toLowerCase().includes(search.toLowerCase()));
+        
+        // Sécurité : si children n'est pas un tableau (erreur API), on ne crash pas
+        if (!Array.isArray(children)) return [];
+
+        const query = search.toLowerCase();
+        return children.filter(c => {
+            const lastName = c.lastName ? c.lastName.toLowerCase() : "";
+            const firstName = c.firstName ? c.firstName.toLowerCase() : "";
+            return lastName.includes(query) || firstName.includes(query);
+        });
     }, [children, search]);
 
     const selectChild = async (child) => {
-        setSelectedChild(child); setSearch(''); loadNotes(child._id);
+        setSelectedChild(child); 
+        setSearch(''); 
+        loadNotes(child._id);
     };
 
+    // --- CHARGEMENT DES NOTES ---
     const loadNotes = async (childId) => {
-        const { data } = await api.get(`api./planned-notes/child/${childId}`);
-        setPlannedNotes(data);
+        try {
+            const { data } = await api.get(`/planned-notes/child/${childId}`);
+            setPlannedNotes(Array.isArray(data) ? data : []);
+        } catch (e) {
+            console.error("Erreur chargement notes:", e);
+            setPlannedNotes([]);
+        }
     };
 
+    // --- AJOUT D'UNE NOTE ---
     const handleAddNote = async (e) => {
         e.preventDefault();
         if(selectedDates.length === 0) return alert("Veuillez sélectionner au moins une date.");
-        await api.post(`api./planned-notes`, { childId: selectedChild._id, note: newNote, dates: selectedDates });
-        setNewNote(''); setSelectedDates([]); loadNotes(selectedChild._id);
+        
+        try {
+            await api.post(`/planned-notes`, { 
+                childId: selectedChild._id, 
+                note: newNote, 
+                dates: selectedDates 
+            });
+            setNewNote(''); 
+            setSelectedDates([]); 
+            loadNotes(selectedChild._id);
+        } catch (e) {
+            alert("Erreur lors de l'enregistrement de la note.");
+        }
     };
 
+    // --- SUPPRESSION ---
     const handleDeleteNote = async (id) => {
         if(window.confirm("Supprimer cette note planifiée ?")) {
-            await api.delete(`api./planned-notes/${id}`);
-            loadNotes(selectedChild._id);
+            try {
+                await api.delete(`/planned-notes/${id}`);
+                loadNotes(selectedChild._id);
+            } catch (e) {
+                alert("Erreur lors de la suppression.");
+            }
         }
     };
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
+            {/* Header Sticky */}
             <div className="bg-white shadow-sm z-20 sticky top-0 p-4 border-b border-slate-100 flex items-center gap-4">
                 <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold transition-colors">← Retour</button>
-                <div className="flex items-center gap-2"><CalendarDays className="text-car-pink"/><h1 className="font-black text-car-dark text-xl">Notes Planifiées</h1></div>
+                <div className="flex items-center gap-2">
+                    <CalendarDays className="text-car-pink"/>
+                    <h1 className="font-black text-car-dark text-xl">Notes Planifiées</h1>
+                </div>
             </div>
 
             <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
+                {/* Barre de recherche */}
                 <div className="relative">
                     <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
-                    <input type="text" className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-pink/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg" placeholder="Rechercher un enfant..." value={search} onChange={e => setSearch(e.target.value)} />
+                    <input 
+                        type="text" 
+                        className="w-full pl-14 p-4 bg-white shadow-sm border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-car-pink/20 outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg" 
+                        placeholder="Rechercher un enfant..." 
+                        value={search} 
+                        onChange={e => setSearch(e.target.value)} 
+                    />
+                    
                     {search.length >= 2 && (
                         <div className="bg-white shadow-2xl rounded-2xl max-h-60 overflow-y-auto absolute w-full mt-2 z-30 border border-slate-100">
-                            {filteredSearch.map(child => (
-                                <div key={child._id} onClick={() => selectChild(child)} className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
-                                    <span className="font-black text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                </div>
-                            ))}
+                            {filteredSearch.length > 0 ? (
+                                filteredSearch.map(child => (
+                                    <div key={child._id} onClick={() => selectChild(child)} className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
+                                        <span className="font-black text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-4 text-slate-400 italic">Aucun enfant trouvé...</div>
+                            )}
                         </div>
                     )}
                 </div>
 
+                {/* Détails Enfant Sélectionné */}
                 {selectedChild && (
-                    <div className="bg-slate-100 rounded-[2rem] p-2">
+                    <div className="bg-slate-100 rounded-[2rem] p-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2 flex items-center gap-4">
                             <div className="bg-car-pink/10 p-3 rounded-xl text-car-pink"><Users size={24}/></div>
                             <div>
@@ -78,28 +140,42 @@ const PlannedNotesManager = () => {
                             </div>
                         </div>
 
+                        {/* Liste des notes existantes */}
                         {plannedNotes.length > 0 && (
                             <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
-                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Notes existantes</h3>
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Notes enregistrées</h3>
                                 <div className="space-y-3">
                                     {plannedNotes.map(pn => (
                                         <div key={pn._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
                                             <div>
                                                 <div className="font-bold text-car-dark mb-1">{pn.note}</div>
-                                                <div className="text-xs text-slate-500 font-medium">Pour {pn.dates.length} date(s)</div>
+                                                <div className="text-xs text-slate-500 font-medium italic">
+                                                    Pour {pn.dates?.length || 0} date(s) sélectionnée(s)
+                                                </div>
                                             </div>
-                                            <button onClick={() => handleDeleteNote(pn._id)} className="text-slate-300 hover:text-car-pink bg-white p-2 rounded-lg shadow-sm transition-colors"><Trash2 size={20}/></button>
+                                            <button onClick={() => handleDeleteNote(pn._id)} className="text-slate-300 hover:text-car-pink bg-white p-2 rounded-lg shadow-sm transition-colors">
+                                                <Trash2 size={20}/>
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
 
+                        {/* Formulaire d'ajout + Calendrier */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <form onSubmit={handleAddNote} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
-                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Ajouter une info</h3>
-                                <textarea className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-pink/20 outline-none font-medium text-car-dark resize-none flex-1 mb-4" placeholder="Ex: Part avec Mamie à 16h30..." value={newNote} onChange={e => setNewNote(e.target.value)} required></textarea>
-                                <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2"><Check size={20}/> ENREGISTRER</button>
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Nouvelle info</h3>
+                                <textarea 
+                                    className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-pink/20 outline-none font-medium text-car-dark resize-none flex-1 mb-4" 
+                                    placeholder="Ex: Part avec Mamie à 16h30..." 
+                                    value={newNote} 
+                                    onChange={e => setNewNote(e.target.value)} 
+                                    required
+                                ></textarea>
+                                <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2">
+                                    <Check size={20}/> ENREGISTRER
+                                </button>
                             </form>
                             <InteractiveCalendar selectedDates={selectedDates} onChange={setSelectedDates} />
                         </div>
