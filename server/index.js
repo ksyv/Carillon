@@ -404,6 +404,60 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
     res.json(report);
 });
 
+// --- Route Statistiques CAF (Mensuelles) ---
+app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
+    const { month, year } = req.query;
+    
+    // On cherche tous les pointages qui commencent par "YYYY-MM" (ex: "2026-03")
+    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+    
+    try {
+        const attendances = await Attendance.find({ date: { $regex: `^${monthStr}` } }).populate('child');
+
+        // Structure du rapport CAF
+        let stats = {
+            matin: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } },
+            soir: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } },
+            total: { acts: 0, hours: 0 }
+        };
+
+        attendances.forEach(att => {
+            if (!att.child || !att.child.birthDate) return; // On ignore si pas de date de naissance
+
+            // Calcul de l'âge EXACT le jour du pointage
+            const sessionDate = new Date(att.date);
+            const birthDate = new Date(att.child.birthDate);
+            
+            let age = sessionDate.getFullYear() - birthDate.getFullYear();
+            const m = sessionDate.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && sessionDate.getDate() < birthDate.getDate())) {
+                age--;
+            }
+
+            const ageGroup = age < 6 ? 'under6' : 'over6';
+
+            // APPLICATION DES RÈGLES DE CALCUL (Heures)
+            if (att.sessionType === 'MATIN') {
+                stats.matin[ageGroup].acts += 1;
+                stats.matin[ageGroup].hours += 1; // 1h pour le matin
+                stats.total.acts += 1;
+                stats.total.hours += 1;
+            } else if (att.sessionType === 'SOIR' && (att.checkOut || att.isLate)) {
+                // On compte le soir uniquement si l'enfant est bien parti (checkOut validé)
+                stats.soir[ageGroup].acts += 1;
+                stats.soir[ageGroup].hours += 2.5; // 2h30 pour le soir
+                stats.total.acts += 1;
+                stats.total.hours += 2.5;
+            }
+        });
+
+        res.json(stats);
+    } catch (e) {
+        console.error("Erreur Stats CAF:", e);
+        res.status(500).send('Erreur lors du calcul des statistiques');
+    }
+});
+
 // --- DEPLOIEMENT PRODUCTION ---
 const path = require('path');
 if (process.env.NODE_ENV === 'production') {
