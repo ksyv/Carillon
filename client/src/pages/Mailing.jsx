@@ -23,15 +23,18 @@ const Mailing = () => {
 
     // Configuration de la barre d'outils de l'éditeur
     const quillModules = {
-        toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-            [{ 'color': [] }, { 'background': [] }],
-            ['link'],
-            ['clean']
-        ],
-    };
+    toolbar: [
+        [{ 'font': [] }, { 'size': [] }], // Polices et tailles
+        ['bold', 'italic', 'underline', 'strike'], // Style
+        [{ 'color': [] }, { 'background': [] }], // Couleurs
+        [{ 'script': 'sub'}, { 'script': 'super' }], // Exposant/Indice
+        [{ 'header': '1' }, { 'header': '2' }, 'blockquote', 'code-block'],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }], // Listes et retraits
+        [{ 'align': [] }], // L'ALIGNEMENT (Centré, droite, etc.)
+        ['link', 'image'], // Liens et images intégrées
+        ['clean'] // Bouton pour effacer la mise en forme
+    ],
+};
 
     useEffect(() => { loadData(); }, []);
 
