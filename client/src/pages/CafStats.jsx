@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator, Download, Sun, Moon, BarChart, CalendarDays } from 'lucide-react';
+import { Calculator, Download, Sun, Moon, BarChart, CalendarDays, LineChart } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api from '../api';
@@ -25,13 +25,16 @@ const CafStats = () => {
         setIsLoading(true);
         try {
             const { data } = await api.get(`/stats/caf?startDate=${startDate}&endDate=${endDate}`);
-            // data contient maintenant { global: {...}, daily: [...] }
             setStats(data);
         } catch (error) {
             console.error("Erreur lors du chargement des stats CAF");
         }
         setIsLoading(false);
     };
+
+    // --- CALCUL DES MOYENNES ---
+    const activeDaysCount = stats?.daily?.length || 0;
+    const getAvg = (totalActs) => activeDaysCount > 0 ? (totalActs / activeDaysCount).toFixed(1) : "0.0";
 
     const exportPDF = () => {
         if (!stats || !stats.global) return;
@@ -74,15 +77,34 @@ const CafStats = () => {
             columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center', fontStyle: 'bold' } }
         });
 
-        // --- 3. TABLEAU DÉTAILLÉ (JOURNALIER) ---
-        if (stats.daily && stats.daily.length > 0) {
-            let currentY = doc.lastAutoTable.finalY + 15;
+        // --- 3. MOYENNES JOURNALIÈRES ---
+        let currentY = doc.lastAutoTable.finalY + 15;
+
+        if (activeDaysCount > 0) {
+            doc.setFontSize(14);
+            doc.setTextColor(30, 58, 138);
+            doc.text(`Moyennes journalières (calculées sur ${activeDaysCount} jours d'ouverture)`, 14, currentY);
             
-            // Ajouter une nouvelle page si on est trop bas
-            if (currentY > 250) {
-                doc.addPage();
-                currentY = 20;
-            }
+            const avgBody = [[
+                `Matin (-6 ans) : ${getAvg(stats.global.matin.under6.acts)} enf/j`,
+                `Matin (6 ans+) : ${getAvg(stats.global.matin.over6.acts)} enf/j`,
+                `Soir (-6 ans) : ${getAvg(stats.global.soir.under6.acts)} enf/j`,
+                `Soir (6 ans+) : ${getAvg(stats.global.soir.over6.acts)} enf/j`
+            ]];
+
+            autoTable(doc, {
+                startY: currentY + 5,
+                body: avgBody,
+                theme: 'plain',
+                styles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', cellPadding: 4 }
+            });
+            
+            currentY = doc.lastAutoTable.finalY + 15;
+        }
+
+        // --- 4. TABLEAU DÉTAILLÉ (JOURNALIER) ---
+        if (stats.daily && stats.daily.length > 0) {
+            if (currentY > 240) { doc.addPage(); currentY = 20; }
 
             doc.setFontSize(14);
             doc.setTextColor(30, 58, 138);
@@ -214,8 +236,39 @@ const CafStats = () => {
                             </div>
                         </div>
 
-                        {/* 3. TABLEAU DÉTAILLÉ */}
-                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden mt-8">
+                        {/* 3. BLOC DES MOYENNES (NOUVEAU) */}
+                        {activeDaysCount > 0 && (
+                            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 mt-8">
+                                <h3 className="text-lg font-black text-car-dark mb-4 uppercase flex items-center gap-3">
+                                    <LineChart className="text-slate-400" size={24}/>
+                                    Moyennes journalières
+                                    <span className="text-xs font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-lg ml-auto normal-case">
+                                        Sur {activeDaysCount} jours d'ouverture
+                                    </span>
+                                </h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col justify-center items-center text-center">
+                                        <span className="text-xs font-bold text-slate-400 uppercase mb-1">Matin (-6 ans)</span>
+                                        <span className="text-2xl font-black text-car-yellow">{getAvg(stats.global.matin.under6.acts)} <span className="text-sm text-slate-400 font-bold">enf/j</span></span>
+                                    </div>
+                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col justify-center items-center text-center">
+                                        <span className="text-xs font-bold text-slate-400 uppercase mb-1">Matin (6 ans+)</span>
+                                        <span className="text-2xl font-black text-car-yellow">{getAvg(stats.global.matin.over6.acts)} <span className="text-sm text-slate-400 font-bold">enf/j</span></span>
+                                    </div>
+                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col justify-center items-center text-center">
+                                        <span className="text-xs font-bold text-slate-400 uppercase mb-1">Soir (-6 ans)</span>
+                                        <span className="text-2xl font-black text-car-blue">{getAvg(stats.global.soir.under6.acts)} <span className="text-sm text-slate-400 font-bold">enf/j</span></span>
+                                    </div>
+                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col justify-center items-center text-center">
+                                        <span className="text-xs font-bold text-slate-400 uppercase mb-1">Soir (6 ans+)</span>
+                                        <span className="text-2xl font-black text-car-blue">{getAvg(stats.global.soir.over6.acts)} <span className="text-sm text-slate-400 font-bold">enf/j</span></span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 4. TABLEAU DÉTAILLÉ */}
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden mt-4">
                             <div className="p-6 border-b border-slate-100 flex items-center gap-3">
                                 <CalendarDays className="text-slate-400" size={24}/>
                                 <h3 className="text-xl font-black text-car-dark">Détail journalier</h3>
