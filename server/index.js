@@ -373,26 +373,62 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
 // --- MAILING ---
 app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
     const { subject, message, recipients, attachments } = req.body;
+
     try {
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
         });
+
+        // --- GESTION DES IMAGES INTÉGRÉES (LOGOS DANS LA SIGNATURE) ---
+        let finalHtml = message;
+        let inlineAttachments = [...(attachments || [])];
+        
+        // On cherche les images en Base64 dans le HTML (Quill les met comme ça)
+        const imageRegex = /<img src="data:(image\/[a-zA-Z]*);base64,([^"]*)"/g;
+        let match;
+        let imageCount = 0;
+
+        while ((match = imageRegex.exec(message)) !== null) {
+            imageCount++;
+            const contentType = match[1];
+            const base64Data = match[2];
+            const cid = `inlineimg${imageCount}`;
+
+            // On remplace le gros code Base64 par une référence "cid"
+            finalHtml = finalHtml.replace(match[0], `<img src="cid:${cid}"`);
+
+            // On ajoute l'image aux pièces jointes du mail avec son identifiant cid
+            inlineAttachments.push({
+                filename: `image${imageCount}`,
+                content: base64Data,
+                encoding: 'base64',
+                cid: cid // C'est ce qui fait le lien avec le <img src="cid:...">
+            });
+        }
+
         const htmlMessage = `
             <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-                ${message}
+                ${finalHtml}
                 <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="font-size: 12px; color: #888;"><i>Message automatique Carillon. Ne pas répondre.</i></p>
+                <p style="font-size: 10px; color: #888;"><i>Message automatique Carillon. Ne pas répondre directement.</i></p>
             </div>
         `;
+
         await transporter.sendMail({
-            from: '"Périscolaire Carignan" <' + process.env.EMAIL_USER + '>',
+            from: `"Périscolaire Carignan" <${process.env.EMAIL_USER}>`,
             bcc: recipients,
             replyTo: 'servicescolaire@carignandebordeaux.fr',
-            subject, html: htmlMessage, attachments: attachments || []
+            subject: subject,
+            html: htmlMessage,
+            attachments: inlineAttachments
         });
-        res.status(200).send("Emails envoyés");
-    } catch (error) { res.status(500).send("Erreur lors de l'envoi"); }
+
+        res.status(200).send("Emails envoyés avec succès");
+    } catch (error) {
+        console.error("Erreur Mailing:", error);
+        res.status(500).send("Erreur lors de l'envoi.");
+    }
 });
 
 app.get('/api/mail/templates', auth(['admin', 'responsable']), async (req, res) => {
