@@ -99,25 +99,39 @@ const Mailing = () => {
 
     const targetData = useMemo(() => {
         let matchingFamilyIds = new Set();
+
         if (filter === 'TOUS') {
             families.forEach(f => matchingFamilyIds.add(f._id));
         } else if (filter === 'INCOMPLET') {
             families.filter(f => !f.dossierComplet).forEach(f => matchingFamilyIds.add(f._id));
         } else {
             children.forEach(c => {
+                // SÉCURITÉ : On vérifie si l'enfant est actif et s'il a bien une famille rattachée
                 if (!c.family || c.active === false) return;
+                
+                // On récupère l'ID que ce soit un objet (populate) ou juste un ID
                 const famId = typeof c.family === 'object' ? c.family._id : c.family;
+                
+                // SÉCURITÉ SUPPLÉMENTAIRE : On vérifie que famId n'est pas nul
+                if (!famId) return;
+
                 if (filter === 'MATERNELLE' && c.category === 'Maternelle') matchingFamilyIds.add(famId);
                 if (filter === 'ELEMENTAIRE' && c.category === 'Élémentaire') matchingFamilyIds.add(famId);
                 if (filter === 'PAI' && c.hasPAI) matchingFamilyIds.add(famId);
             });
         }
+
         const emails = new Set();
         families.filter(f => matchingFamilyIds.has(f._id)).forEach(f => {
-            f.responsables?.forEach(r => {
-                if (r.email?.includes('@')) emails.add(r.email.trim());
-            });
+            if (f.responsables) {
+                f.responsables.forEach(r => {
+                    if (r.email && r.email.includes('@')) {
+                        emails.add(r.email.trim());
+                    }
+                });
+            }
         });
+        
         return { emails: Array.from(emails) };
     }, [families, children, filter]);
 
