@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Send, Filter, Users, AlertTriangle, CheckCircle, Loader } from 'lucide-react';
+import { Mail, Send, Filter, Users, AlertTriangle, CheckCircle, Loader, Paperclip, X, FileText as FileIcon } from 'lucide-react';
 import api from '../api';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css'; // Le style de l'éditeur !
 
 const Mailing = () => {
     const navigate = useNavigate();
@@ -9,28 +11,38 @@ const Mailing = () => {
     const [families, setFamilies] = useState([]);
     
     const [subject, setSubject] = useState('');
-    const [message, setMessage] = useState('');
-    const [filter, setFilter] = useState('TOUS'); // Filtres : TOUS, MATERNELLE, ELEMENTAIRE, INCOMPLET, PAI
+    const [message, setMessage] = useState(''); // Contiendra maintenant du HTML
+    const [attachments, setAttachments] = useState([]); // [{ filename, path, size }]
+    
+    const [filter, setFilter] = useState('TOUS'); 
     
     const [isSending, setIsSending] = useState(false);
-    const [sendResult, setSendResult] = useState(null); // { type: 'success' | 'error', msg: '' }
+    const [sendResult, setSendResult] = useState(null);
+    
+    const fileInputRef = useRef(null);
 
-    useEffect(() => {
-        loadData();
-    }, []);
+    // Configuration de la barre d'outils de l'éditeur
+    const quillModules = {
+        toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'color': [] }, { 'background': [] }],
+            ['link'],
+            ['clean']
+        ],
+    };
+
+    useEffect(() => { loadData(); }, []);
 
     const loadData = async () => {
         try {
-            const [kidsRes, famRes] = await Promise.all([
-                api.get('/children'),
-                api.get('/families')
-            ]);
+            const [kidsRes, famRes] = await Promise.all([api.get('/children'), api.get('/families')]);
             setChildren(kidsRes.data);
             setFamilies(famRes.data);
-        } catch (e) { console.error("Erreur de chargement des données", e); }
+        } catch (e) { console.error("Erreur de chargement", e); }
     };
 
-    // --- LE MOTEUR DE FILTRES INTELLIGENTS ---
     const targetData = useMemo(() => {
         let matchingFamilyIds = new Set();
 
@@ -39,21 +51,17 @@ const Mailing = () => {
         } else if (filter === 'INCOMPLET') {
             families.filter(f => !f.dossierComplet).forEach(f => matchingFamilyIds.add(f._id));
         } else {
-            // Filtres basés sur les enfants (Maternelle, Élémentaire, PAI)
             children.forEach(c => {
                 if (!c.family || c.active === false) return;
                 const famId = typeof c.family === 'object' ? c.family._id : c.family;
-                
                 if (filter === 'MATERNELLE' && c.category === 'Maternelle') matchingFamilyIds.add(famId);
                 if (filter === 'ELEMENTAIRE' && c.category === 'Élémentaire') matchingFamilyIds.add(famId);
                 if (filter === 'PAI' && c.hasPAI) matchingFamilyIds.add(famId);
             });
         }
 
-        // Extraction des adresses emails valides
         const emails = new Set();
         let familiesCount = 0;
-
         families.filter(f => matchingFamilyIds.has(f._id)).forEach(f => {
             let hasValidEmail = false;
             if (f.responsables) {
@@ -70,40 +78,64 @@ const Mailing = () => {
         return { familiesCount, emails: Array.from(emails) };
     }, [families, children, filter]);
 
+    // GESTION DES PIÈCES JOINTES
+    const handleFileUpload = (e) => {
+        const files = Array.from(e.target.files);
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 Mo maximum par fichier (pour Gmail)
+        
+        files.forEach(file => {
+            if (file.size > MAX_FILE_SIZE) {
+                alert(`Le fichier ${file.name} est trop lourd (Max: 5 Mo).`);
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                // Nodemailer accepte directement le format "data:..." dans la propriété "path"
+                setAttachments(prev => [...prev, { filename: file.name, path: reader.result, size: file.size }]);
+            };
+            reader.readAsDataURL(file);
+        });
+        // Réinitialise l'input pour pouvoir sélectionner le même fichier si on s'est trompé
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    const removeAttachment = (indexToRemove) => {
+        setAttachments(attachments.filter((_, i) => i !== indexToRemove));
+    };
+
     const handleSend = async (e) => {
         e.preventDefault();
         setSendResult(null);
 
-        if (targetData.emails.length === 0) {
-            return setSendResult({ type: 'error', msg: "Aucune adresse email trouvée pour ce filtre." });
-        }
-        if (!subject.trim() || !message.trim()) {
-            return setSendResult({ type: 'error', msg: "Le sujet et le message sont obligatoires." });
-        }
+        if (targetData.emails.length === 0) return setSendResult({ type: 'error', msg: "Aucune adresse email trouvée." });
+        
+        // ReactQuill renvoie "<p><br></p>" quand il est vide, donc on nettoie pour vérifier
+        const cleanMessage = message.replace(/<[^>]*>?/gm, '').trim();
+        if (!subject.trim() || !cleanMessage) return setSendResult({ type: 'error', msg: "Sujet et message obligatoires." });
 
-        if (!window.confirm(`Vous êtes sur le point d'envoyer un email à ${targetData.emails.length} destinataires. Confirmer ?`)) {
-            return;
-        }
+        if (!window.confirm(`Envoyer cet email à ${targetData.emails.length} destinataires ?`)) return;
 
         setIsSending(true);
         try {
             await api.post('/mail/send', {
                 subject,
-                message,
-                recipients: targetData.emails
+                message, // On envoie le HTML complet
+                recipients: targetData.emails,
+                attachments
             });
-            setSendResult({ type: 'success', msg: `Message envoyé avec succès à ${targetData.emails.length} adresses !` });
+            setSendResult({ type: 'success', msg: `Envoyé avec succès à ${targetData.emails.length} adresses !` });
             setSubject('');
             setMessage('');
+            setAttachments([]);
         } catch (error) {
-            setSendResult({ type: 'error', msg: "Erreur lors de l'envoi. Vérifiez les identifiants du serveur." });
+            setSendResult({ type: 'error', msg: "Erreur lors de l'envoi." });
         }
         setIsSending(false);
     };
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
-            <div className="max-w-5xl mx-auto pb-20">
+            <div className="max-w-6xl mx-auto pb-20">
                 <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
                 
                 <div className="flex items-center gap-4 mb-10">
@@ -116,7 +148,7 @@ const Mailing = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                     {/* COLONNE GAUCHE : LES FILTRES */}
                     <div className="lg:col-span-1 space-y-4">
                         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
@@ -143,7 +175,7 @@ const Mailing = () => {
                     </div>
 
                     {/* COLONNE DROITE : LE MESSAGE */}
-                    <div className="lg:col-span-2">
+                    <div className="lg:col-span-3">
                         <form onSubmit={handleSend} className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col h-full">
                             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Rédaction du message</h2>
                             
@@ -156,13 +188,52 @@ const Mailing = () => {
                                 disabled={isSending}
                             />
                             
-                            <textarea 
-                                className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:border-car-blue font-medium text-car-dark min-h-[300px] flex-1 resize-y mb-6" 
-                                placeholder="Bonjour," 
-                                value={message} 
-                                onChange={e => setMessage(e.target.value)}
-                                disabled={isSending}
-                            ></textarea>
+                            {/* L'ÉDITEUR DE TEXTE RICHE */}
+                            <div className="mb-6 bg-white border border-slate-200 rounded-2xl overflow-hidden [&_.ql-toolbar]:border-none [&_.ql-toolbar]:bg-slate-50 [&_.ql-container]:border-none [&_.ql-editor]:min-h-[300px] [&_.ql-editor]:text-base">
+                                <ReactQuill 
+                                    theme="snow" 
+                                    value={message} 
+                                    onChange={setMessage} 
+                                    modules={quillModules}
+                                    placeholder="Rédigez votre message ici (mise en forme, couleurs...)"
+                                    readOnly={isSending}
+                                />
+                            </div>
+
+                            {/* GESTION DES PIÈCES JOINTES */}
+                            <div className="mb-8">
+                                <div className="flex items-center gap-4 mb-3">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => fileInputRef.current.click()}
+                                        className="bg-slate-100 text-slate-600 font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-200 transition-colors text-sm"
+                                        disabled={isSending}
+                                    >
+                                        <Paperclip size={18}/> Joindre un fichier
+                                    </button>
+                                    <input 
+                                        type="file" 
+                                        multiple 
+                                        className="hidden" 
+                                        ref={fileInputRef} 
+                                        onChange={handleFileUpload} 
+                                    />
+                                    <span className="text-xs text-slate-400 font-medium">PDF, Images, Word... (Max 5 Mo/fichier)</span>
+                                </div>
+                                
+                                {attachments.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {attachments.map((file, idx) => (
+                                            <div key={idx} className="bg-car-blue/10 border border-car-blue/20 text-car-blue flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold">
+                                                <FileIcon size={16}/>
+                                                <span className="truncate max-w-[200px]">{file.filename}</span>
+                                                <span className="text-xs opacity-70">({Math.round(file.size / 1024)} ko)</span>
+                                                <button type="button" onClick={() => removeAttachment(idx)} className="hover:text-car-pink ml-1"><X size={16}/></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
 
                             {sendResult && (
                                 <div className={`p-4 rounded-xl font-bold mb-6 flex items-center gap-3 ${sendResult.type === 'success' ? 'bg-car-green/10 text-car-green' : 'bg-car-pink/10 text-car-pink'}`}>
