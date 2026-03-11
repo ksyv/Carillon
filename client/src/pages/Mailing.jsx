@@ -124,3 +124,5 @@ const Mailing = () => {
         </div>
     );
 };
+
+export default Mailing;
