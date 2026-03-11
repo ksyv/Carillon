@@ -15,12 +15,12 @@ const Mailing = () => {
     const [message, setMessage] = useState('');
     const [attachments, setAttachments] = useState([]);
     const [filter, setFilter] = useState('TOUS');
+    
     const [isSending, setIsSending] = useState(false);
     const [sendResult, setSendResult] = useState(null);
 
     const fileInputRef = useRef(null);
 
-    // --- CONFIGURATION ÉDITEUR RICHE ---
     const quillModules = {
         toolbar: [
             [{ 'font': [] }, { 'size': ['small', false, 'large', 'huge'] }],
@@ -28,7 +28,7 @@ const Mailing = () => {
             [{ 'color': [] }, { 'background': [] }],
             [{ 'header': '1' }, { 'header': '2' }, 'blockquote'],
             [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-            [{ 'align': [] }], // Alignement activé
+            [{ 'align': [] }],
             ['link', 'image'],
             ['clean']
         ],
@@ -67,57 +67,117 @@ const Mailing = () => {
         setMessage(t.content);
     };
 
-    // ... (Logique targetData et handleFileUpload identique au code précédent) ...
+    const targetData = useMemo(() => {
+        let matchingFamilyIds = new Set();
+        if (filter === 'TOUS') {
+            families.forEach(f => matchingFamilyIds.add(f._id));
+        } else if (filter === 'INCOMPLET') {
+            families.filter(f => !f.dossierComplet).forEach(f => matchingFamilyIds.add(f._id));
+        } else {
+            children.forEach(c => {
+                if (!c.family || c.active === false) return;
+                const famId = typeof c.family === 'object' ? c.family._id : c.family;
+                if (filter === 'MATERNELLE' && c.category === 'Maternelle') matchingFamilyIds.add(famId);
+                if (filter === 'ELEMENTAIRE' && c.category === 'Élémentaire') matchingFamilyIds.add(famId);
+                if (filter === 'PAI' && c.hasPAI) matchingFamilyIds.add(famId);
+            });
+        }
+        const emails = new Set();
+        let familiesCount = 0;
+        families.filter(f => matchingFamilyIds.has(f._id)).forEach(f => {
+            let hasValidEmail = false;
+            if (f.responsables) {
+                f.responsables.forEach(r => {
+                    if (r.email && r.email.includes('@')) {
+                        emails.add(r.email.trim());
+                        hasValidEmail = true;
+                    }
+                });
+            }
+            if (hasValidEmail) familiesCount++;
+        });
+        return { familiesCount, emails: Array.from(emails) };
+    }, [families, children, filter]);
+
+    const handleFileUpload = (e) => {
+        const files = Array.from(e.target.files);
+        files.forEach(file => {
+            if (file.size > 5 * 1024 * 1024) return alert("Fichier trop lourd (> 5Mo)");
+            const reader = new FileReader();
+            reader.onloadend = () => setAttachments(prev => [...prev, { filename: file.name, path: reader.result, size: file.size }]);
+            reader.readAsDataURL(file);
+        });
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    const handleSend = async (e) => {
+        e.preventDefault();
+        if (targetData.emails.length === 0) return;
+        setIsSending(true);
+        try {
+            await api.post('/mail/send', { subject, message, recipients: targetData.emails, attachments });
+            setSendResult({ type: 'success', msg: "Envoyé avec succès !" });
+            setSubject(''); setMessage(''); setAttachments([]);
+        } catch (error) { setSendResult({ type: 'error', msg: "Erreur d'envoi" }); }
+        setIsSending(false);
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
             <div className="max-w-7xl mx-auto pb-20">
-                <div className="flex justify-between items-center mb-10">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-car-blue/10 p-4 rounded-2xl"><Mail className="text-car-blue w-8 h-8"/></div>
-                        <div>
-                            <h1 className="text-4xl font-black text-car-dark">Centre de Communication</h1>
-                            <p className="text-slate-500 font-medium mt-1">Gérez vos envois et vos modèles de mails</p>
-                        </div>
-                    </div>
-                </div>
-
+                <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
+                
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                    {/* COLONNE GAUCHE : FILTRES & MODÈLES */}
+                    {/* COLONNE GAUCHE */}
                     <div className="lg:col-span-1 space-y-6">
                         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Bookmark size={18}/> Mes Modèles</h2>
+                            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Bookmark size={18}/> Modèles</h2>
                             <div className="space-y-2">
                                 {templates.map(t => (
-                                    <button key={t._id} onClick={() => applyTemplate(t)} className="w-full text-left p-3 rounded-xl text-sm font-bold bg-slate-50 text-slate-600 hover:bg-car-blue/10 hover:text-car-blue transition-all truncate">
-                                        📄 {t.name}
-                                    </button>
+                                    <button key={t._id} onClick={() => applyTemplate(t)} className="w-full text-left p-3 rounded-xl text-xs font-bold bg-slate-50 hover:bg-car-blue/10 transition-all truncate">📄 {t.name}</button>
                                 ))}
-                                {templates.length === 0 && <p className="text-xs italic text-slate-400">Aucun modèle enregistré.</p>}
                             </div>
                         </div>
-                        
-                        {/* ... (Bloc Ciblage précédent) ... */}
+
+                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Filter size={18}/> Ciblage</h2>
+                            <div className="space-y-2">
+                                {['TOUS', 'MATERNELLE', 'ELEMENTAIRE', 'INCOMPLET', 'PAI'].map(f => (
+                                    <button key={f} onClick={() => setFilter(f)} className={`w-full text-left p-3 rounded-xl text-xs font-bold transition-all ${filter === f ? 'bg-car-blue text-white' : 'bg-slate-50 text-slate-500'}`}>{f}</button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-car-dark text-white p-6 rounded-[2rem] shadow-lg text-center">
+                            <span className="block text-4xl font-black">{targetData.emails.length}</span>
+                            <span className="text-xs font-bold uppercase opacity-70 tracking-widest">Destinataires</span>
+                        </div>
                     </div>
 
-                    {/* COLONNE DROITE : RÉDACTION */}
+                    {/* COLONNE DROITE */}
                     <div className="lg:col-span-3">
-                        <div className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest">Nouveau Message</h2>
-                                <button type="button" onClick={saveAsTemplate} className="text-car-blue font-bold text-sm flex items-center gap-2 hover:underline">
-                                    <Save size={18}/> Enregistrer comme modèle
-                                </button>
+                        <form onSubmit={handleSend} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                            <div className="flex justify-between mb-6">
+                                <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest">Rédaction</h2>
+                                <button type="button" onClick={saveAsTemplate} className="text-car-blue font-bold text-sm flex items-center gap-2 hover:underline"><Save size={18}/> Enregistrer modèle</button>
                             </div>
-
-                            <input type="text" className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:border-car-blue font-black text-car-dark text-lg mb-4" placeholder="Objet de l'email..." value={subject} onChange={e => setSubject(e.target.value)} />
-                            
+                            <input type="text" className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl mb-4 font-black outline-none" placeholder="Objet..." value={subject} onChange={e => setSubject(e.target.value)} />
                             <div className="mb-6 bg-white border border-slate-200 rounded-2xl overflow-hidden min-h-[400px]">
                                 <ReactQuill theme="snow" value={message} onChange={setMessage} modules={quillModules} className="h-[350px] mb-12" />
                             </div>
-
-                            {/* ... (Zone Pièces jointes et Bouton Envoyer précédents) ... */}
-                        </div>
+                            <div className="mb-6">
+                                <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+                                <button type="button" onClick={() => fileInputRef.current.click()} className="bg-slate-100 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2"><Paperclip size={18}/> Pièce jointe</button>
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                    {attachments.map((f, i) => (
+                                        <div key={i} className="bg-car-blue/10 text-car-blue px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">{f.filename} <X size={14} className="cursor-pointer" onClick={() => setAttachments(attachments.filter((_, idx) => idx !== i))}/></div>
+                                    ))}
+                                </div>
+                            </div>
+                            <button type="submit" disabled={isSending || targetData.emails.length === 0} className="w-full bg-car-blue text-white p-5 rounded-2xl font-black shadow-lg flex justify-center items-center gap-3">
+                                {isSending ? <Loader className="animate-spin"/> : <><Send/> ENVOYER</>}
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
