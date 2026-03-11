@@ -11,6 +11,7 @@ import UserManager from './pages/UserManager';
 import PlannedNotesManager from './pages/PlannedNotesManager';
 import BillingManager from './pages/BillingManager';
 import FamilyManager from './pages/FamilyManager';
+import CafStats from './pages/CafStats'; 
 
 export default function App() {
   const [auth, setAuth] = useState({ token: localStorage.getItem('token'), role: localStorage.getItem('role') });
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/admin/planned-notes" element={<PlannedNotesManager />} />
         <Route path="/admin/billing" element={<BillingManager />} />
         <Route path="/admin/families" element={<FamilyManager />} />
+        <Route path="/admin/caf" element={<CafStats />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
