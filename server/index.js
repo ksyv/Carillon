@@ -292,9 +292,20 @@ app.get('/api/planned-notes/child/:childId', auth(['admin']), async (req, res) =
 });
 
 app.post('/api/planned-notes', auth(['admin']), async (req, res) => {
-    const plannedNote = new PlannedNote(req.body);
-    await plannedNote.save();
-    res.json(plannedNote);
+    try {
+        const { childId, note, dates } = req.body;
+        const plannedNote = new PlannedNote({ 
+            child: childId, 
+            note: note, 
+            dates: dates 
+        });
+        
+        await plannedNote.save();
+        res.json(plannedNote);
+    } catch (e) {
+        console.error("Erreur lors de l'ajout de la note :", e);
+        res.status(500).send("Erreur serveur lors de la création de la note.");
+    }
 });
 
 app.delete('/api/planned-notes/:id', auth(['admin']), async (req, res) => {
