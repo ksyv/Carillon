@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { Shield, UserPlus, Pencil, Trash2, X, Check, Users } from 'lucide-react';
 
-const API_URL = '/api';
 
 const UserManager = () => {
     const [users, setUsers] = useState([]);
@@ -15,12 +14,12 @@ const UserManager = () => {
     const navigate = useNavigate();
 
     useEffect(() => { loadUsers(); }, []);
-    const loadUsers = async () => { const { data } = await axios.get(`${API_URL}/users`); setUsers(data); };
+    const loadUsers = async () => { const { data } = await api.get(`/users`); setUsers(data); };
 
     const handleAdd = async (e) => {
         e.preventDefault();
         try {
-            await axios.post(`${API_URL}/users`, newUser);
+            await api.post(`/users`, newUser);
             setNewUser({ username: '', password: '', role: 'staff', categoryAccess: 'Tous' });
             loadUsers();
         } catch (e) { alert("Erreur."); }
@@ -33,7 +32,7 @@ const UserManager = () => {
 
     const saveEdit = async (id) => {
         try {
-            await axios.put(`${API_URL}/users/${id}`, editForm);
+            await api.put(`/users/${id}`, editForm);
             setEditingId(null);
             loadUsers();
         } catch (e) { alert("Erreur lors de la modification."); }
@@ -103,7 +102,7 @@ const UserManager = () => {
                                     </div>
                                     <div className="flex items-center gap-2 self-end sm:self-auto">
                                         <button onClick={() => startEdit(u)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 rounded-xl transition-colors"><Pencil size={20}/></button>
-                                        <button onClick={async () => { if(window.confirm("Supprimer cet utilisateur ?")) { await axios.delete(`${API_URL}/users/${u._id}`); loadUsers(); } }} className="text-slate-400 hover:text-car-pink p-3 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
+                                        <button onClick={async () => { if(window.confirm("Supprimer cet utilisateur ?")) { await api.delete(`/users/${u._id}`); loadUsers(); } }} className="text-slate-400 hover:text-car-pink p-3 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
                                     </div>
                                 </div>
                             )}

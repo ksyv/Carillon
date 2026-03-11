@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { FileText, Download, CheckCircle, AlertTriangle } from 'lucide-react';
@@ -7,7 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import CategoryFilter from '../components/CategoryFilter';
 
-const API_URL = '/api';
+
 
 const Report = () => {
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -20,11 +20,11 @@ const Report = () => {
     const [categoryFilter, setCategoryFilter] = useState(access);
 
     useEffect(() => { loadReport(); }, [date]);
-    const loadReport = () => axios.get(`${API_URL}/report?date=${date}`).then(res => setReportData(res.data));
+    const loadReport = () => api.get(`/report?date=${date}`).then(res => setReportData(res.data));
 
     const handleRemoveLate = async (id) => {
         if(window.confirm("Supprimer le supplément ?")) {
-            await axios.put(`${API_URL}/attendance/remove-late/${id}`);
+            await api.put(`/attendance/remove-late/${id}`);
             loadReport();
         }
     };

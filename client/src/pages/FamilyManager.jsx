@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { FolderHeart, AlertTriangle, CheckCircle, Search, Plus, Trash2, Download, Save, Users, Info, Pencil, X, Banknote, FileText, Phone, Check, Copy } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ChildInfoModal from '../components/ChildInfoModal';
 
-const API_URL = '/api';
+
 
 const FamilyManager = () => {
     const [children, setChildren] = useState([]);
@@ -26,8 +26,8 @@ const FamilyManager = () => {
 
     const loadData = async () => {
         const [kidsRes, famRes] = await Promise.all([
-            axios.get(`${API_URL}/children`),
-            axios.get(`${API_URL}/families`)
+            api.get(`/children`),
+            api.get(`/families`)
         ]);
         setChildren(kidsRes.data);
         setFamilies(famRes.data);
@@ -64,7 +64,7 @@ const FamilyManager = () => {
             }
         }
         try {
-            const res = await axios.post(`${API_URL}/families`, { name: searchName });
+            const res = await api.post(`/families`, { name: searchName });
             setSearchFamilyText('');
             loadData();
             setSelectedFamily(res.data);
@@ -75,7 +75,7 @@ const FamilyManager = () => {
         const confirmWord = window.prompt(`🛑 DANGER 🛑\n\nVous allez SUPPRIMER DÉFINITIVEMENT ce dossier famille.\nLes enfants ne seront pas effacés mais perdront leurs parents et deviendront "sans dossier".\n\nPour confirmer, tapez : SUPPRIMER`);
         
         if (confirmWord === "SUPPRIMER") {
-            await axios.delete(`${API_URL}/families/${id}`);
+            await api.delete(`/families/${id}`);
             setSelectedFamily(null);
             loadData();
         } else if (confirmWord !== null) {
@@ -84,21 +84,21 @@ const FamilyManager = () => {
     };
 
     const handleAttachChild = async (childId, familyId) => {
-        await axios.put(`${API_URL}/children/${childId}`, { family: familyId });
+        await api.put(`/children/${childId}`, { family: familyId });
         loadData();
         setSearchOrphan('');
     };
 
     const handleDetachChild = async (childId) => {
         if (window.confirm("Détacher cet enfant de la famille ?")) {
-            await axios.put(`${API_URL}/children/${childId}`, { family: null });
+            await api.put(`/children/${childId}`, { family: null });
             loadData();
         }
     };
 
     const handleSaveFamily = async () => {
         try {
-            const res = await axios.put(`${API_URL}/families/${selectedFamily._id}`, editFamily);
+            const res = await api.put(`/families/${selectedFamily._id}`, editFamily);
             setSelectedFamily(res.data);
             setFamilies(families.map(f => f._id === res.data._id ? res.data : f));
             alert("Dossier sauvegardé avec succès !");
@@ -204,9 +204,9 @@ const FamilyManager = () => {
         }
         try {
             if (editingChild._id) {
-                await axios.put(`${API_URL}/children/${editingChild._id}`, editingChild);
+                await api.put(`/children/${editingChild._id}`, editingChild);
             } else {
-                await axios.post(`${API_URL}/children`, { ...editingChild, family: selectedFamily._id });
+                await api.post(`/children`, { ...editingChild, family: selectedFamily._id });
             }
             setEditingChild(null);
             loadData();

@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { Banknote, Search, Users, Trash2, Check } from 'lucide-react';
 import InteractiveCalendar from '../components/InteractiveCalendar';
 
-const API_URL = '/api';
 
 const BillingManager = () => {
     const [children, setChildren] = useState([]);
@@ -17,7 +16,7 @@ const BillingManager = () => {
 
     const navigate = useNavigate();
 
-    useEffect(() => { axios.get(`${API_URL}/children`).then(res => setChildren(res.data)); }, []);
+    useEffect(() => { api.get(`/children`).then(res => setChildren(res.data)); }, []);
 
     const filteredSearch = useMemo(() => {
         if (search.length < 2) return [];
@@ -29,20 +28,20 @@ const BillingManager = () => {
     };
 
     const loadBillings = async (childId) => {
-        const { data } = await axios.get(`${API_URL}/billing/child/${childId}`);
+        const { data } = await api.get(`/billing/child/${childId}`);
         setBillings(data);
     };
 
     const handleAddBilling = async (e) => {
         e.preventDefault();
         if(selectedDates.length === 0) return alert("Veuillez sélectionner au moins une date.");
-        await axios.post(`${API_URL}/billing`, { childId: selectedChild._id, billTo, dates: selectedDates });
+        await api.post(`/billing`, { childId: selectedChild._id, billTo, dates: selectedDates });
         setBillTo(''); setSelectedDates([]); loadBillings(selectedChild._id);
     };
 
     const handleDeleteBilling = async (id) => {
         if(window.confirm("Supprimer cette règle de facturation ?")) {
-            await axios.delete(`${API_URL}/billing/${id}`);
+            await api.delete(`/billing/${id}`);
             loadBillings(selectedChild._id);
         }
     };

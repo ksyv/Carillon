@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import LogoTexte from '../components/LogoTexte';
 
-const API_URL = '/api';
+
 
 const Login = ({ setAuth }) => {
   const [creds, setCreds] = useState({ username: '', password: '' });
@@ -11,7 +11,7 @@ const Login = ({ setAuth }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const { data } = await axios.post(`${API_URL}/login`, creds);
+      const { data } = await api.post(`/login`, creds);
       localStorage.setItem('token', data.token);
       localStorage.setItem('role', data.role);
       localStorage.setItem('categoryAccess', data.categoryAccess);

@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { Users, Plus, Search, X, Info, AlertTriangle, Pencil, Trash2, Check, Utensils, Phone, Copy } from 'lucide-react';
 import ChildInfoModal from '../components/ChildInfoModal';
 
-const API_URL = '/api';
 
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
@@ -24,7 +23,7 @@ const ChildrenManager = () => {
     const navigate = useNavigate();
 
     useEffect(() => { loadChildren(); }, []);
-    const loadChildren = () => axios.get(`${API_URL}/children`).then(res => setChildren(res.data));
+    const loadChildren = () => api.get(`/children`).then(res => setChildren(res.data));
 
     const filteredChildren = useMemo(() => {
         let result = children;
@@ -53,7 +52,7 @@ const ChildrenManager = () => {
                 const lastName = parts[0].toUpperCase();
                 const firstName = parts.slice(1).join(' '); 
                 try {
-                    await axios.post(`${API_URL}/children`, { firstName, lastName, category: bulkCategory, active: true });
+                    await api.post(`/children`, { firstName, lastName, category: bulkCategory, active: true });
                     count++;
                 } catch (error) { console.error("Erreur", line); }
             }
@@ -69,7 +68,7 @@ const ChildrenManager = () => {
         
         if (confirmWord === "SUPPRIMER") {
             try {
-                await axios.delete(`${API_URL}/children/${id}`);
+                await api.delete(`/children/${id}`);
                 loadChildren();
             } catch (e) { alert("Erreur lors de la suppression."); }
         } else if (confirmWord !== null) {
@@ -151,9 +150,9 @@ const ChildrenManager = () => {
         }
         try {
             if (editingChild._id) {
-                await axios.put(`${API_URL}/children/${editingChild._id}`, editingChild);
+                await api.put(`/children/${editingChild._id}`, editingChild);
             } else {
-                await axios.post(`${API_URL}/children`, editingChild);
+                await api.post(`/children`, editingChild);
             }
             setEditingChild(null);
             loadChildren();

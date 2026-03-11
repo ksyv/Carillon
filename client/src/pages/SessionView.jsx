@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -8,7 +8,7 @@ import CategoryFilter from '../components/CategoryFilter';
 import EmergencyModal from '../components/EmergencyModal';
 import ChildInfoModal from '../components/ChildInfoModal';
 
-const API_URL = '/api';
+
 
 const SessionView = () => {
     const { date, type } = useParams();
@@ -55,7 +55,7 @@ const SessionView = () => {
         if (queue.length === 0) return;
 
         try {
-            await axios.post(`${API_URL}/attendance/sync`, { actions: queue });
+            await api.post(`/attendance/sync`, { actions: queue });
             localStorage.removeItem('syncQueue'); 
             setPendingSync(0);
             setIsOnline(true); 
@@ -85,10 +85,10 @@ const SessionView = () => {
         }
         try {
             const [kidsRes, attRes, amAttRes, notesRes] = await Promise.all([
-                axios.get(`${API_URL}/children`), 
-                axios.get(`${API_URL}/attendance?date=${date}&sessionType=${type}`),
-                type === 'SOIR' ? axios.get(`${API_URL}/attendance?date=${date}&sessionType=MATIN`) : Promise.resolve({ data: [] }),
-                axios.get(`${API_URL}/planned-notes/date?date=${date}`)
+                api.get(`/children`), 
+                api.get(`/attendance?date=${date}&sessionType=${type}`),
+                type === 'SOIR' ? api.get(`/attendance?date=${date}&sessionType=MATIN`) : Promise.resolve({ data: [] }),
+                api.get(`/planned-notes/date?date=${date}`)
             ]);
             setIsOnline(true); 
             setAllChildren(kidsRes.data); 
@@ -212,7 +212,7 @@ const SessionView = () => {
 
     const handleRemoveLate = async (id) => {
         if(window.confirm("Supprimer le supplément de retard ?")) {
-            await axios.put(`${API_URL}/attendance/remove-late/${id}`);
+            await api.put(`/attendance/remove-late/${id}`);
             loadData();
         }
     };
@@ -464,7 +464,7 @@ const SessionView = () => {
                         <div className="space-y-3">
                             <button onClick={() => { 
                                 handleCheckOut(readNoteModal.attendanceId); 
-                                axios.put(`${API_URL}/children/${readNoteModal.childId}`, { persistentNote: "" }).then(() => loadData());
+                                api.put(`/children/${readNoteModal.childId}`, { persistentNote: "" }).then(() => loadData());
                                 setReadNoteModal({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' }); 
                             }} className="w-full bg-white text-car-dark font-black p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl flex justify-center items-center gap-2">
                                 <CheckCircle size={24}/> J'AI TRANSMIS, DÉPART
@@ -472,7 +472,7 @@ const SessionView = () => {
                             
                             <button onClick={() => { 
                                 handleCheckOut(readNoteModal.attendanceId); 
-                                axios.put(`${API_URL}/children/${readNoteModal.childId}`, { persistentNote: readNoteModal.textToSave }).then(() => loadData());
+                                api.put(`/children/${readNoteModal.childId}`, { persistentNote: readNoteModal.textToSave }).then(() => loadData());
                                 setReadNoteModal({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' }); 
                             }} className="w-full bg-black/20 text-white font-black p-4 rounded-2xl hover:bg-black/30 transition-all flex justify-center items-center gap-2 border border-white/30">
                                 <AlertTriangle size={20}/> NON TRANSMIS (REPORTER)
