@@ -1158,9 +1158,18 @@ const ChildrenManager = () => {
 
     const handleDelete = async (id, nom) => {
         if(isReadOnly) return;
-        if(window.confirm(`⚠️ Attention : Il est recommandé de simplement rendre l'enfant "Inactif" dans sa fiche pour garder l'historique.\n\nVoulez-vous vraiment supprimer définitivement ${nom} ?`)) {
-            await axios.delete(`${API_URL}/children/${id}`);
-            loadChildren();
+        
+        const confirmWord = window.prompt(`🛑 ATTENTION DANGER 🛑\n\nVous êtes sur le point de SUPPRIMER DÉFINITIVEMENT ${nom}.\nCette action est irréversible.\n(Rappel : préférez le statut "Inactif" dans la fiche pour garder l'historique CAF).\n\nPour confirmer la suppression totale, tapez : SUPPRIMER`);
+        
+        if (confirmWord === "SUPPRIMER") {
+            try {
+                await axios.delete(`${API_URL}/children/${id}`);
+                loadChildren();
+            } catch (e) {
+                alert("Erreur lors de la suppression.");
+            }
+        } else if (confirmWord !== null) {
+            alert("Suppression annulée : le mot de sécurité est incorrect.");
         }
     };
 
@@ -2111,10 +2120,14 @@ const FamilyManager = () => {
     };
 
     const handleDeleteFamily = async (id) => {
-        if (window.confirm("Supprimer ce dossier ? Les enfants deviendront orphelins.")) {
+        const confirmWord = window.prompt(`🛑 DANGER 🛑\n\nVous allez SUPPRIMER DÉFINITIVEMENT ce dossier famille.\nLes enfants ne seront pas effacés mais perdront leurs parents et deviendront "sans dossier".\n\nPour confirmer, tapez : SUPPRIMER`);
+        
+        if (confirmWord === "SUPPRIMER") {
             await axios.delete(`${API_URL}/families/${id}`);
             setSelectedFamily(null);
             loadData();
+        } else if (confirmWord !== null) {
+            alert("Suppression annulée.");
         }
     };
 
@@ -2173,17 +2186,18 @@ const FamilyManager = () => {
     const startAddChild = () => {
         setEditingChild({
             _id: null,
+            active: true, // <-- NOUVEAU
             firstName: '', lastName: selectedFamily.name, category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
             medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
             hasPAI: false, paiDetails: '', isPAIAlimentaire: false, paiDocument: '', regimeAlimentaire: 'Standard',
-            personnesAutorisees: [],
-            documents: { vaccins: {}, assurance: {} }
+            personnesAutorisees: [], documents: { vaccins: {}, assurance: {} }
         });
     };
 
     const startEditChild = (child) => {
         setEditingChild({
             _id: child._id,
+            active: child.active !== false, // <-- NOUVEAU (Par défaut true si absent)
             firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', sexe: child.sexe || '',
             birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
             droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
@@ -2579,9 +2593,23 @@ const FamilyManager = () => {
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
                         <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                            <h3 className="text-3xl font-black text-car-dark">{editingChild._id ? 'Modifier' : 'Créer'} la fiche enfant</h3>
+                            <div className="flex items-center gap-4">
+                                <h3 className="text-3xl font-black text-car-dark">{editingChild._id ? 'Modifier' : 'Créer'} la fiche enfant</h3>
+                                {/* NOUVEAU : LE TOGGLE ACTIF/INACTIF */}
+                                <label className={`flex items-center gap-2 cursor-pointer px-4 py-2 rounded-xl transition-colors ${editingChild.active !== false ? 'bg-car-green/10 text-car-green' : 'bg-slate-100 text-slate-500'}`}>
+                                    <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editingChild.active !== false} onChange={e => setEditingChild({...editingChild, active: e.target.checked})} />
+                                    <span className="font-bold text-sm">{editingChild.active !== false ? 'DOSSIER ACTIF' : 'DOSSIER INACTIF'}</span>
+                                </label>
+                            </div>
                             <button type="button" onClick={() => setEditingChild(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
                         </div>
+
+                        {/* NOUVEAU : BANNIÈRE D'AVERTISSEMENT SI INACTIF */}
+                        {editingChild.active === false && (
+                            <div className="bg-slate-100 p-4 rounded-xl mb-6 text-sm font-bold text-slate-500 text-center">
+                                ℹ️ Cet enfant est marqué comme INACTIF. Il n'apparaîtra plus dans les pointages ni dans les compteurs de la cantine. Ses historiques sont conservés.
+                            </div>
+                        )}
                         
                         <form onSubmit={saveChild} className="space-y-8">
                             <div>
