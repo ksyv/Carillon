@@ -37,7 +37,7 @@ const auth = (roles = []) => (req, res, next) => {
     if (!token) return res.status(401).send('Accès refusé');
     try {
         const v = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = v;
+        req.user = decoded;
         if (roles.length && !roles.includes(v.role)) return res.status(403).send('Interdit');
         next();
     } catch (e) { res.status(400).send('Token invalide'); }
@@ -455,11 +455,14 @@ app.get('/api/settings/signature', auth(), async (req, res) => {
 // Enregistrer la signature pour l'utilisateur connecté
 app.post('/api/settings/signature', auth(), async (req, res) => {
     try {
-        await User.findByIdAndUpdate(req.user._id, { signature: req.body.signature });
-        res.send("Signature personnelle enregistrée");
-    } catch (e) { 
-        res.status(500).send(e); 
-    }
+        // { new: true } permet de renvoyer le document mis à jour pour être sûr
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user._id, 
+            { signature: req.body.signature }, 
+            { new: true }
+        );
+        res.send("OK");
+    } catch (e) { res.status(500).send("Erreur d'enregistrement"); }
 });
 
 // --- DEPLOIEMENT ---
