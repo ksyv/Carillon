@@ -319,9 +319,20 @@ app.get('/api/billing/child/:childId', auth(['admin']), async (req, res) => {
 });
 
 app.post('/api/billing', auth(['admin']), async (req, res) => {
-    const rule = new Billing(req.body);
-    await rule.save();
-    res.json(rule);
+    try {
+        const { childId, billTo, dates } = req.body;
+        const rule = new Billing({ 
+            child: childId, 
+            billTo: billTo, 
+            dates: dates 
+        });
+        
+        await rule.save();
+        res.json(rule);
+    } catch (e) {
+        console.error("Erreur facturation alternée:", e);
+        res.status(500).send("Erreur lors de l'enregistrement de la règle.");
+    }
 });
 
 app.delete('/api/billing/:id', auth(['admin']), async (req, res) => {
