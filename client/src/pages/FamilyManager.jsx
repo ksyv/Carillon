@@ -315,8 +315,16 @@ const FamilyManager = () => {
     };
 
     const orphans = children.filter(c => !c.family);
+    
+    const filteredOrphans = searchOrphan.length >= 2 
+        ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase()))
+        : [];
+        
     const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id || c.family?._id === selectedFamily._id) : [];
-    const filteredFamilies = searchFamilyText.trim() === '' ? families : families.filter(f => f.name.toLowerCase().includes(searchFamilyText.toLowerCase()));
+    
+    const filteredFamilies = searchFamilyText.trim() === '' 
+        ? families 
+        : families.filter(f => f.name.toLowerCase().includes(searchFamilyText.toLowerCase()));
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
