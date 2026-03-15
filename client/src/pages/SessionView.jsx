@@ -8,8 +8,6 @@ import CategoryFilter from '../components/CategoryFilter';
 import EmergencyModal from '../components/EmergencyModal';
 import ChildInfoModal from '../components/ChildInfoModal';
 
-
-
 const SessionView = () => {
     const { date, type } = useParams();
     const role = localStorage.getItem('role');
@@ -322,21 +320,32 @@ const SessionView = () => {
                             const isGone = isPresent && !!attendanceRecord.checkOut;
 
                             return (
-                                <div key={child._id} className="p-5 flex justify-between items-center hover:bg-slate-100 transition-colors group rounded-2xl mb-1">
+                                /* MODIFICATION 1 : La classe 'cursor-pointer' est sur toute la div principale de l'enfant */
+                                <div key={child._id} 
+                                     onClick={(e) => {
+                                         // On empêche le clic de se déclencher si l'utilisateur cliquait sur le bouton d'info
+                                         if(e.target.closest('button')) return;
+                                         
+                                         if (!isPresent) handleCheckIn(child._id);
+                                         else if (!isGone && !isMatin && !isMidi) handleDepartureClick(attendanceRecord);
+                                     }}
+                                     className="p-5 flex justify-between items-center hover:bg-slate-100 transition-colors group rounded-2xl mb-1 cursor-pointer">
+                                    
                                     <div className="flex items-center gap-3">
-                                        <button onClick={() => setChildInfoToView(child)} className="text-slate-300 hover:text-car-blue bg-white p-2 rounded-full shadow-sm border border-slate-100 transition-colors">
+                                        <button onClick={(e) => {
+                                            e.stopPropagation(); // Évite de pointer l'enfant quand on clique sur le bouton info
+                                            setChildInfoToView(child);
+                                        }} className="text-slate-300 hover:text-car-blue bg-white p-2 rounded-full shadow-sm border border-slate-100 transition-colors">
                                             <Info size={20}/>
                                         </button>
                                         <span className="font-black text-xl text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
                                         {child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
                                     </div>
                                     
-                                    <div onClick={() => {
-                                        if (!isPresent) handleCheckIn(child._id);
-                                        else if (!isGone && !isMatin && !isMidi) handleDepartureClick(attendanceRecord);
-                                    }} className="cursor-pointer">
-                                        {!isPresent && <span className={`bg-${themeColor} text-white text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity tracking-wider`}>{isMidi ? 'MARQUER ABSENT' : '+ AJOUTER'}</span>}
-                                        {isPresent && !isGone && !isMatin && !isMidi && <span className="bg-car-dark text-white text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity tracking-wider">DÉPART</span>}
+                                    <div>
+                                        {/* MODIFICATION 2 : J'ai retiré 'opacity-0 group-hover:opacity-100' pour que ça soit toujours visible sur mobile */}
+                                        {!isPresent && <span className={`bg-${themeColor} text-white text-xs font-bold px-4 py-2 rounded-xl transition-opacity tracking-wider`}>{isMidi ? 'MARQUER ABSENT' : '+ AJOUTER'}</span>}
+                                        {isPresent && !isGone && !isMatin && !isMidi && <span className="bg-car-dark text-white text-xs font-bold px-4 py-2 rounded-xl transition-opacity tracking-wider">DÉPART</span>}
                                         {isGone && !isMidi && <span className="text-slate-400 text-xs font-bold px-4 py-2 rounded-xl">Déjà parti</span>}
                                         {isPresent && isMidi && <span className="text-slate-400 text-xs font-bold px-4 py-2 rounded-xl">Déjà noté absent</span>}
                                     </div>
