@@ -23,10 +23,8 @@ const Settings = mongoose.model('Settings', SettingsSchema);
 
 const app = express();
 // --- SÉCURITÉ DE BASE ---
-// Helmet protège les en-têtes HTTP
-app.use(helmet({
-    crossOriginResourcePolicy: false, // Permet le bon chargement des images/ressources cross-origin si besoin
-}));
+// 1. Crucial derrière un VPS Nginx pour que le bloqueur bloque les bonnes IP
+app.set('trust proxy', 1);
 
 // Limiteur général : Max 1000 requêtes toutes les 15 minutes par IP
 const apiLimiter = rateLimit({
