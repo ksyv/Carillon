@@ -4,6 +4,8 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const User = require('./models/User');
 const Child = require('./models/Child');
@@ -20,6 +22,27 @@ const Settings = mongoose.model('Settings', SettingsSchema);
 // -------------------------------
 
 const app = express();
+// --- SÉCURITÉ DE BASE ---
+// Helmet protège les en-têtes HTTP
+app.use(helmet({
+    crossOriginResourcePolicy: false, // Permet le bon chargement des images/ressources cross-origin si besoin
+}));
+
+// Limiteur général : Max 1000 requêtes toutes les 15 minutes par IP
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 1000,
+    message: "Trop de requêtes depuis cette IP, veuillez réessayer plus tard."
+});
+app.use('/api/', apiLimiter);
+
+// Limiteur strict pour le LOGIN : Max 10 essais toutes les 15 minutes
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: "Trop de tentatives de connexion échouées. Réessayez dans 15 minutes."
+});
+// ------------------------
 // On augmente la limite à 50 méga-octets pour accepter les PDF et images en Base64
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -44,7 +67,7 @@ const auth = (roles = []) => (req, res, next) => {
 };
 
 // --- Routes Auth ---
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginLimiter, async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
     if (!user || !(await bcrypt.compare(password, user.password))) 
@@ -393,6 +416,9 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
 });
 
 // --- MAILING ---
+// Fonction pour mettre en pause le script
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
     const { subject, message, recipients, attachments } = req.body;
 
@@ -406,7 +432,6 @@ app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
         let finalHtml = message;
         let inlineAttachments = [...(attachments || [])];
         
-        // On cherche les images en Base64 dans le HTML (Quill les met comme ça)
         const imageRegex = /<img src="data:(image\/[a-zA-Z]*);base64,([^"]*)"/g;
         let match;
         let imageCount = 0;
@@ -417,15 +442,13 @@ app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
             const base64Data = match[2];
             const cid = `inlineimg${imageCount}`;
 
-            // On remplace le gros code Base64 par une référence "cid"
             finalHtml = finalHtml.replace(match[0], `<img src="cid:${cid}"`);
 
-            // On ajoute l'image aux pièces jointes du mail avec son identifiant cid
             inlineAttachments.push({
                 filename: `image${imageCount}`,
                 content: base64Data,
                 encoding: 'base64',
-                cid: cid // C'est ce qui fait le lien avec le <img src="cid:...">
+                cid: cid 
             });
         }
 
@@ -437,14 +460,26 @@ app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
             </div>
         `;
 
-        await transporter.sendMail({
-            from: `"Périscolaire Carignan" <${process.env.EMAIL_USER}>`,
-            bcc: recipients,
-            replyTo: 'servicescolaire@carignandebordeaux.fr',
-            subject: subject,
-            html: htmlMessage,
-            attachments: inlineAttachments
-        });
+        // --- ENVOI PAR PAQUETS DE 40 (ANTI-BAN GMAIL) ---
+        const BATCH_SIZE = 40;
+        
+        for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+            const batch = recipients.slice(i, i + BATCH_SIZE);
+            
+            await transporter.sendMail({
+                from: `"Périscolaire Carignan" <${process.env.EMAIL_USER}>`,
+                bcc: batch,
+                replyTo: 'servicescolaire@carignandebordeaux.fr',
+                subject: subject,
+                html: htmlMessage,
+                attachments: inlineAttachments
+            });
+
+            // Pause de 2 secondes s'il reste des mails à envoyer
+            if (i + BATCH_SIZE < recipients.length) {
+                await sleep(2000); 
+            }
+        }
 
         res.status(200).send("Emails envoyés avec succès");
     } catch (error) {
@@ -468,7 +503,8 @@ app.post('/api/mail/templates', auth(['admin', 'responsable']), async (req, res)
 app.get('/api/settings/signature', auth(), async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
-        res.json({ signature: user.signature || '' });
+        // Correction : Protection contre les utilisateurs supprimés
+        res.json({ signature: user ? user.signature : '' });
     } catch (e) { 
         res.status(500).send(e); 
     }
