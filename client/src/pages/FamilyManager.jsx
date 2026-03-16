@@ -6,8 +6,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ChildInfoModal from '../components/ChildInfoModal';
 
-
-
 const FamilyManager = () => {
     const [children, setChildren] = useState([]);
     const [families, setFamilies] = useState([]);
@@ -115,7 +113,8 @@ const FamilyManager = () => {
         const numValue = value === '' ? null : Number(value);
         const updated = { ...editFamily, [field]: numValue };
         if (updated.revenuReference && updated.nombreParts) {
-            updated.quotientFamilial = Math.round(updated.revenuReference / updated.nombreParts);
+            // CORRECTION: Division par 12 pour ramener le revenu annuel au mois
+            updated.quotientFamilial = Math.round((updated.revenuReference / 12) / updated.nombreParts);
         } else { updated.quotientFamilial = null; }
         setEditFamily(updated);
     };
