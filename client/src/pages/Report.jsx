@@ -16,6 +16,9 @@ const Report = () => {
     const navigate = useNavigate();
     const access = localStorage.getItem('categoryAccess') || 'Tous';
     const [categoryFilter, setCategoryFilter] = useState(access);
+    
+    // NOUVEAU : État pour le sous-filtre des régimes
+    const [regimeFilter, setRegimeFilter] = useState('Tous');
 
     useEffect(() => { loadReport(); }, [date]);
     const loadReport = () => api.get(`/report?date=${date}`).then(res => setReportData(res.data));
@@ -35,11 +38,17 @@ const Report = () => {
         if (activeTab === 'PERISCO') return filteredReportData.filter(r => r.matin || r.soir || r.checkOut);
         if (activeTab === 'CANTINE') return filteredReportData.filter(r => r.midiAbsent);
         if (activeTab === 'PAI') return filteredReportData.filter(r => r.child.hasPAI);
-        if (activeTab === 'REGIMES') return filteredReportData.filter(r => r.child.regimeAlimentaire !== 'Standard').sort((a, b) => a.child.regimeAlimentaire.localeCompare(b.child.regimeAlimentaire));
+        if (activeTab === 'REGIMES') {
+            let data = filteredReportData.filter(r => r.child.regimeAlimentaire !== 'Standard');
+            if (regimeFilter !== 'Tous') {
+                data = data.filter(r => r.child.regimeAlimentaire === regimeFilter);
+            }
+            return data.sort((a, b) => a.child.regimeAlimentaire.localeCompare(b.child.regimeAlimentaire));
+        }
         if (activeTab === 'SORTIE_SEUL') return filteredReportData.filter(r => r.child.autorisationSortieSeul === true);
         if (activeTab === 'SANS_IMAGE') return filteredReportData.filter(r => r.child.droitImage === false);
         return [];
-    }, [filteredReportData, activeTab]);
+    }, [filteredReportData, activeTab, regimeFilter]);
 
     const exportPDF = () => {
         const doc = new jsPDF();
@@ -72,11 +81,11 @@ const Report = () => {
             footData = [["TOTAL ENFANTS PAI", pais.length.toString(), "", ""]];
         }
         else if (activeTab === 'REGIMES') {
-            title = `Régimes Alimentaires Spécifiques ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            title = `Régimes : ${regimeFilter !== 'Tous' ? regimeFilter : 'Tous les régimes spéciaux'} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
             tableColumn = ["Nom", "Prénom", "Catégorie", "Régime"];
             const regimes = displayData;
             tableRows = regimes.map(row => [row.child.lastName, row.child.firstName, row.child.category, row.child.regimeAlimentaire]);
-            footData = [["TOTAL RÉGIMES", regimes.length.toString(), "", ""]];
+            footData = [["TOTAL", regimes.length.toString(), "", ""]];
         }
         else if (activeTab === 'SORTIE_SEUL') {
             title = `Enfants autorisés à partir seuls ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
@@ -132,7 +141,17 @@ const Report = () => {
                     {(activeTab === 'PERISCO' || activeTab === 'CANTINE') && (
                         <input type="date" className="bg-slate-50 p-4 rounded-2xl outline-none font-bold text-car-dark flex-1 cursor-pointer" value={date} onChange={e => setDate(e.target.value)} />
                     )}
+                    
                     <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} access={access} />
+
+                    {activeTab === 'REGIMES' && (
+                        <select className="bg-car-yellow/10 border-none p-4 rounded-2xl outline-none font-bold text-car-yellow flex-1" value={regimeFilter} onChange={e => setRegimeFilter(e.target.value)}>
+                            <option value="Tous">Tous les régimes spéciaux</option>
+                            <option value="Sans-porc">Sans-porc uniquement</option>
+                            <option value="Végétarien">Végétarien uniquement</option>
+                            <option value="PAI">PAI Alimentaires uniquement</option>
+                        </select>
+                    )}
                 </div>
 
                 <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
