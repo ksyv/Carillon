@@ -33,7 +33,8 @@ const ChildSchema = new mongoose.Schema({
       appareilDentaire: { type: Boolean, default: false },
       activitesPhysiques: { type: Boolean, default: true },
       medecinNom: { type: String, default: '' },
-      medecinPhone: { type: String, default: '' }
+      medecinPhone: { type: String, default: '' },
+      autresInfos: { type: String, default: '' }
   },
 
   hasPAI: { type: Boolean, default: false },

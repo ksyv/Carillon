@@ -113,7 +113,6 @@ const FamilyManager = () => {
         const numValue = value === '' ? null : Number(value);
         const updated = { ...editFamily, [field]: numValue };
         if (updated.revenuReference && updated.nombreParts) {
-            // CORRECTION: Division par 12 pour ramener le revenu annuel au mois
             updated.quotientFamilial = Math.round((updated.revenuReference / 12) / updated.nombreParts);
         } else { updated.quotientFamilial = null; }
         setEditFamily(updated);
@@ -139,7 +138,7 @@ const FamilyManager = () => {
             _id: null,
             active: true, 
             firstName: '', lastName: selectedFamily.name, category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
-            medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
+            medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '', autresInfos: '' },
             hasPAI: false, paiDetails: '', isPAIAlimentaire: false, paiDocument: '', regimeAlimentaire: 'Standard',
             personnesAutorisees: [],
             documents: { vaccins: {}, assurance: {} }
@@ -153,7 +152,7 @@ const FamilyManager = () => {
             firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', sexe: child.sexe || '',
             birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
             droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
-            medical: child.medical || { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
+            medical: child.medical || { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '', autresInfos: '' },
             hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false, paiDocument: child.paiDocument || '', regimeAlimentaire: child.regimeAlimentaire || 'Standard',
             personnesAutorisees: child.personnesAutorisees || [],
             documents: child.documents || { vaccins: {}, assurance: {} }
@@ -284,7 +283,7 @@ const FamilyManager = () => {
                     ['Catégorie', child.category],
                     ['Date de naissance', child.birthDate ? new Date(child.birthDate).toLocaleDateString('fr-FR') : '-'],
                     ['Autorisations', `Image: ${child.droitImage?'OUI':'NON'} | Sortie Seul: ${child.autorisationSortieSeul?'OUI':'NON'}`],
-                    ['Médical', `Médecin: ${child.medical?.medecinNom||'-'} | Sport: ${child.medical?.activitesPhysiques !== false ?'OUI':'NON'}`],
+                    ['Médical', `Médecin: ${child.medical?.medecinNom||'-'} | Sport: ${child.medical?.activitesPhysiques !== false ?'OUI':'NON'} | Autres: ${child.medical?.autresInfos ? 'OUI' : 'NON'}`],
                     ['Vaccins & Assurance', `Vaccins: ${child.documents?.vaccins?.status||'Manquant'} | Assurance RC: ${child.documents?.assurance?.status||'Manquant'}`]
                 ];
                 if (child.hasPAI) {
@@ -667,6 +666,10 @@ const FamilyManager = () => {
                                     <div className="flex gap-4 border-t border-slate-200 pt-4">
                                         <input className="flex-1 bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow text-sm font-medium" placeholder="Nom du médecin traitant" value={editingChild.medical.medecinNom} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, medecinNom: e.target.value}})}/>
                                         <input className="flex-1 bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow text-sm font-medium" placeholder="Téléphone du médecin" value={editingChild.medical.medecinPhone} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, medecinPhone: e.target.value}})}/>
+                                    </div>
+                                    <div className="mt-4 border-t border-slate-200 pt-4">
+                                        <label className="text-xs font-bold text-slate-500 block mb-2 uppercase">Autres informations (Santé, particularités...)</label>
+                                        <textarea className="w-full bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow text-sm font-medium" placeholder="Ex: Sujet aux saignements de nez..." value={editingChild.medical.autresInfos || ''} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, autresInfos: e.target.value}})}></textarea>
                                     </div>
                                 </div>
                             </div>

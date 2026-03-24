@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, X, FolderHeart, Utensils, AlertTriangle, Phone, Users, Check } from 'lucide-react';
+import { Download, X, FolderHeart, Utensils, AlertTriangle, Phone, Users, Info } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -41,7 +41,6 @@ const ChildInfoModal = ({ child, onClose }) => {
 
         const mainInfo = [
             ['Catégorie', child.category || 'Maternelle'],
-            ['Sexe', child.sexe || 'Non renseigné'],
             ['Date de naissance', child.birthDate ? new Date(child.birthDate).toLocaleDateString('fr-FR') : 'Non renseignée'],
             ['Régime Alimentaire', child.regimeAlimentaire],
             ['Droit à l\'image', child.droitImage ? 'OUI' : 'NON'],
@@ -52,8 +51,7 @@ const ChildInfoModal = ({ child, onClose }) => {
 
         const medicalInfo = [
             ['Médecin', `${child.medical?.medecinNom || '-'} (${child.medical?.medecinPhone || '-'})`],
-            ['Détails', `Lunettes: ${child.medical?.lunettes?'OUI':'NON'} | Audition: ${child.medical?.appareilAuditif?'OUI':'NON'} | Dents: ${child.medical?.appareilDentaire?'OUI':'NON'}`],
-            ['Apte au sport', child.medical?.activitesPhysiques !== false ? 'OUI' : 'NON'],
+            ['Autres infos', child.medical?.autresInfos || '-'],
             ['Carnet de Vaccins', `${child.documents?.vaccins?.status || 'Manquant'}`],
             ['Assurance Civile', `${child.documents?.assurance?.status || 'Manquant'} ${child.documents?.assurance?.expiryDate ? '(Expire le ' + new Date(child.documents.assurance.expiryDate).toLocaleDateString('fr-FR') + ')' : ''}`]
         ];
@@ -109,17 +107,37 @@ const ChildInfoModal = ({ child, onClose }) => {
                 </div>
 
                 <div className="space-y-6">
-                    {/* INFOS MÉDICALES & PAI */}
+                    {/* PROFIL & SANTÉ (Épuré pour le terrain) */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                        <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
-                            <Utensils size={18}/> Santé & Médical
+                        <div className="flex items-center gap-2 text-slate-500 font-black mb-4 uppercase tracking-widest text-sm">
+                            <Info size={18}/> Profil, Santé & Cantine
                         </div>
-                        <div className="grid grid-cols-2 gap-4 mb-4 text-sm font-medium text-car-dark">
-                            <div className="bg-white p-3 rounded-xl shadow-sm">Lunettes : {child.medical?.lunettes ? 'OUI' : 'NON'}</div>
-                            <div className="bg-white p-3 rounded-xl shadow-sm">Auditif : {child.medical?.appareilAuditif ? 'OUI' : 'NON'}</div>
-                            <div className="bg-white p-3 rounded-xl shadow-sm">Dentaire : {child.medical?.appareilDentaire ? 'OUI' : 'NON'}</div>
-                            <div className="bg-white p-3 rounded-xl shadow-sm">Sport : {child.medical?.activitesPhysiques !== false ? 'OUI' : 'NON'}</div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                            <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Cantine</span>
+                                <span className={`text-sm font-black ${child.regimeAlimentaire !== 'Standard' ? 'text-car-yellow' : 'text-car-dark'}`}>{child.regimeAlimentaire || 'Standard'}</span>
+                            </div>
+                            
+                            <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Droit à l'image</span>
+                                <span className={`text-sm font-black ${child.droitImage ? 'text-car-green' : 'text-car-pink'}`}>{child.droitImage ? 'OUI' : 'NON'}</span>
+                            </div>
+
+                            {child.category === 'Élémentaire' && (
+                                <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col sm:col-span-2">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Autorisation de sortie seul</span>
+                                    <span className={`text-sm font-black ${child.autorisationSortieSeul ? 'text-car-blue' : 'text-car-pink'}`}>{child.autorisationSortieSeul ? 'AUTORISÉ À PARTIR SEUL' : 'DOIT ÊTRE RÉCUPÉRÉ'}</span>
+                                </div>
+                            )}
                         </div>
+
+                        {child.medical?.autresInfos && (
+                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-4">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Autres informations / Particularités</span>
+                                <p className="text-car-dark font-medium text-sm whitespace-pre-wrap">{child.medical.autresInfos}</p>
+                            </div>
+                        )}
                         
                         {child.hasPAI && (
                             <div className="bg-car-pink/10 border border-car-pink/30 p-4 rounded-xl mt-2 mb-4">
@@ -132,27 +150,6 @@ const ChildInfoModal = ({ child, onClose }) => {
                                 <p className="text-car-dark font-medium text-sm">{child.paiDetails}</p>
                             </div>
                         )}
-
-                        {/* AFFICHAGE DES DOCUMENTS ENFANTS */}
-                        <div className="space-y-2 border-t border-slate-200 pt-4 mt-2">
-                            <div className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm">
-                                <div>
-                                    <span className="block text-xs font-bold text-slate-500 uppercase">Vaccins</span>
-                                    <span className={`text-xs font-bold ${child.documents?.vaccins?.status === 'Valide' ? 'text-car-green' : 'text-car-pink'}`}>{child.documents?.vaccins?.status || 'Manquant'}</span>
-                                </div>
-                                {child.documents?.vaccins?.fileUrl && <button onClick={() => openDoc(child.documents.vaccins.fileUrl)} className="text-[10px] font-bold bg-car-blue/10 text-car-blue px-2 py-1 rounded-md">VOIR DOC</button>}
-                            </div>
-                            <div className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm">
-                                <div>
-                                    <span className="block text-xs font-bold text-slate-500 uppercase">Assurance RC</span>
-                                    <span className={`text-xs font-bold ${child.documents?.assurance?.status === 'Valide' ? 'text-car-green' : 'text-car-pink'}`}>
-                                        {child.documents?.assurance?.status || 'Manquant'}
-                                        {child.documents?.assurance?.expiryDate && ` (Exp: ${new Date(child.documents.assurance.expiryDate).toLocaleDateString('fr-FR')})`}
-                                    </span>
-                                </div>
-                                {child.documents?.assurance?.fileUrl && <button onClick={() => openDoc(child.documents.assurance.fileUrl)} className="text-[10px] font-bold bg-car-blue/10 text-car-blue px-2 py-1 rounded-md">VOIR DOC</button>}
-                            </div>
-                        </div>
                     </div>
 
                     {/* CONTACTS DES RESPONSABLES */}

@@ -7,8 +7,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import CategoryFilter from '../components/CategoryFilter';
 
-
-
 const Report = () => {
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [reportData, setReportData] = useState([]);
@@ -33,6 +31,16 @@ const Report = () => {
         return reportData.filter(r => categoryFilter === 'Tous' || r.child.category === categoryFilter);
     }, [reportData, categoryFilter]);
 
+    const displayData = useMemo(() => {
+        if (activeTab === 'PERISCO') return filteredReportData.filter(r => r.matin || r.soir || r.checkOut);
+        if (activeTab === 'CANTINE') return filteredReportData.filter(r => r.midiAbsent);
+        if (activeTab === 'PAI') return filteredReportData.filter(r => r.child.hasPAI);
+        if (activeTab === 'REGIMES') return filteredReportData.filter(r => r.child.regimeAlimentaire !== 'Standard').sort((a, b) => a.child.regimeAlimentaire.localeCompare(b.child.regimeAlimentaire));
+        if (activeTab === 'SORTIE_SEUL') return filteredReportData.filter(r => r.child.autorisationSortieSeul === true);
+        if (activeTab === 'SANS_IMAGE') return filteredReportData.filter(r => r.child.droitImage === false);
+        return [];
+    }, [filteredReportData, activeTab]);
+
     const exportPDF = () => {
         const doc = new jsPDF();
         doc.setFontSize(18);
@@ -45,30 +53,44 @@ const Report = () => {
         if (activeTab === 'PERISCO') {
             title = `Rapport Périscolaire - ${format(new Date(date), 'dd/MM/yyyy')} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
             tableColumn = ["Nom", "Prénom", "Facture", "Matin", "Soir", "19h"];
-            const presences = filteredReportData.filter(r => r.matin || r.soir || r.checkOut);
+            const presences = displayData;
             tableRows = presences.map(row => [row.child.lastName, row.child.firstName, row.billTo || '-', row.matin ? 'OUI' : '-', (row.checkOut || row.soir) ? 'OUI' : '-', row.isLate ? 'OUI' : '-']);
             footData = [["TOTAL", "", "", presences.filter(r=>r.matin).length.toString(), presences.filter(r=>r.soir||r.checkOut).length.toString(), presences.filter(r=>r.isLate).length.toString()]];
         } 
         else if (activeTab === 'CANTINE') {
             title = `Rapport ABSENTS Cantine - ${format(new Date(date), 'dd/MM/yyyy')} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
             tableColumn = ["Nom", "Prénom", "Catégorie", "Régime", "PAI Alim."];
-            const absents = filteredReportData.filter(r => r.midiAbsent);
+            const absents = displayData;
             tableRows = absents.map(row => [row.child.lastName, row.child.firstName, row.child.category, row.child.regimeAlimentaire, row.child.isPAIAlimentaire ? 'OUI' : '-']);
             footData = [["TOTAL ABSENTS", absents.length.toString(), "", "", ""]];
         }
         else if (activeTab === 'PAI') {
             title = `Liste Globale des PAI ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
             tableColumn = ["Nom", "Prénom", "Type PAI", "Détails"];
-            const pais = filteredReportData.filter(r => r.child.hasPAI);
+            const pais = displayData;
             tableRows = pais.map(row => [row.child.lastName, row.child.firstName, row.child.isPAIAlimentaire ? 'Alimentaire' : 'Médical', row.child.paiDetails]);
             footData = [["TOTAL ENFANTS PAI", pais.length.toString(), "", ""]];
         }
         else if (activeTab === 'REGIMES') {
             title = `Régimes Alimentaires Spécifiques ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
             tableColumn = ["Nom", "Prénom", "Catégorie", "Régime"];
-            const regimes = filteredReportData.filter(r => r.child.regimeAlimentaire !== 'Standard');
+            const regimes = displayData;
             tableRows = regimes.map(row => [row.child.lastName, row.child.firstName, row.child.category, row.child.regimeAlimentaire]);
             footData = [["TOTAL RÉGIMES", regimes.length.toString(), "", ""]];
+        }
+        else if (activeTab === 'SORTIE_SEUL') {
+            title = `Enfants autorisés à partir seuls ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            tableColumn = ["Nom", "Prénom", "Catégorie", "Statut"];
+            const data = displayData;
+            tableRows = data.map(row => [row.child.lastName, row.child.firstName, row.child.category, 'Autorisé']);
+            footData = [["TOTAL", data.length.toString(), "", ""]];
+        }
+        else if (activeTab === 'SANS_IMAGE') {
+            title = `Enfants SANS droit à l'image ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            tableColumn = ["Nom", "Prénom", "Catégorie", "Statut"];
+            const data = displayData;
+            tableRows = data.map(row => [row.child.lastName, row.child.firstName, row.child.category, 'Refusé']);
+            footData = [["TOTAL", data.length.toString(), "", ""]];
         }
         
         doc.text(title, 14, 22);
@@ -84,17 +106,9 @@ const Report = () => {
         doc.save(`carillon_rapport_${activeTab}_${date}.pdf`);
     };
 
-    const displayData = useMemo(() => {
-        if (activeTab === 'PERISCO') return filteredReportData.filter(r => r.matin || r.soir || r.checkOut);
-        if (activeTab === 'CANTINE') return filteredReportData.filter(r => r.midiAbsent);
-        if (activeTab === 'PAI') return filteredReportData.filter(r => r.child.hasPAI);
-        if (activeTab === 'REGIMES') return filteredReportData.filter(r => r.child.regimeAlimentaire !== 'Standard');
-        return [];
-    }, [filteredReportData, activeTab]);
-
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-6xl mx-auto">
                 <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
                 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -106,10 +120,12 @@ const Report = () => {
                 </div>
 
                 <div className="flex flex-wrap gap-2 mb-6">
-                    <button onClick={() => setActiveTab('PERISCO')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'PERISCO' ? 'bg-car-blue text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Périscolaire</button>
-                    <button onClick={() => setActiveTab('CANTINE')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'CANTINE' ? 'bg-car-teal text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Absents Cantine</button>
-                    <button onClick={() => setActiveTab('PAI')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'PAI' ? 'bg-car-pink text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Fiches PAI</button>
-                    <button onClick={() => setActiveTab('REGIMES')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'REGIMES' ? 'bg-car-yellow text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Régimes Spéciaux</button>
+                    <button onClick={() => setActiveTab('PERISCO')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'PERISCO' ? 'bg-car-blue text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Périscolaire</button>
+                    <button onClick={() => setActiveTab('CANTINE')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'CANTINE' ? 'bg-car-teal text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Absents Cantine</button>
+                    <button onClick={() => setActiveTab('PAI')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'PAI' ? 'bg-car-pink text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Fiches PAI</button>
+                    <button onClick={() => setActiveTab('REGIMES')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'REGIMES' ? 'bg-car-yellow text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Régimes Spéciaux</button>
+                    <button onClick={() => setActiveTab('SORTIE_SEUL')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'SORTIE_SEUL' ? 'bg-slate-700 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Sortie Seul</button>
+                    <button onClick={() => setActiveTab('SANS_IMAGE')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'SANS_IMAGE' ? 'bg-slate-700 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Sans Image</button>
                 </div>
 
                 <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4 mb-6">
@@ -155,6 +171,20 @@ const Report = () => {
                                         <th className="p-5 border-b border-slate-100">Régime Strict</th>
                                     </>
                                 )}
+
+                                {activeTab === 'SORTIE_SEUL' && (
+                                    <>
+                                        <th className="p-5 border-b border-slate-100 text-center">Catégorie</th>
+                                        <th className="p-5 border-b border-slate-100 text-center">Autorisation</th>
+                                    </>
+                                )}
+
+                                {activeTab === 'SANS_IMAGE' && (
+                                    <>
+                                        <th className="p-5 border-b border-slate-100 text-center">Catégorie</th>
+                                        <th className="p-5 border-b border-slate-100 text-center">Droit à l'image</th>
+                                    </>
+                                )}
                             </tr>
                         </thead>
                         <tbody>
@@ -194,6 +224,20 @@ const Report = () => {
                                         <>
                                             <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
                                             <td className="p-5 border-b border-slate-100"><span className="text-sm font-bold text-car-yellow bg-car-yellow/10 px-3 py-1 rounded-lg">{c.regimeAlimentaire}</span></td>
+                                        </>
+                                    )}
+
+                                    {activeTab === 'SORTIE_SEUL' && (
+                                        <>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="bg-car-blue/10 text-car-blue text-xs font-bold px-3 py-1 rounded-lg">AUTORISÉ</span></td>
+                                        </>
+                                    )}
+
+                                    {activeTab === 'SANS_IMAGE' && (
+                                        <>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="bg-car-pink/10 text-car-pink text-xs font-bold px-3 py-1 rounded-lg">REFUSÉ</span></td>
                                         </>
                                     )}
                                 </tr>
