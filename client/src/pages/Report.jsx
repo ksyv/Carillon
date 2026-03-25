@@ -29,7 +29,7 @@ const Report = () => {
     });
 
     // Tri dynamique
-    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+    const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'asc' });
 
     // --- CHARGEMENT ---
     useEffect(() => { loadReport(); }, [startDate, endDate]);
@@ -84,25 +84,33 @@ const Report = () => {
 
         // 3. Application du Tri
         return list.sort((a, b) => {
+            const nameA = `${a.child.lastName} ${a.child.firstName}`;
+            const nameB = `${b.child.lastName} ${b.child.firstName}`;
+
             let valA = '', valB = '';
 
             if (sortConfig.key === 'date') {
-                valA = a.date || ''; valB = b.date || '';
+                // On coupe la chaîne au "T" pour ignorer les heures
+                valA = a.date ? a.date.split('T')[0] : ''; 
+                valB = b.date ? b.date.split('T')[0] : '';
             } else if (sortConfig.key === 'name') {
-                valA = `${a.child.lastName} ${a.child.firstName}`;
-                valB = `${b.child.lastName} ${b.child.firstName}`;
+                valA = nameA;
+                valB = nameB;
             } else if (sortConfig.key === 'category') {
                 valA = a.child.category || ''; valB = b.child.category || '';
             } else if (sortConfig.key === 'regime') {
                 valA = a.child.regimeAlimentaire || ''; valB = b.child.regimeAlimentaire || '';
             } else if (sortConfig.key === 'pai') {
-                valA = a.child.isPAIAlimentaire ? 'A' : 'B'; // Tri basique pour regrouper
+                valA = a.child.isPAIAlimentaire ? 'A' : 'B'; 
                 valB = b.child.isPAIAlimentaire ? 'A' : 'B';
             }
 
+            // Tri principal
             if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
             if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
+            
+            // Tri secondaire : En cas d'égalité sur la date ou la catégorie, on trie par ordre alphabétique
+            return nameA.localeCompare(nameB);
         });
     }, [reportData, activeTab, categories, regimes, sortConfig]);
 
@@ -220,7 +228,7 @@ const Report = () => {
                     <div className={`flex flex-col gap-2 ${activeTab === 'REGIMES' ? 'border-r border-slate-100 pr-6' : ''}`}>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">Catégories (Cumulables) :</span>
                         <div className="flex gap-2">
-                            <label className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 select-none transition-all ${categories.Maternelle ? 'bg-car-yellow border-car-yellow text-car-dark shadow-md' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
+                            <label className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 select-none transition-all ${categories.Maternelle ? 'bg-car-yellow border-car-yellow text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
                                 <input type="checkbox" className="hidden" checked={categories.Maternelle} onChange={() => setCategories({...categories, Maternelle: !categories.Maternelle})} disabled={access === 'Élémentaire'} />
                                 <span className="font-black text-sm">Maternelle</span>
                             </label>
