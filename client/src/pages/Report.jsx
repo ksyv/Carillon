@@ -190,7 +190,7 @@ const Report = () => {
                         <div className="bg-car-blue/10 p-4 rounded-2xl"><FileText className="text-car-blue w-8 h-8"/></div>
                         <h1 className="text-4xl font-black text-car-dark">Rapports & Listes</h1>
                     </div>
-                    <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20"><Download size={20}/> TÉLÉCHARGER PDF</button>
+                    <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20"><Download size={20}/> PDF</button>
                 </div>
 
                 {/* ONGLETS */}
@@ -220,13 +220,13 @@ const Report = () => {
                     <div className={`flex flex-col gap-2 ${activeTab === 'REGIMES' ? 'border-r border-slate-100 pr-6' : ''}`}>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">Catégories (Cumulables) :</span>
                         <div className="flex gap-2">
-                            <label className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border select-none transition-colors ${categories.Maternelle ? 'bg-car-yellow/10 border-car-yellow/30 text-car-yellow' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                            <label className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 select-none transition-all ${categories.Maternelle ? 'bg-car-yellow border-car-yellow text-car-dark shadow-md' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
                                 <input type="checkbox" className="hidden" checked={categories.Maternelle} onChange={() => setCategories({...categories, Maternelle: !categories.Maternelle})} disabled={access === 'Élémentaire'} />
-                                <span className="font-bold text-sm">Maternelle</span>
+                                <span className="font-black text-sm">Maternelle</span>
                             </label>
-                            <label className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border select-none transition-colors ${categories.Élémentaire ? 'bg-car-blue/10 border-car-blue/30 text-car-blue' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                            <label className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 select-none transition-all ${categories.Élémentaire ? 'bg-car-blue border-car-blue text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
                                 <input type="checkbox" className="hidden" checked={categories.Élémentaire} onChange={() => setCategories({...categories, Élémentaire: !categories.Élémentaire})} disabled={access === 'Maternelle'} />
-                                <span className="font-bold text-sm">Élémentaire</span>
+                                <span className="font-black text-sm">Élémentaire</span>
                             </label>
                         </div>
                     </div>
@@ -236,9 +236,9 @@ const Report = () => {
                             <span className="text-[10px] font-bold text-slate-400 uppercase">Types de Régimes (Cumulables) :</span>
                             <div className="flex flex-wrap gap-2">
                                 {['Sans-porc', 'Végétarien', 'PAI'].map(reg => (
-                                    <label key={reg} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border select-none transition-colors ${regimes[reg] ? 'bg-car-dark text-white border-car-dark' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                                    <label key={reg} className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 select-none transition-all ${regimes[reg] ? 'bg-car-dark text-white border-car-dark shadow-md' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
                                         <input type="checkbox" className="hidden" checked={regimes[reg]} onChange={() => setRegimes({...regimes, [reg]: !regimes[reg]})} />
-                                        <span className="font-bold text-sm">{reg === 'PAI' ? 'PAI Alimentaire' : reg}</span>
+                                        <span className="font-black text-sm">{reg === 'PAI' ? 'PAI Alimentaire' : reg}</span>
                                     </label>
                                 ))}
                             </div>
