@@ -283,22 +283,52 @@ app.delete('/api/billing/:id', auth(['admin']), async (req, res) => {
 });
 
 app.get('/api/report', auth(['admin']), async (req, res) => {
-    const { date } = req.query;
-    const children = await Child.find().sort({ lastName: 1 });
-    const atts = await Attendance.find({ date });
-    const billingsForDate = await Billing.find({ dates: date });
-    const report = children.map(c => {
-        const am = atts.find(a => a.child.toString() == c._id && a.sessionType === 'MATIN');
-        const midi = atts.find(a => a.child.toString() == c._id && a.sessionType === 'MIDI');
-        const pm = atts.find(a => a.child.toString() == c._id && a.sessionType === 'SOIR');
-        const billingRule = billingsForDate.find(b => b.child.toString() == c._id);
-        return { 
-            child: c, matin: !!am, midiAbsent: !!midi, soir: !!pm, 
-            checkOut: pm ? pm.checkOut : null, isLate: pm ? pm.isLate : false,
-            pmId: pm ? pm._id : null, billTo: billingRule ? billingRule.billTo : '' 
-        };
+    const { startDate, endDate } = req.query;
+    
+    // Rétrocompatibilité si seule 'date' est fournie
+    const start = startDate || req.query.date;
+    const end = endDate || req.query.date;
+
+    const children = await Child.find().sort({ lastName: 1, firstName: 1 });
+    const atts = await Attendance.find({ date: { $gte: start, $lte: end } });
+    const billings = await Billing.find();
+
+    const attendanceMap = {};
+    
+    // On groupe les présences par Date ET par Enfant
+    atts.forEach(a => {
+        const childObj = children.find(c => c._id.toString() === a.child.toString());
+        if (!childObj) return; 
+        
+        const key = `${a.date}_${a.child.toString()}`;
+        if (!attendanceMap[key]) {
+            attendanceMap[key] = {
+                type: 'ATTENDANCE', date: a.date, child: childObj,
+                matin: false, midiAbsent: false, soir: false, checkOut: null, isLate: false, pmId: null, billTo: ''
+            };
+        }
+        if (a.sessionType === 'MATIN') attendanceMap[key].matin = true;
+        if (a.sessionType === 'MIDI') attendanceMap[key].midiAbsent = true;
+        if (a.sessionType === 'SOIR') {
+            attendanceMap[key].soir = true; attendanceMap[key].checkOut = a.checkOut;
+            attendanceMap[key].isLate = a.isLate; attendanceMap[key].pmId = a._id;
+        }
     });
-    res.json(report);
+
+    // Ajout de la facturation alternée
+    billings.forEach(b => {
+        b.dates.forEach(d => {
+            if (d >= start && d <= end) {
+                const key = `${d}_${b.child.toString()}`;
+                if (attendanceMap[key]) attendanceMap[key].billTo = b.billTo;
+            }
+        });
+    });
+
+    res.json({
+        children: children.map(c => ({ child: c })), // Liste statique pour les onglets PAI, Régimes, etc.
+        attendances: Object.values(attendanceMap)    // Liste journalière pour Périsco et Cantine
+    });
 });
 
 // --- NOUVEL ALGORITHME STATS CAF (AVEC ENFANTS UNIQUES ET DÉCOUPAGE SUPPLÉMENT) ---
