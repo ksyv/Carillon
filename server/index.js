@@ -315,11 +315,11 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
         };
         let dailyStats = {};
 
-        // Sets pour compter les enfants uniques (sans doublons)
-        const uniqueTotal = new Set();
-        const uniqueMatin = new Set();
-        const uniqueSoir = new Set();
-        const uniqueSupplement = new Set();
+        // NOUVEAU : Sets pour compter les enfants uniques AVEC tranches d'âge
+        const uniqueTotal = { all: new Set(), under6: new Set(), over6: new Set() };
+        const uniqueMatin = { all: new Set(), under6: new Set(), over6: new Set() };
+        const uniqueSoir = { all: new Set(), under6: new Set(), over6: new Set() };
+        const uniqueSupplement = { all: new Set(), under6: new Set(), over6: new Set() };
 
         attendances.forEach(att => {
             if (!att.child || !att.child.birthDate) return; 
@@ -342,24 +342,24 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
             const childId = att.child._id.toString();
 
             if (att.sessionType === 'MATIN') {
-                uniqueTotal.add(childId);
-                uniqueMatin.add(childId);
+                uniqueTotal.all.add(childId); uniqueTotal[ageGroup].add(childId);
+                uniqueMatin.all.add(childId); uniqueMatin[ageGroup].add(childId);
+                
                 globalStats.matin[ageGroup].acts += 1; globalStats.matin[ageGroup].hours += 1;
                 globalStats.total.acts += 1; globalStats.total.hours += 1;
                 dailyStats[att.date].matin[ageGroup].acts += 1; dailyStats[att.date].matin[ageGroup].hours += 1;
             
             } else if (att.sessionType === 'SOIR' && (att.checkOut || att.isLate)) {
-                uniqueTotal.add(childId);
-                uniqueSoir.add(childId);
+                uniqueTotal.all.add(childId); uniqueTotal[ageGroup].add(childId);
+                uniqueSoir.all.add(childId); uniqueSoir[ageGroup].add(childId);
                 
-                // Acte régulier SOIR (2 Heures)
                 globalStats.soir[ageGroup].acts += 1; globalStats.soir[ageGroup].hours += 2;
                 globalStats.total.acts += 1; globalStats.total.hours += 2;
                 dailyStats[att.date].soir[ageGroup].acts += 1; dailyStats[att.date].soir[ageGroup].hours += 2;
                 
-                // Acte SUPPLÉMENTAIRE (0.5 Heure) si isLate
                 if (att.isLate) {
-                    uniqueSupplement.add(childId);
+                    uniqueSupplement.all.add(childId); uniqueSupplement[ageGroup].add(childId);
+                    
                     globalStats.supplement[ageGroup].acts += 1; globalStats.supplement[ageGroup].hours += 0.5;
                     globalStats.total.acts += 1; globalStats.total.hours += 0.5;
                     dailyStats[att.date].supplement[ageGroup].acts += 1; dailyStats[att.date].supplement[ageGroup].hours += 0.5;
@@ -367,12 +367,12 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
             }
         });
 
-        // Enregistrement des enfants uniques pour l'envoi au frontend
+        // Conversion des Sets en simples nombres pour l'envoi au front
         globalStats.uniqueChildren = {
-            total: uniqueTotal.size,
-            matin: uniqueMatin.size,
-            soir: uniqueSoir.size,
-            supplement: uniqueSupplement.size
+            total: { all: uniqueTotal.all.size, under6: uniqueTotal.under6.size, over6: uniqueTotal.over6.size },
+            matin: { all: uniqueMatin.all.size, under6: uniqueMatin.under6.size, over6: uniqueMatin.over6.size },
+            soir: { all: uniqueSoir.all.size, under6: uniqueSoir.under6.size, over6: uniqueSoir.over6.size },
+            supplement: { all: uniqueSupplement.all.size, under6: uniqueSupplement.under6.size, over6: uniqueSupplement.over6.size }
         };
 
         res.json({ global: globalStats, daily: Object.values(dailyStats).sort((a, b) => a.date.localeCompare(b.date)) });
