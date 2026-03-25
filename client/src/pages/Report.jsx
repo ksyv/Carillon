@@ -29,7 +29,7 @@ const Report = () => {
     });
 
     // Tri dynamique
-    const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'asc' });
+    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
     // --- CHARGEMENT ---
     useEffect(() => { loadReport(); }, [startDate, endDate]);
@@ -90,7 +90,6 @@ const Report = () => {
             let valA = '', valB = '';
 
             if (sortConfig.key === 'date') {
-                // On coupe la chaîne au "T" pour ignorer les heures
                 valA = a.date ? a.date.split('T')[0] : ''; 
                 valB = b.date ? b.date.split('T')[0] : '';
             } else if (sortConfig.key === 'name') {
@@ -105,11 +104,9 @@ const Report = () => {
                 valB = b.child.isPAIAlimentaire ? 'A' : 'B';
             }
 
-            // Tri principal
             if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
             if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
             
-            // Tri secondaire : En cas d'égalité sur la date ou la catégorie, on trie par ordre alphabétique
             return nameA.localeCompare(nameB);
         });
     }, [reportData, activeTab, categories, regimes, sortConfig]);
@@ -296,8 +293,18 @@ const Report = () => {
                                     </>
                                 )}
 
-                                {(activeTab === 'SORTIE_SEUL' || activeTab === 'SANS_IMAGE') && (
-                                    <SortHeader label="Catégorie" sortKey="category" className="text-center" />
+                                {activeTab === 'SORTIE_SEUL' && (
+                                    <>
+                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
+                                        <th className="p-5 border-b border-slate-100 text-center">Autorisation</th>
+                                    </>
+                                )}
+                                
+                                {activeTab === 'SANS_IMAGE' && (
+                                    <>
+                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
+                                        <th className="p-5 border-b border-slate-100 text-center">Droit à l'image</th>
+                                    </>
                                 )}
                             </tr>
                         </thead>
@@ -347,8 +354,18 @@ const Report = () => {
                                         </>
                                     )}
 
-                                    {(activeTab === 'SORTIE_SEUL' || activeTab === 'SANS_IMAGE') && (
-                                        <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
+                                    {activeTab === 'SORTIE_SEUL' && (
+                                        <>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="bg-car-blue/10 text-car-blue text-xs font-bold px-3 py-1 rounded-lg">AUTORISÉ À SORTIR SEUL</span></td>
+                                        </>
+                                    )}
+
+                                    {activeTab === 'SANS_IMAGE' && (
+                                        <>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
+                                            <td className="p-5 border-b border-slate-100 text-center"><span className="bg-car-pink/10 text-car-pink text-xs font-bold px-3 py-1 rounded-lg">SANS DROIT À L'IMAGE</span></td>
+                                        </>
                                     )}
                                 </tr>
                             )})}
@@ -390,13 +407,13 @@ const Report = () => {
                                 {activeTab === 'SORTIE_SEUL' && (
                                     <tr>
                                         <td colSpan="2" className="p-5 font-black text-slate-700 text-right">TOTAL AUTORISÉS :</td>
-                                        <td colSpan="1" className="p-5 font-black text-slate-700 text-left text-xl">{displayData.length}</td>
+                                        <td colSpan="2" className="p-5 font-black text-slate-700 text-left text-xl">{displayData.length}</td>
                                     </tr>
                                 )}
                                 {activeTab === 'SANS_IMAGE' && (
                                     <tr>
                                         <td colSpan="2" className="p-5 font-black text-slate-700 text-right">TOTAL REFUSÉS :</td>
-                                        <td colSpan="1" className="p-5 font-black text-slate-700 text-left text-xl">{displayData.length}</td>
+                                        <td colSpan="2" className="p-5 font-black text-slate-700 text-left text-xl">{displayData.length}</td>
                                     </tr>
                                 )}
                             </tfoot>
