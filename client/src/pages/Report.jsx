@@ -1,33 +1,41 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { FileText, Download, CheckCircle, AlertTriangle, ArrowUpDown } from 'lucide-react';
+import { format } from 'date-fns';
+import { FileText, Download, CheckCircle, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import CategoryFilter from '../components/CategoryFilter';
 
 const Report = () => {
-    // Gestion par période
-    const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    
-    const [reportData, setReportData] = useState({ children: [], attendances: [] });
-    const [activeTab, setActiveTab] = useState('PERISCO');
-    
     const navigate = useNavigate();
     const access = localStorage.getItem('categoryAccess') || 'Tous';
-    
-    // Nouveaux filtres et tris
-    const [categoryFilter, setCategoryFilter] = useState(access);
-    const [regimeFilter, setRegimeFilter] = useState('Tous');
-    const [sortBy, setSortBy] = useState('alpha'); // 'alpha', 'category', 'regime'
 
+    // --- ÉTATS ---
+    const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const [reportData, setReportData] = useState({ children: [], attendances: [] });
+    const [activeTab, setActiveTab] = useState('PERISCO');
+
+    // Filtres cumulatifs (Checkboxes)
+    const [categories, setCategories] = useState({
+        Maternelle: access === 'Tous' || access === 'Maternelle',
+        Élémentaire: access === 'Tous' || access === 'Élémentaire'
+    });
+
+    const [regimes, setRegimes] = useState({
+        'Sans-porc': true,
+        'Végétarien': true,
+        'PAI': true
+    });
+
+    // Tri dynamique
+    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+
+    // --- CHARGEMENT ---
     useEffect(() => { loadReport(); }, [startDate, endDate]);
     
     const loadReport = () => {
         api.get(`/report?startDate=${startDate}&endDate=${endDate}`).then(res => {
-            // Rétrocompatibilité de transition
             if (Array.isArray(res.data)) setReportData({ children: res.data, attendances: res.data });
             else setReportData(res.data);
         });
@@ -40,45 +48,65 @@ const Report = () => {
         }
     };
 
+    // --- GESTION DU TRI ---
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // --- FILTRAGE ET TRI DES DONNÉES ---
     const displayData = useMemo(() => {
         const isAttendanceTab = activeTab === 'PERISCO' || activeTab === 'CANTINE';
         let list = isAttendanceTab ? [...reportData.attendances] : [...reportData.children];
 
-        // 1. Filtre par Catégorie (Maternelle/Élémentaire)
-        if (categoryFilter !== 'Tous') {
-            list = list.filter(r => r.child.category === categoryFilter);
-        }
+        // 1. Filtre par Catégorie (Cumulatif)
+        list = list.filter(r => {
+            const cat = r.child.category || 'Maternelle';
+            return categories[cat];
+        });
 
-        // 2. Filtres Spécifiques aux onglets
+        // 2. Filtres par onglet
         if (activeTab === 'PERISCO') list = list.filter(r => r.matin || r.soir || r.checkOut);
         if (activeTab === 'CANTINE') list = list.filter(r => r.midiAbsent);
         if (activeTab === 'PAI') list = list.filter(r => r.child.hasPAI);
         if (activeTab === 'REGIMES') {
-            list = list.filter(r => r.child.regimeAlimentaire !== 'Standard');
-            if (regimeFilter !== 'Tous') list = list.filter(r => r.child.regimeAlimentaire === regimeFilter);
+            list = list.filter(r => {
+                const reg = r.child.regimeAlimentaire;
+                if (reg === 'Standard') return false; // On exclut les standards
+                return regimes[reg]; // Vrai si la case du régime est cochée
+            });
         }
         if (activeTab === 'SORTIE_SEUL') list = list.filter(r => r.child.autorisationSortieSeul);
         if (activeTab === 'SANS_IMAGE') list = list.filter(r => !r.child.droitImage);
 
-        // 3. Tri
+        // 3. Application du Tri
         return list.sort((a, b) => {
-            if (isAttendanceTab) {
-                const dateCompare = a.date.localeCompare(b.date);
-                if (dateCompare !== 0) return dateCompare;
-            }
-            if (sortBy === 'category') {
-                const catCompare = (a.child.category || '').localeCompare(b.child.category || '');
-                if (catCompare !== 0) return catCompare;
-            }
-            if (sortBy === 'regime' && activeTab === 'REGIMES') {
-                const regCompare = (a.child.regimeAlimentaire || '').localeCompare(b.child.regimeAlimentaire || '');
-                if (regCompare !== 0) return regCompare;
-            }
-            // Tri alphabétique par défaut
-            return `${a.child.lastName} ${a.child.firstName}`.localeCompare(`${b.child.lastName} ${b.child.firstName}`);
-        });
-    }, [reportData, activeTab, categoryFilter, regimeFilter, sortBy]);
+            let valA = '', valB = '';
 
+            if (sortConfig.key === 'date') {
+                valA = a.date || ''; valB = b.date || '';
+            } else if (sortConfig.key === 'name') {
+                valA = `${a.child.lastName} ${a.child.firstName}`;
+                valB = `${b.child.lastName} ${b.child.firstName}`;
+            } else if (sortConfig.key === 'category') {
+                valA = a.child.category || ''; valB = b.child.category || '';
+            } else if (sortConfig.key === 'regime') {
+                valA = a.child.regimeAlimentaire || ''; valB = b.child.regimeAlimentaire || '';
+            } else if (sortConfig.key === 'pai') {
+                valA = a.child.isPAIAlimentaire ? 'A' : 'B'; // Tri basique pour regrouper
+                valB = b.child.isPAIAlimentaire ? 'A' : 'B';
+            }
+
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [reportData, activeTab, categories, regimes, sortConfig]);
+
+    // --- EXPORT PDF ---
     const exportPDF = () => {
         const doc = new jsPDF();
         doc.setFontSize(18);
@@ -91,37 +119,37 @@ const Report = () => {
         const periodStr = startDate === endDate ? format(new Date(startDate), 'dd/MM/yyyy') : `${format(new Date(startDate), 'dd/MM/yyyy')} au ${format(new Date(endDate), 'dd/MM/yyyy')}`;
 
         if (activeTab === 'PERISCO') {
-            title = `Rapport Périscolaire - ${periodStr} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            title = `Rapport Périscolaire - ${periodStr}`;
             tableColumn = ["Date", "Nom", "Prénom", "Facture", "Matin", "Soir", "19h"];
             tableRows = displayData.map(row => [new Date(row.date).toLocaleDateString('fr-FR'), row.child.lastName, row.child.firstName, row.billTo || '-', row.matin ? 'OUI' : '-', (row.checkOut || row.soir) ? 'OUI' : '-', row.isLate ? 'OUI' : '-']);
             footData = [["TOTAL", "", "", "", displayData.filter(r=>r.matin).length.toString(), displayData.filter(r=>r.soir||r.checkOut).length.toString(), displayData.filter(r=>r.isLate).length.toString()]];
         } 
         else if (activeTab === 'CANTINE') {
-            title = `Rapport ABSENTS Cantine - ${periodStr} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            title = `Rapport ABSENTS Cantine - ${periodStr}`;
             tableColumn = ["Date", "Nom", "Prénom", "Catégorie", "Régime", "PAI"];
             tableRows = displayData.map(row => [new Date(row.date).toLocaleDateString('fr-FR'), row.child.lastName, row.child.firstName, row.child.category, row.child.regimeAlimentaire, row.child.isPAIAlimentaire ? 'OUI' : '-']);
             footData = [["TOTAL ABSENTS", displayData.length.toString(), "", "", "", ""]];
         }
         else if (activeTab === 'PAI') {
-            title = `Liste Globale des PAI ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            title = `Liste Globale des PAI`;
             tableColumn = ["Nom", "Prénom", "Catégorie", "Type PAI", "Détails"];
             tableRows = displayData.map(row => [row.child.lastName, row.child.firstName, row.child.category, row.child.isPAIAlimentaire ? 'Alimentaire' : 'Médical', row.child.paiDetails]);
             footData = [["TOTAL ENFANTS PAI", displayData.length.toString(), "", "", ""]];
         }
         else if (activeTab === 'REGIMES') {
-            title = `Régimes : ${regimeFilter !== 'Tous' ? regimeFilter : 'Tous'} ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            title = `Régimes Alimentaires Spéciaux`;
             tableColumn = ["Nom", "Prénom", "Catégorie", "Régime"];
             tableRows = displayData.map(row => [row.child.lastName, row.child.firstName, row.child.category, row.child.regimeAlimentaire]);
-            footData = [["TOTAL RÉGIMES", displayData.length.toString(), "", ""]];
+            footData = [["TOTAL RÉGIMES SÉLECTIONNÉS", displayData.length.toString(), "", ""]];
         }
         else if (activeTab === 'SORTIE_SEUL') {
-            title = `Enfants autorisés à partir seuls ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            title = `Enfants autorisés à partir seuls`;
             tableColumn = ["Nom", "Prénom", "Catégorie", "Statut"];
             tableRows = displayData.map(row => [row.child.lastName, row.child.firstName, row.child.category, 'Autorisé']);
             footData = [["TOTAL AUTORISÉS", displayData.length.toString(), "", ""]];
         }
         else if (activeTab === 'SANS_IMAGE') {
-            title = `Enfants SANS droit à l'image ${categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''}`;
+            title = `Enfants SANS droit à l'image`;
             tableColumn = ["Nom", "Prénom", "Catégorie", "Statut"];
             tableRows = displayData.map(row => [row.child.lastName, row.child.firstName, row.child.category, 'Refusé']);
             footData = [["TOTAL REFUSÉS", displayData.length.toString(), "", ""]];
@@ -140,6 +168,18 @@ const Report = () => {
         doc.save(`Rapport_${activeTab}_${startDate}.pdf`);
     };
 
+    // Composant En-tête de colonne cliquable
+    const SortHeader = ({ label, sortKey, className = "" }) => (
+        <th className={`p-5 border-b border-slate-100 cursor-pointer hover:bg-slate-200 transition-colors select-none ${className}`} onClick={() => handleSort(sortKey)}>
+            <div className={`flex items-center gap-2 ${className.includes('text-center') ? 'justify-center' : ''}`}>
+                {label}
+                {sortConfig.key === sortKey ? (
+                    sortConfig.direction === 'asc' ? <ChevronUp size={14}/> : <ChevronDown size={14}/>
+                ) : <ArrowUpDown size={14} className="text-slate-300 opacity-50"/>}
+            </div>
+        </th>
+    );
+
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative pb-24">
             <div className="max-w-6xl mx-auto">
@@ -150,9 +190,10 @@ const Report = () => {
                         <div className="bg-car-blue/10 p-4 rounded-2xl"><FileText className="text-car-blue w-8 h-8"/></div>
                         <h1 className="text-4xl font-black text-car-dark">Rapports & Listes</h1>
                     </div>
-                    <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20"><Download size={20}/> PDF</button>
+                    <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20"><Download size={20}/> TÉLÉCHARGER PDF</button>
                 </div>
 
+                {/* ONGLETS */}
                 <div className="flex flex-wrap gap-2 mb-6">
                     <button onClick={() => setActiveTab('PERISCO')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'PERISCO' ? 'bg-car-blue text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Périscolaire</button>
                     <button onClick={() => setActiveTab('CANTINE')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'CANTINE' ? 'bg-car-teal text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Absents Cantine</button>
@@ -162,47 +203,58 @@ const Report = () => {
                     <button onClick={() => setActiveTab('SANS_IMAGE')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'SANS_IMAGE' ? 'bg-slate-700 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Sans Image</button>
                 </div>
 
-                <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                {/* ZONE DE FILTRES CUMULATIFS */}
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 mb-6">
                     
-                    {/* Bloc Date (uniquement pour les présences/absences) */}
                     {(activeTab === 'PERISCO' || activeTab === 'CANTINE') && (
-                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 flex items-center justify-between col-span-1 md:col-span-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase ml-2">Du :</span>
-                            <input type="date" className="bg-transparent border-none outline-none font-bold text-car-dark text-sm w-32" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Au :</span>
-                            <input type="date" className="bg-transparent border-none outline-none font-bold text-car-dark text-sm w-32" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                        <div className="flex flex-col gap-2 border-r border-slate-100 pr-6">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Période :</span>
+                            <div className="flex items-center gap-2">
+                                <input type="date" className="bg-slate-50 border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-sm w-32" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Au</span>
+                                <input type="date" className="bg-slate-50 border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-sm w-32" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                            </div>
                         </div>
                     )}
                     
-                    <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} access={access} />
-
-                    <div className="relative">
-                        <select className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-slate-600 appearance-none" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-                            <option value="alpha">Tri : Alphabétique</option>
-                            <option value="category">Tri : Maternelle / Élém.</option>
-                            {activeTab === 'REGIMES' && <option value="regime">Tri : Type de Régime</option>}
-                        </select>
-                        <ArrowUpDown className="absolute right-4 top-4 text-slate-400 pointer-events-none" size={18}/>
+                    <div className={`flex flex-col gap-2 ${activeTab === 'REGIMES' ? 'border-r border-slate-100 pr-6' : ''}`}>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Catégories (Cumulables) :</span>
+                        <div className="flex gap-2">
+                            <label className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border select-none transition-colors ${categories.Maternelle ? 'bg-car-yellow/10 border-car-yellow/30 text-car-yellow' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                                <input type="checkbox" className="hidden" checked={categories.Maternelle} onChange={() => setCategories({...categories, Maternelle: !categories.Maternelle})} disabled={access === 'Élémentaire'} />
+                                <span className="font-bold text-sm">Maternelle</span>
+                            </label>
+                            <label className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border select-none transition-colors ${categories.Élémentaire ? 'bg-car-blue/10 border-car-blue/30 text-car-blue' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                                <input type="checkbox" className="hidden" checked={categories.Élémentaire} onChange={() => setCategories({...categories, Élémentaire: !categories.Élémentaire})} disabled={access === 'Maternelle'} />
+                                <span className="font-bold text-sm">Élémentaire</span>
+                            </label>
+                        </div>
                     </div>
 
                     {activeTab === 'REGIMES' && (
-                        <select className="bg-car-yellow/10 border-none p-4 rounded-xl outline-none font-bold text-car-yellow" value={regimeFilter} onChange={e => setRegimeFilter(e.target.value)}>
-                            <option value="Tous">Tous les régimes spéciaux</option>
-                            <option value="Sans-porc">Sans-porc uniquement</option>
-                            <option value="Végétarien">Végétarien uniquement</option>
-                            <option value="PAI">PAI Alimentaires uniquement</option>
-                        </select>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Types de Régimes (Cumulables) :</span>
+                            <div className="flex flex-wrap gap-2">
+                                {['Sans-porc', 'Végétarien', 'PAI'].map(reg => (
+                                    <label key={reg} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border select-none transition-colors ${regimes[reg] ? 'bg-car-dark text-white border-car-dark' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                                        <input type="checkbox" className="hidden" checked={regimes[reg]} onChange={() => setRegimes({...regimes, [reg]: !regimes[reg]})} />
+                                        <span className="font-bold text-sm">{reg === 'PAI' ? 'PAI Alimentaire' : reg}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
                     )}
                 </div>
 
+                {/* TABLEAU */}
                 <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-xs tracking-wider">
                                 {(activeTab === 'PERISCO' || activeTab === 'CANTINE') && (
-                                    <th className="p-5 border-b border-slate-100">Date</th>
+                                    <SortHeader label="Date" sortKey="date" />
                                 )}
-                                <th className="p-5 border-b border-slate-100">Enfant</th>
+                                <SortHeader label="Enfant (Nom Prénom)" sortKey="name" />
                                 
                                 {activeTab === 'PERISCO' && (
                                     <>
@@ -215,29 +267,29 @@ const Report = () => {
 
                                 {activeTab === 'CANTINE' && (
                                     <>
-                                        <th className="p-5 border-b border-slate-100 text-center">Catégorie</th>
-                                        <th className="p-5 border-b border-slate-100 text-center">Régime</th>
-                                        <th className="p-5 border-b border-slate-100 text-center">PAI Alim.</th>
+                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
+                                        <SortHeader label="Régime" sortKey="regime" className="text-center" />
+                                        <SortHeader label="PAI Alim." sortKey="pai" className="text-center" />
                                     </>
                                 )}
 
                                 {activeTab === 'PAI' && (
                                     <>
-                                        <th className="p-5 border-b border-slate-100 text-center">Catégorie</th>
+                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
                                         <th className="p-5 border-b border-slate-100">Détails du PAI</th>
-                                        <th className="p-5 border-b border-slate-100 text-center">Alimentaire</th>
+                                        <SortHeader label="Alimentaire" sortKey="pai" className="text-center" />
                                     </>
                                 )}
 
                                 {activeTab === 'REGIMES' && (
                                     <>
-                                        <th className="p-5 border-b border-slate-100 text-center">Catégorie</th>
-                                        <th className="p-5 border-b border-slate-100">Régime Strict</th>
+                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
+                                        <SortHeader label="Régime Strict" sortKey="regime" />
                                     </>
                                 )}
 
                                 {(activeTab === 'SORTIE_SEUL' || activeTab === 'SANS_IMAGE') && (
-                                    <th className="p-5 border-b border-slate-100 text-center">Catégorie</th>
+                                    <SortHeader label="Catégorie" sortKey="category" className="text-center" />
                                 )}
                             </tr>
                         </thead>
