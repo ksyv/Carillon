@@ -253,7 +253,8 @@ app.get('/api/planned-notes/child/:childId', auth(['admin']), async (req, res) =
 
 app.post('/api/planned-notes', auth(['admin']), async (req, res) => {
     try {
-        const plannedNote = new PlannedNote(req.body);
+        const { childId, note, dates } = req.body;
+        const plannedNote = new PlannedNote({ child: childId, note, dates });
         await plannedNote.save();
         res.json(plannedNote);
     } catch (e) { res.status(500).send("Erreur serveur création note."); }
@@ -271,7 +272,8 @@ app.get('/api/billing/child/:childId', auth(['admin']), async (req, res) => {
 
 app.post('/api/billing', auth(['admin']), async (req, res) => {
     try {
-        const rule = new Billing(req.body);
+        const { childId, billTo, dates } = req.body;
+        const rule = new Billing({ child: childId, billTo, dates });
         await rule.save();
         res.json(rule);
     } catch (e) { res.status(500).send("Erreur enregistrement règle."); }
