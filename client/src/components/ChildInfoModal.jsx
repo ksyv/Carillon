@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, X, FolderHeart, Utensils, AlertTriangle, Phone, Users, Info } from 'lucide-react';
+import { Download, X, FolderHeart, Utensils, AlertTriangle, Phone, Users, Info, Calendar } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -7,6 +7,11 @@ const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
 
     const responsables = child.family?.responsables?.length > 0 ? child.family.responsables : [];
+    
+    // Formatage de la date de naissance pour l'affichage
+    const formattedBirthDate = child.birthDate 
+        ? new Date(child.birthDate).toLocaleDateString('fr-FR') 
+        : 'Non renseignée';
 
     const appendDocumentToPDF = (doc, fileUrl, title) => {
         if (!fileUrl) return;
@@ -42,7 +47,7 @@ const ChildInfoModal = ({ child, onClose }) => {
         const mainInfo = [
             ['Code Portail Ecole', child.family?.portalCode || 'Non renseigné'],
             ['Catégorie', child.category || 'Maternelle'],
-            ['Date de naissance', child.birthDate ? new Date(child.birthDate).toLocaleDateString('fr-FR') : 'Non renseignée'],
+            ['Date de naissance', formattedBirthDate],
             ['Régime Alimentaire', child.regimeAlimentaire],
             ['Droit à l\'image', child.droitImage ? 'OUI' : 'NON'],
             ['Autorisé à sortir seul', child.autorisationSortieSeul ? 'OUI' : 'NON']
@@ -96,30 +101,45 @@ const ChildInfoModal = ({ child, onClose }) => {
                 
                 <div className="mb-6 pr-24">
                     <h2 className="text-3xl font-black text-car-dark leading-tight">{child.lastName} <span className="font-medium text-slate-500 capitalize">{child.firstName}</span></h2>
-                    <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-block ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
-                        {child.category || 'Maternelle'}
-                    </span>
-                    {child.active === false && <span className="ml-2 text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
-                    {child.family && (
-                        <span className="ml-2 text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-flex items-center gap-1 bg-car-purple/10 text-car-purple">
-                            <FolderHeart size={14}/> DOSSIER LIÉ
+                    
+                    {/* NOUVEAU: Date de naissance affichée en haut sous le nom */}
+                    <div className="flex items-center gap-2 mt-1 text-car-dark font-bold">
+                        <Calendar size={16} className="text-slate-400" />
+                        <span>Né(e) le : {formattedBirthDate}</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mt-3">
+                        <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
+                            {child.category || 'Maternelle'}
                         </span>
-                    )}
-                    {child.family?.portalCode && (
-                        <span className="ml-2 text-xs font-black px-4 py-1 rounded-lg tracking-widest mt-2 inline-flex items-center gap-2 bg-slate-800 text-white shadow-sm">
-                            🔑 CODE PORTAIL : <span className="text-car-yellow text-sm">{child.family.portalCode}</span>
-                        </span>
-                    )}
+                        {child.active === false && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
+                        {child.family && (
+                            <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest inline-flex items-center gap-1 bg-car-purple/10 text-car-purple">
+                                <FolderHeart size={14}/> DOSSIER LIÉ
+                            </span>
+                        )}
+                        {child.family?.portalCode && (
+                            <span className="text-xs font-black px-4 py-1 rounded-lg tracking-widest inline-flex items-center gap-2 bg-slate-800 text-white shadow-sm">
+                                🔑 CODE : <span className="text-car-yellow text-sm">{child.family.portalCode}</span>
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 <div className="space-y-6">
-                    {/* PROFIL & SANTÉ (Épuré pour le terrain) */}
+                    {/* PROFIL & SANTÉ */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-4 uppercase tracking-widest text-sm">
                             <Info size={18}/> Profil, Santé & Cantine
                         </div>
                         
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                            {/* NOUVEAU: Date de naissance aussi dans la grille technique */}
+                            <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col border-l-4 border-car-blue">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Date de Naissance</span>
+                                <span className="text-sm font-black text-car-dark">{formattedBirthDate}</span>
+                            </div>
+
                             <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col">
                                 <span className="text-[10px] font-bold text-slate-400 uppercase">Cantine</span>
                                 <span className={`text-sm font-black ${child.regimeAlimentaire !== 'Standard' ? 'text-car-yellow' : 'text-car-dark'}`}>{child.regimeAlimentaire || 'Standard'}</span>
@@ -131,9 +151,9 @@ const ChildInfoModal = ({ child, onClose }) => {
                             </div>
 
                             {child.category === 'Élémentaire' && (
-                                <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col sm:col-span-2">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Autorisation de sortie seul</span>
-                                    <span className={`text-sm font-black ${child.autorisationSortieSeul ? 'text-car-blue' : 'text-car-pink'}`}>{child.autorisationSortieSeul ? 'AUTORISÉ À PARTIR SEUL' : 'DOIT ÊTRE RÉCUPÉRÉ'}</span>
+                                <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Sortie seul</span>
+                                    <span className={`text-sm font-black ${child.autorisationSortieSeul ? 'text-car-blue' : 'text-car-pink'}`}>{child.autorisationSortieSeul ? 'OUI' : 'NON'}</span>
                                 </div>
                             )}
                         </div>
@@ -172,7 +192,6 @@ const ChildInfoModal = ({ child, onClose }) => {
                                             <span className="text-xs font-bold text-slate-400 uppercase">{c.qualite || 'Resp. '+ (i+1)}</span>
                                         </div>
                                         <div className="flex justify-between items-center mt-2">
-                                            {/* NOUVEAU: Lien cliquable pour appeler */}
                                             {c.phoneMobile || c.phoneFixe ? (
                                                 <a href={`tel:${c.phoneMobile || c.phoneFixe}`} className="font-bold text-car-teal bg-car-teal/10 hover:bg-car-teal hover:text-white transition-colors px-3 py-1 rounded-lg text-sm flex items-center gap-2">
                                                     <Phone size={14} /> {c.phoneMobile || c.phoneFixe}
@@ -199,7 +218,6 @@ const ChildInfoModal = ({ child, onClose }) => {
                                             <span className="font-bold text-car-dark">{c.lastName?.toUpperCase()} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
                                             {c.isEmergency && <span className="text-[10px] font-black text-car-pink uppercase tracking-widest">En cas d'urgence</span>}
                                         </div>
-                                        {/* NOUVEAU: Lien cliquable pour appeler */}
                                         {c.phone ? (
                                             <a href={`tel:${c.phone}`} className="font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors px-3 py-1 rounded-lg text-sm flex items-center gap-2">
                                                 <Phone size={14} /> {c.phone}
