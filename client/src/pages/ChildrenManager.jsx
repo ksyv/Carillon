@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Search, X, Info, AlertTriangle, Pencil, Trash2, Check, Utensils, Phone, Copy } from 'lucide-react';
+import { Users, Plus, Search, X, Info, AlertTriangle, Pencil, Trash2, Check, Copy } from 'lucide-react';
 import ChildInfoModal from '../components/ChildInfoModal';
-
 
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
@@ -24,6 +23,11 @@ const ChildrenManager = () => {
 
     useEffect(() => { loadChildren(); }, []);
     const loadChildren = () => api.get(`/children`).then(res => setChildren(res.data));
+
+    // --- CALCUL DU TOTAL DES ENFANTS ACTIFS ---
+    const activeChildrenCount = useMemo(() => {
+        return children.filter(c => c.active !== false && (access === 'Tous' || c.category === access)).length;
+    }, [children, access]);
 
     const filteredChildren = useMemo(() => {
         let result = children;
@@ -167,7 +171,13 @@ const ChildrenManager = () => {
                     <div className="flex items-center gap-4">
                         <div className="bg-car-green/10 p-4 rounded-2xl"><Users className="text-car-green w-8 h-8"/></div>
                         <div>
-                            <h1 className="text-4xl font-black text-car-dark">Base Enfants</h1>
+                            {/* AJOUT DU COMPTEUR ICI */}
+                            <div className="flex items-center gap-4 mb-1">
+                                <h1 className="text-4xl font-black text-car-dark">Base Enfants</h1>
+                                <span className="bg-car-green text-white text-sm font-black px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2">
+                                    {activeChildrenCount} <span className="font-bold opacity-80 uppercase text-[10px] tracking-wider">actifs</span>
+                                </span>
+                            </div>
                             {isReadOnly && <p className="text-car-pink font-bold text-sm mt-1">Mode Lecture Seule</p>}
                         </div>
                     </div>
