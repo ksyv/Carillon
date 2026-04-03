@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Check } from 'lucide-react';
+import { AlertTriangle, Check, Search, X, Users } from 'lucide-react';
 
 const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access }) => {
     const isMidi = sessionType === 'MIDI';
     
     const [categoryFilter, setCategoryFilter] = useState(access === 'Tous' ? 'Tous' : access);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showOnlyMissing, setShowOnlyMissing] = useState(false);
+    const [safeChildren, setSafeChildren] = useState(new Set());
 
     let presentRecords = [];
     
@@ -17,60 +20,114 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
         presentRecords = attendance.filter(a => !a.checkOut);
     }
 
-    const filteredRecords = presentRecords.filter(record => 
-        categoryFilter === 'Tous' || record.child.category === categoryFilter
-    );
+    // Filtrage global (Catégorie + Recherche + Manquants)
+    const filteredRecords = presentRecords.filter(record => {
+        const matchCategory = categoryFilter === 'Tous' || record.child.category === categoryFilter;
+        const matchMissing = showOnlyMissing ? !safeChildren.has(record._id) : true;
+        const searchLower = searchTerm.toLowerCase();
+        const matchSearch = searchTerm === '' || 
+                            record.child.lastName.toLowerCase().includes(searchLower) || 
+                            record.child.firstName.toLowerCase().includes(searchLower);
+        
+        return matchCategory && matchMissing && matchSearch;
+    });
 
     const displayChildren = filteredRecords.sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
-    const [safeChildren, setSafeChildren] = useState(new Set());
 
     const toggleSafe = (id) => {
         const newSafe = new Set(safeChildren);
-        if (newSafe.has(id)) newSafe.delete(id);
-        else newSafe.add(id);
+        const isNowSafe = !newSafe.has(id);
+        
+        if (isNowSafe) {
+            newSafe.add(id);
+            // AUTO-NETTOYAGE : On vide la recherche pour enchaîner très vite
+            setSearchTerm('');
+        } else {
+            newSafe.delete(id);
+        }
         setSafeChildren(newSafe);
+        
+        // TODO: C'est ici qu'on appellera l'API pour synchroniser avec les autres téléphones
     };
 
-    const currentSafeCount = displayChildren.filter(r => safeChildren.has(r._id)).length;
-    const currentTotalCount = displayChildren.length;
+    // Les compteurs se basent TOUJOURS sur le total de la catégorie choisie, 
+    // indépendamment de la barre de recherche pour ne pas fausser l'affichage global
+    const totalInCategory = presentRecords.filter(r => categoryFilter === 'Tous' || r.child.category === categoryFilter);
+    const currentSafeCount = totalInCategory.filter(r => safeChildren.has(r._id)).length;
+    const currentTotalCount = totalInCategory.length;
 
     return (
         <div className="fixed inset-0 bg-car-pink/95 backdrop-blur-md z-[100] flex flex-col">
-            <div className="bg-white p-4 sm:p-6 shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center sticky top-0 z-10 gap-4">
-                <div>
-                    <h2 className="text-3xl font-black text-car-pink flex items-center gap-3">
-                        <AlertTriangle size={32} /> ÉVACUATION
-                    </h2>
-                    <p className="text-slate-500 font-bold mt-1 text-sm sm:text-base">
-                        {isMidi ? "Midi : Affiche tous les enfants sauf ceux marqués absents." : "Cochez les enfants en sécurité."}
-                    </p>
+            <div className="bg-white shadow-md flex flex-col sticky top-0 z-10">
+                {/* EN-TÊTE */}
+                <div className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 className="text-3xl font-black text-car-pink flex items-center gap-3">
+                            <AlertTriangle size={32} /> ÉVACUATION
+                        </h2>
+                        <p className="text-slate-500 font-bold mt-1 text-sm sm:text-base">
+                            {isMidi ? "Midi : Affiche tous les enfants sauf les absents." : "Cochez les enfants mis en sécurité."}
+                        </p>
+                    </div>
+
+                    {access === 'Tous' && (
+                        <div className="flex bg-slate-100 rounded-xl p-1 items-center w-full sm:w-auto justify-center flex-shrink-0">
+                            <button onClick={() => setCategoryFilter('Tous')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Tous' ? 'bg-white text-car-dark shadow-sm' : 'text-slate-500 hover:text-car-dark'}`}>Tous</button>
+                            <button onClick={() => setCategoryFilter('Maternelle')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Maternelle' ? 'bg-car-yellow text-white shadow-sm' : 'text-slate-500 hover:text-car-yellow'}`}>Mat.</button>
+                            <button onClick={() => setCategoryFilter('Élémentaire')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Élémentaire' ? 'bg-car-blue text-white shadow-sm' : 'text-slate-500 hover:text-car-blue'}`}>Élém.</button>
+                        </div>
+                    )}
+
+                    <button onClick={onClose} className="w-full sm:w-auto bg-slate-100 text-slate-500 hover:bg-slate-200 p-3 sm:p-4 rounded-2xl font-black transition-colors">
+                        FERMER
+                    </button>
                 </div>
 
-                {access === 'Tous' && (
-                    <div className="flex bg-slate-100 rounded-xl p-1 items-center w-full sm:w-auto justify-center flex-shrink-0">
-                        <button onClick={() => setCategoryFilter('Tous')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Tous' ? 'bg-white text-car-dark shadow-sm' : 'text-slate-500 hover:text-car-dark'}`}>Tous</button>
-                        <button onClick={() => setCategoryFilter('Maternelle')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Maternelle' ? 'bg-car-yellow text-white shadow-sm' : 'text-slate-500 hover:text-car-yellow'}`}>Mat.</button>
-                        <button onClick={() => setCategoryFilter('Élémentaire')} className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${categoryFilter === 'Élémentaire' ? 'bg-car-blue text-white shadow-sm' : 'text-slate-500 hover:text-car-blue'}`}>Élém.</button>
+                {/* BARRE DE RECHERCHE D'URGENCE */}
+                <div className="px-4 pb-4 sm:px-6">
+                    <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-car-pink" size={24}/>
+                        <input 
+                            type="text" 
+                            className="w-full pl-12 pr-12 p-4 bg-car-pink/10 border-2 border-car-pink/30 rounded-2xl outline-none font-black text-car-dark placeholder:text-car-pink/50 focus:border-car-pink focus:bg-white transition-all text-lg uppercase"
+                            placeholder="TAPER LE NOM OU PRÉNOM..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        {searchTerm && (
+                            <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white p-1 rounded-full text-car-pink hover:bg-car-pink hover:text-white transition-colors">
+                                <X size={20}/>
+                            </button>
+                        )}
                     </div>
-                )}
-
-                <button onClick={onClose} className="w-full sm:w-auto bg-slate-100 text-slate-500 hover:bg-slate-200 p-3 sm:p-4 rounded-2xl font-black transition-colors">
-                    FERMER
-                </button>
+                </div>
             </div>
             
             <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
                 <div className="max-w-4xl mx-auto">
-                    <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-xl mb-6 flex justify-between items-center">
-                        <span className="text-lg sm:text-xl font-black text-car-dark">
-                            En sécurité {categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''} :
-                        </span>
-                        <span className={`text-2xl sm:text-3xl font-black px-4 sm:px-6 py-2 rounded-2xl ${currentSafeCount === currentTotalCount && currentTotalCount > 0 ? 'bg-car-green text-white animate-pulse' : 'bg-car-pink/20 text-car-pink'}`}>
-                            {currentSafeCount} / {currentTotalCount}
-                        </span>
+                    
+                    {/* PANNEAU DES COMPTEURS */}
+                    <div className="bg-white rounded-3xl p-4 sm:p-6 shadow-xl mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                            <span className="text-lg sm:text-xl font-black text-car-dark text-center sm:text-left">
+                                En sécurité {categoryFilter !== 'Tous' ? `(${categoryFilter})` : ''} :
+                            </span>
+                            <span className={`text-2xl sm:text-3xl font-black px-6 py-2 rounded-2xl ${currentSafeCount === currentTotalCount && currentTotalCount > 0 ? 'bg-car-green text-white animate-pulse' : 'bg-car-pink/20 text-car-pink'}`}>
+                                {currentSafeCount} / {currentTotalCount}
+                            </span>
+                        </div>
+                        
+                        <button 
+                            onClick={() => setShowOnlyMissing(!showOnlyMissing)}
+                            className={`w-full sm:w-auto px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${showOnlyMissing ? 'bg-car-dark text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                        >
+                            <Users size={18} />
+                            {showOnlyMissing ? "Afficher tous les enfants" : "Voir uniquement les manquants"}
+                        </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    {/* LISTE DES ENFANTS */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pb-20">
                         {displayChildren.map(record => {
                             const isSafe = safeChildren.has(record._id);
                             return (
@@ -88,8 +145,8 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
                         })}
 
                         {displayChildren.length === 0 && (
-                            <div className="col-span-1 sm:col-span-2 text-center text-slate-400 font-bold p-8 bg-white/50 rounded-3xl">
-                                Aucun enfant dans cette catégorie actuellement.
+                            <div className="col-span-1 sm:col-span-2 text-center text-slate-600 font-bold p-8 bg-white/80 rounded-3xl backdrop-blur-sm">
+                                {searchTerm ? "Aucun enfant ne correspond à cette recherche." : "Aucun enfant à afficher."}
                             </div>
                         )}
                     </div>
