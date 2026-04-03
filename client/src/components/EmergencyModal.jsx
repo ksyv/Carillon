@@ -1,16 +1,74 @@
-import React, { useState } from 'react';
-import { AlertTriangle, Check, Search, X, Users } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { AlertTriangle, Check, Search, X, Users, RefreshCw } from 'lucide-react';
+import api from '../api';
 
 const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access }) => {
     const isMidi = sessionType === 'MIDI';
+    // L'évacuation concerne toujours la date du jour
+    const today = new Date().toISOString().split('T')[0]; 
     
     const [categoryFilter, setCategoryFilter] = useState(access === 'Tous' ? 'Tous' : access);
     const [searchTerm, setSearchTerm] = useState('');
     const [showOnlyMissing, setShowOnlyMissing] = useState(false);
     const [safeChildren, setSafeChildren] = useState(new Set());
+    const [isSyncing, setIsSyncing] = useState(false);
 
+    // --- SYNCHRONISATION TEMPS RÉEL (POLLING) ---
+    useEffect(() => {
+        const fetchEvacuationState = async () => {
+            try {
+                const { data } = await api.get(`/evacuation?date=${today}&sessionType=${sessionType}`);
+                if (data && data.safeChildren) {
+                    setSafeChildren(new Set(data.safeChildren));
+                }
+            } catch (error) {
+                console.error("Erreur de synchronisation", error);
+            }
+        };
+
+        // On charge tout de suite à l'ouverture
+        fetchEvacuationState();
+
+        // Puis on rafraîchit en silence toutes les 2 secondes
+        const interval = setInterval(fetchEvacuationState, 2000);
+        
+        // On coupe le chrono quand on ferme la fenêtre
+        return () => clearInterval(interval);
+    }, [today, sessionType]);
+
+    // --- GESTION DES CLICS ---
+    const toggleSafe = async (id) => {
+        setIsSyncing(true);
+        const newSafe = new Set(safeChildren);
+        const isNowSafe = !newSafe.has(id);
+        
+        // 1. Mise à jour "Optimiste" immédiate sur l'écran pour la fluidité
+        if (isNowSafe) {
+            newSafe.add(id);
+            setSearchTerm(''); // Auto-nettoyage de la recherche
+        } else {
+            newSafe.delete(id);
+        }
+        setSafeChildren(newSafe);
+        
+        // 2. Envoi silencieux au serveur
+        try {
+            await api.post('/evacuation/toggle', { date: today, sessionType, childId: id });
+        } catch (error) {
+            console.error("Erreur d'enregistrement", error);
+        }
+        setIsSyncing(false);
+    };
+
+    const handleReset = async () => {
+        if(window.confirm("Voulez-vous clôturer cette alerte et remettre tous les compteurs à zéro ?")) {
+            await api.post('/evacuation/clear', { date: today, sessionType });
+            setSafeChildren(new Set());
+        }
+    };
+
+    // --- FILTRAGES ---
     let presentRecords = [];
-    
     if (isMidi) {
         const absentIds = attendance.map(a => a.child._id);
         presentRecords = allChildren
@@ -20,7 +78,6 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
         presentRecords = attendance.filter(a => !a.checkOut);
     }
 
-    // Filtrage global (Catégorie + Recherche + Manquants)
     const filteredRecords = presentRecords.filter(record => {
         const matchCategory = categoryFilter === 'Tous' || record.child.category === categoryFilter;
         const matchMissing = showOnlyMissing ? !safeChildren.has(record._id) : true;
@@ -34,24 +91,6 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
 
     const displayChildren = filteredRecords.sort((a, b) => a.child.lastName.localeCompare(b.child.lastName));
 
-    const toggleSafe = (id) => {
-        const newSafe = new Set(safeChildren);
-        const isNowSafe = !newSafe.has(id);
-        
-        if (isNowSafe) {
-            newSafe.add(id);
-            // AUTO-NETTOYAGE : On vide la recherche pour enchaîner très vite
-            setSearchTerm('');
-        } else {
-            newSafe.delete(id);
-        }
-        setSafeChildren(newSafe);
-        
-        // TODO: C'est ici qu'on appellera l'API pour synchroniser avec les autres téléphones
-    };
-
-    // Les compteurs se basent TOUJOURS sur le total de la catégorie choisie, 
-    // indépendamment de la barre de recherche pour ne pas fausser l'affichage global
     const totalInCategory = presentRecords.filter(r => categoryFilter === 'Tous' || r.child.category === categoryFilter);
     const currentSafeCount = totalInCategory.filter(r => safeChildren.has(r._id)).length;
     const currentTotalCount = totalInCategory.length;
@@ -64,9 +103,10 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
                     <div>
                         <h2 className="text-3xl font-black text-car-pink flex items-center gap-3">
                             <AlertTriangle size={32} /> ÉVACUATION
+                            {isSyncing && <RefreshCw size={16} className="text-slate-300 animate-spin" />}
                         </h2>
                         <p className="text-slate-500 font-bold mt-1 text-sm sm:text-base">
-                            {isMidi ? "Midi : Affiche tous les enfants sauf les absents." : "Cochez les enfants mis en sécurité."}
+                            {isMidi ? "Midi : Cochez les enfants mis en sécurité." : "Cochez les enfants mis en sécurité."}
                         </p>
                     </div>
 
@@ -78,9 +118,16 @@ const EmergencyModal = ({ attendance, allChildren, sessionType, onClose, access 
                         </div>
                     )}
 
-                    <button onClick={onClose} className="w-full sm:w-auto bg-slate-100 text-slate-500 hover:bg-slate-200 p-3 sm:p-4 rounded-2xl font-black transition-colors">
-                        FERMER
-                    </button>
+                    <div className="flex w-full sm:w-auto gap-2">
+                        {['admin', 'responsable'].includes(localStorage.getItem('role')) && (
+                            <button onClick={handleReset} className="flex-1 sm:flex-none bg-slate-100 text-car-pink hover:bg-car-pink hover:text-white p-3 sm:p-4 rounded-2xl font-black transition-colors">
+                                FIN D'ALERTE
+                            </button>
+                        )}
+                        <button onClick={onClose} className="flex-1 sm:flex-none bg-slate-100 text-slate-500 hover:bg-slate-200 p-3 sm:p-4 rounded-2xl font-black transition-colors">
+                            FERMER
+                        </button>
+                    </div>
                 </div>
 
                 {/* BARRE DE RECHERCHE D'URGENCE */}

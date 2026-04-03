@@ -19,6 +19,14 @@ const nodemailer = require('nodemailer');
 const SettingsSchema = new mongoose.Schema({ key: String, value: String });
 const Settings = mongoose.model('Settings', SettingsSchema);
 
+// --- MODÈLE ÉVACUATION ---
+const EvacuationSchema = new mongoose.Schema({
+    date: String,
+    sessionType: String,
+    safeChildren: [{ type: String }] // IDs des enfants mis en sécurité
+});
+const Evacuation = mongoose.model('Evacuation', EvacuationSchema);
+
 const app = express();
 
 app.set('trust proxy', 1);
@@ -287,7 +295,6 @@ app.delete('/api/billing/:id', auth(['admin']), async (req, res) => {
 app.get('/api/report', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
     
-    // Rétrocompatibilité si seule 'date' est fournie
     const start = startDate || req.query.date;
     const end = endDate || req.query.date;
 
@@ -297,7 +304,6 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
 
     const attendanceMap = {};
     
-    // On groupe les présences par Date ET par Enfant
     atts.forEach(a => {
         const childObj = children.find(c => c._id.toString() === a.child.toString());
         if (!childObj) return; 
@@ -317,7 +323,6 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
         }
     });
 
-    // Ajout de la facturation alternée
     billings.forEach(b => {
         b.dates.forEach(d => {
             if (d >= start && d <= end) {
@@ -328,12 +333,11 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
     });
 
     res.json({
-        children: children.map(c => ({ child: c })), // Liste statique pour les onglets PAI, Régimes, etc.
-        attendances: Object.values(attendanceMap)    // Liste journalière pour Périsco et Cantine
+        children: children.map(c => ({ child: c })), 
+        attendances: Object.values(attendanceMap)    
     });
 });
 
-// --- NOUVEL ALGORITHME STATS CAF (AVEC ENFANTS UNIQUES ET DÉCOUPAGE SUPPLÉMENT) ---
 app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
     try {
@@ -347,7 +351,6 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
         };
         let dailyStats = {};
 
-        // NOUVEAU : Sets pour compter les enfants uniques AVEC tranches d'âge
         const uniqueTotal = { all: new Set(), under6: new Set(), over6: new Set() };
         const uniqueMatin = { all: new Set(), under6: new Set(), over6: new Set() };
         const uniqueSoir = { all: new Set(), under6: new Set(), over6: new Set() };
@@ -399,7 +402,6 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
             }
         });
 
-        // Conversion des Sets en simples nombres pour l'envoi au front
         globalStats.uniqueChildren = {
             total: { all: uniqueTotal.all.size, under6: uniqueTotal.under6.size, over6: uniqueTotal.over6.size },
             matin: { all: uniqueMatin.all.size, under6: uniqueMatin.under6.size, over6: uniqueMatin.over6.size },
@@ -410,6 +412,39 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
         res.json({ global: globalStats, daily: Object.values(dailyStats).sort((a, b) => a.date.localeCompare(b.date)) });
     } catch (e) { res.status(500).send('Erreur Stats CAF'); }
 });
+
+// --- ROUTES ÉVACUATION (SYNCHRO TEMPS RÉEL) ---
+
+app.get('/api/evacuation', auth(), async (req, res) => {
+    const { date, sessionType } = req.query;
+    let evac = await Evacuation.findOne({ date, sessionType });
+    if (!evac) {
+        evac = new Evacuation({ date, sessionType, safeChildren: [] });
+        await evac.save();
+    }
+    res.json(evac);
+});
+
+app.post('/api/evacuation/toggle', auth(), async (req, res) => {
+    const { date, sessionType, childId } = req.body;
+    let evac = await Evacuation.findOne({ date, sessionType });
+    if (!evac) evac = new Evacuation({ date, sessionType, safeChildren: [] });
+    
+    const index = evac.safeChildren.indexOf(childId);
+    if (index > -1) evac.safeChildren.splice(index, 1);
+    else evac.safeChildren.push(childId);
+    
+    await evac.save();
+    res.json(evac);
+});
+
+app.post('/api/evacuation/clear', auth(['admin', 'responsable']), async (req, res) => {
+    const { date, sessionType } = req.body;
+    await Evacuation.findOneAndDelete({ date, sessionType });
+    res.json({ success: true });
+});
+
+// --- FIN DES ROUTES ÉVACUATION ---
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
