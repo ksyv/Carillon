@@ -244,6 +244,7 @@ const FamilyManager = () => {
         yPos += 12;
 
         const facturationData = [
+            ['Code Portail', editFamily.portalCode || 'Non renseigné'],
             ['Payeur par défaut', editFamily.payeur || '-'],
             ['Revenu de Référence', editFamily.revenuReference ? `${editFamily.revenuReference} €` : '-'],
             ['Nombre de parts', editFamily.nombreParts || '-'],
@@ -381,6 +382,19 @@ const FamilyManager = () => {
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 border-b border-slate-100 pb-6">
                                     <div>
                                         <h2 className="text-3xl font-black text-car-dark uppercase">Famille <span className="text-car-yellow">{selectedFamily.name}</span></h2>
+                                        <div className="mt-3 flex items-center gap-3">
+                                            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">🔑 Code Portail :</span>
+                                                <input 
+                                                    type="text" 
+                                                    className="bg-transparent border-none outline-none font-black text-car-dark text-sm w-24 uppercase placeholder:text-slate-300" 
+                                                    value={editFamily.portalCode || ''} 
+                                                    onChange={e => setEditFamily({...editFamily, portalCode: e.target.value.toUpperCase()})} 
+                                                    placeholder="EX: 1234A" 
+                                                    title="Code d'accès à donner aux parents"
+                                                />
+                                            </div>
+                                        </div>
                                         <label className="flex items-center gap-2 mt-3 cursor-pointer group w-fit">
                                             <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editFamily.dossierComplet} onChange={e => setEditFamily({...editFamily, dossierComplet: e.target.checked})} />
                                             <span className={`font-bold text-sm ${editFamily.dossierComplet ? 'text-car-green' : 'text-car-pink group-hover:text-car-dark transition-colors'}`}>

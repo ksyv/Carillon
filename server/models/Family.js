@@ -61,7 +61,10 @@ const FamilySchema = new mongoose.Schema({
   },
 
   // Statut global pour filtrer facilement les dossiers "en rouge"
-  dossierComplet: { type: Boolean, default: false }
+  dossierComplet: { type: Boolean, default: false },
+
+  // NOUVEAU : Code d'accès au portail de l'école
+  portalCode: { type: String, default: '' }
 });
 
 module.exports = mongoose.model('Family', FamilySchema);

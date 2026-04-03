@@ -40,6 +40,7 @@ const ChildInfoModal = ({ child, onClose }) => {
         yPos += 10;
 
         const mainInfo = [
+            ['Code Portail Ecole', child.family?.portalCode || 'Non renseigné'],
             ['Catégorie', child.category || 'Maternelle'],
             ['Date de naissance', child.birthDate ? new Date(child.birthDate).toLocaleDateString('fr-FR') : 'Non renseignée'],
             ['Régime Alimentaire', child.regimeAlimentaire],
@@ -102,6 +103,11 @@ const ChildInfoModal = ({ child, onClose }) => {
                     {child.family && (
                         <span className="ml-2 text-xs font-black px-3 py-1 rounded-lg tracking-widest mt-2 inline-flex items-center gap-1 bg-car-purple/10 text-car-purple">
                             <FolderHeart size={14}/> DOSSIER LIÉ
+                        </span>
+                    )}
+                    {child.family?.portalCode && (
+                        <span className="ml-2 text-xs font-black px-4 py-1 rounded-lg tracking-widest mt-2 inline-flex items-center gap-2 bg-slate-800 text-white shadow-sm">
+                            🔑 CODE PORTAIL : <span className="text-car-yellow text-sm">{child.family.portalCode}</span>
                         </span>
                     )}
                 </div>
