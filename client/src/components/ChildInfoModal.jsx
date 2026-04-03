@@ -101,12 +101,6 @@ const ChildInfoModal = ({ child, onClose }) => {
                 
                 <div className="mb-6 pr-24">
                     <h2 className="text-3xl font-black text-car-dark leading-tight">{child.lastName} <span className="font-medium text-slate-500 capitalize">{child.firstName}</span></h2>
-                    
-                    {/* NOUVEAU: Date de naissance affichée en haut sous le nom */}
-                    <div className="flex items-center gap-2 mt-1 text-car-dark font-bold">
-                        <Calendar size={16} className="text-slate-400" />
-                        <span>Né(e) le : {formattedBirthDate}</span>
-                    </div>
 
                     <div className="flex flex-wrap gap-2 mt-3">
                         <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
