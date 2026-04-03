@@ -172,7 +172,14 @@ const ChildInfoModal = ({ child, onClose }) => {
                                             <span className="text-xs font-bold text-slate-400 uppercase">{c.qualite || 'Resp. '+ (i+1)}</span>
                                         </div>
                                         <div className="flex justify-between items-center mt-2">
-                                            <span className="font-bold text-car-teal bg-car-teal/10 px-3 py-1 rounded-lg text-sm">{c.phoneMobile || c.phoneFixe || 'Pas de numéro'}</span>
+                                            {/* NOUVEAU: Lien cliquable pour appeler */}
+                                            {c.phoneMobile || c.phoneFixe ? (
+                                                <a href={`tel:${c.phoneMobile || c.phoneFixe}`} className="font-bold text-car-teal bg-car-teal/10 hover:bg-car-teal hover:text-white transition-colors px-3 py-1 rounded-lg text-sm flex items-center gap-2">
+                                                    <Phone size={14} /> {c.phoneMobile || c.phoneFixe}
+                                                </a>
+                                            ) : (
+                                                <span className="font-bold text-car-teal bg-car-teal/10 px-3 py-1 rounded-lg text-sm">Pas de numéro</span>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -192,7 +199,14 @@ const ChildInfoModal = ({ child, onClose }) => {
                                             <span className="font-bold text-car-dark">{c.lastName?.toUpperCase()} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
                                             {c.isEmergency && <span className="text-[10px] font-black text-car-pink uppercase tracking-widest">En cas d'urgence</span>}
                                         </div>
-                                        <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg text-sm">{c.phone || 'Pas de numéro'}</span>
+                                        {/* NOUVEAU: Lien cliquable pour appeler */}
+                                        {c.phone ? (
+                                            <a href={`tel:${c.phone}`} className="font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors px-3 py-1 rounded-lg text-sm flex items-center gap-2">
+                                                <Phone size={14} /> {c.phone}
+                                            </a>
+                                        ) : (
+                                            <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg text-sm">Pas de numéro</span>
+                                        )}
                                     </div>
                                 ))}
                             </div>
