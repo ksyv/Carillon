@@ -6,9 +6,17 @@ const QFBracketSchema = new mongoose.Schema({
     price: { type: Number, required: true }
 }, { _id: false });
 
+// NOUVEAU : Sous-schéma pour la dégressivité familiale (1 enfant, 2 enfants...)
+const EffortRateSchema = new mongoose.Schema({
+    childrenCount: { type: Number, required: true }, // ex: 1, 2, 3...
+    rate: { type: Number, required: true }, // ex: 0.000827
+    min: { type: Number, required: true },
+    max: { type: Number, required: true }
+}, { _id: false });
+
 const TariffSchema = new mongoose.Schema({
-    activityCode: { type: String, required: true, unique: true }, // ex: 'CA1'
-    name: { type: String, required: true }, // ex: 'Restauration Scolaire'
+    activityCode: { type: String, required: true, unique: true }, 
+    name: { type: String, required: true }, 
     
     pricingMode: { 
         type: String, 
@@ -16,15 +24,13 @@ const TariffSchema = new mongoose.Schema({
         default: 'FIXED' 
     },
     
-    // Taux d'effort (ex: APS)
-    tauxEffort: { type: Number, default: null },
-    minPrice: { type: Number, default: null },
-    maxPrice: { type: Number, default: null },
+    // NOUVEAU : Tableau des taux d'effort par fratrie
+    effortRates: [EffortRateSchema],
 
     // Tranches (ex: Cantine)
     qfBrackets: [QFBracketSchema],
 
-    // Fixe (ex: PAI ou Retard)
+    // Fixe (ex: PAI)
     fixedPrice: { type: Number, default: null }
 });
 
