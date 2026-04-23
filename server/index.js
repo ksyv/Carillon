@@ -14,6 +14,8 @@ const PlannedNote = require('./models/PlannedNote');
 const Billing = require('./models/Billing');
 const Family = require('./models/Family');
 const EmailTemplate = require('./models/EmailTemplate');
+// NOUVEAU : Import du modèle Tariff
+const Tariff = require('./models/Tariff');
 const nodemailer = require('nodemailer');
 
 const SettingsSchema = new mongoose.Schema({ key: String, value: String });
@@ -445,6 +447,42 @@ app.post('/api/evacuation/clear', auth(['admin', 'responsable']), async (req, re
 });
 
 // --- FIN DES ROUTES ÉVACUATION ---
+
+// --- NOUVELLES ROUTES TARIFAIRES ---
+
+app.get('/api/tariffs', auth(['admin']), async (req, res) => {
+    try {
+        const tariffs = await Tariff.find();
+        res.json(tariffs);
+    } catch (err) {
+        res.status(500).json({ message: "Erreur serveur", error: err });
+    }
+});
+
+app.post('/api/tariffs', auth(['admin']), async (req, res) => {
+    try {
+        const newTariff = new Tariff(req.body);
+        const savedTariff = await newTariff.save();
+        res.status(201).json(savedTariff);
+    } catch (err) {
+        res.status(400).json({ message: "Erreur de création", error: err });
+    }
+});
+
+app.put('/api/tariffs/:id', auth(['admin']), async (req, res) => {
+    try {
+        const updatedTariff = await Tariff.findByIdAndUpdate(
+            req.params.id, 
+            req.body, 
+            { new: true, runValidators: true }
+        );
+        res.json(updatedTariff);
+    } catch (err) {
+        res.status(400).json({ message: "Erreur de mise à jour", error: err });
+    }
+});
+
+// --- FIN DES ROUTES TARIFAIRES ---
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
