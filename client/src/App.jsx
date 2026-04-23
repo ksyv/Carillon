@@ -33,8 +33,9 @@ export default function App() {
         <Route path="/admin/families" element={<FamilyManager />} />
         <Route path="/admin/caf" element={<CafStats />} />
         <Route path="/admin/mailing" element={<Mailing />} />
-        <Route path="*" element={<Navigate to="/" />} />
         <Route path="/admin/tariffs" element={<AdminTariffs />} />
+        <Route path="*" element={<Navigate to="/" />} />
+        
       </Routes>
     </BrowserRouter>
   );
