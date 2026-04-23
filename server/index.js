@@ -452,7 +452,7 @@ app.post('/api/evacuation/clear', auth(['admin', 'responsable']), async (req, re
 
 app.get('/api/tariffs', auth(['admin']), async (req, res) => {
     try {
-        const tariffs = await Tariff.find();
+        const tariffs = await Tariff.find().sort({ displayOrder: 1 });
         res.json(tariffs);
     } catch (err) {
         res.status(500).json({ message: "Erreur serveur", error: err });
@@ -469,6 +469,19 @@ app.post('/api/tariffs', auth(['admin']), async (req, res) => {
     }
 });
 
+app.post('/api/tariffs/reorder', auth(['admin']), async (req, res) => {
+    try {
+        const { orderedIds } = req.body;
+        // On boucle sur la nouvelle liste et on met à jour la position de chacun
+        for (let i = 0; i < orderedIds.length; i++) {
+            await Tariff.findByIdAndUpdate(orderedIds[i], { displayOrder: i });
+        }
+        res.json({ success: true });
+    } catch (e) { 
+        res.status(500).send("Erreur lors de la réorganisation"); 
+    }
+});
+
 app.put('/api/tariffs/:id', auth(['admin']), async (req, res) => {
     try {
         const updatedTariff = await Tariff.findByIdAndUpdate(
@@ -479,6 +492,15 @@ app.put('/api/tariffs/:id', auth(['admin']), async (req, res) => {
         res.json(updatedTariff);
     } catch (err) {
         res.status(400).json({ message: "Erreur de mise à jour", error: err });
+    }
+});
+
+app.delete('/api/tariffs/:id', auth(['admin']), async (req, res) => {
+    try {
+        await Tariff.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: "Erreur suppression" });
     }
 });
 

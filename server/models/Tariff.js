@@ -31,7 +31,9 @@ const TariffSchema = new mongoose.Schema({
     qfBrackets: [QFBracketSchema],
 
     // Fixe (ex: PAI)
-    fixedPrice: { type: Number, default: null }
+    fixedPrice: { type: Number, default: null },
+
+    displayOrder: { type: Number, default: 0 }
 });
 
 module.exports = mongoose.model('Tariff', TariffSchema);

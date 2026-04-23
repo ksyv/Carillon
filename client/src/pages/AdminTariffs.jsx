@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Tags, Save, Plus, Trash2, Check, AlertTriangle } from 'lucide-react';
+import { Tags, Save, Plus, Trash2, Check, AlertTriangle, GripVertical } from 'lucide-react';
 import api from '../api';
 
 const AdminTariffs = () => {
     const navigate = useNavigate();
     const [tariffs, setTariffs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const dragItem = useRef(null);
+    const dragOverItem = useRef(null);
 
     useEffect(() => {
         loadTariffs();
@@ -19,7 +21,6 @@ const AdminTariffs = () => {
             if (!Array.isArray(data)) throw new Error("Format invalide");
 
             if (data.length === 0) {
-                // Initialisation avec tes VRAIES données et le PAI
                 setTariffs([
                     { _id: 'new_matin', activityCode: 'CA2_MATIN', name: 'APS Matin', pricingMode: 'TAUX_EFFORT', 
                       effortRates: [{childrenCount: 1, rate: 0.000827, min: 0.50, max: 3.50}], qfBrackets: [], fixedPrice: 0 },
@@ -61,7 +62,7 @@ const AdminTariffs = () => {
         
         if (!id.startsWith('new_')) {
             try {
-                await api.delete(`/tariffs/${id}`); // Nécessite d'ajouter app.delete('/api/tariffs/:id') dans le backend si tu veux que ça marche définitivement
+                await api.delete(`/tariffs/${id}`);
             } catch (e) {
                 alert("Erreur lors de la suppression.");
                 return;
@@ -85,13 +86,33 @@ const AdminTariffs = () => {
         setTariffs(newTariffs);
     };
 
+    const handleSort = async () => {
+        if (dragItem.current === null || dragOverItem.current === null) return;
+        
+        let _tariffs = [...tariffs];
+        const draggedItemContent = _tariffs.splice(dragItem.current, 1)[0];
+        _tariffs.splice(dragOverItem.current, 0, draggedItemContent);
+        
+        dragItem.current = null;
+        dragOverItem.current = null;
+        setTariffs(_tariffs);
+
+        const orderedIds = _tariffs.filter(t => !t._id.startsWith('new_')).map(t => t._id);
+        if (orderedIds.length > 0) {
+            try {
+                await api.post('/tariffs/reorder', { orderedIds });
+            } catch (e) {
+                console.error("Erreur de sauvegarde de l'ordre", e);
+            }
+        }
+    };
+
     const updateField = (index, field, value) => {
         const newTariffs = [...tariffs];
         newTariffs[index][field] = value;
         setTariffs(newTariffs);
     };
 
-    // Fonctions Tranches QF
     const addBracket = (index) => {
         const newTariffs = [...tariffs];
         newTariffs[index].qfBrackets.push({ min: '', max: '', price: '' });
@@ -108,7 +129,6 @@ const AdminTariffs = () => {
         setTariffs(newTariffs);
     };
 
-    // Fonctions Taux d'effort (NOUVEAU)
     const addEffortRate = (index) => {
         const newTariffs = [...tariffs];
         const nextCount = newTariffs[index].effortRates.length + 1;
@@ -129,7 +149,7 @@ const AdminTariffs = () => {
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
             <div className="max-w-6xl mx-auto pb-20">
-                <button onClick={() => navigate('/admin')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Administration</button>
+                <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
                 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
                     <div className="flex items-center gap-4">
@@ -153,21 +173,30 @@ const AdminTariffs = () => {
                 ) : (
                     <div className="space-y-8">
                         {tariffs.map((tariff, index) => (
-                            <div key={tariff._id} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col relative overflow-hidden">
-                                
+                            <div 
+                                key={tariff._id} 
+                                draggable
+                                onDragStart={(e) => (dragItem.current = index)}
+                                onDragEnter={(e) => (dragOverItem.current = index)}
+                                onDragEnd={handleSort}
+                                onDragOver={(e) => e.preventDefault()}
+                                className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col relative overflow-hidden group/card transition-all"
+                            >
                                 <div className="absolute top-0 left-0 w-2 h-full bg-orange-500"></div>
 
-                                {/* EN-TÊTE DE L'ACTIVITÉ */}
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-100 pb-6 gap-4 pl-4">
-                                    <div className="flex-1 w-full md:w-auto space-y-3">
-                                        <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-4 flex-1">
+                                        <div className="text-slate-300 cursor-grab active:cursor-grabbing">
+                                            <GripVertical size={24} />
+                                        </div>
+                                        <div className="space-y-3 flex-1">
                                             <input type="text" className="text-2xl font-black text-car-dark uppercase outline-none border-b-2 border-transparent hover:border-slate-200 focus:border-orange-500 transition-colors bg-transparent w-full max-w-sm" 
                                                 value={tariff.name} onChange={e => updateField(index, 'name', e.target.value)} placeholder="Nom de l'activité..." />
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Code Trésor Public :</span>
-                                            <input type="text" className="text-xs font-black text-car-dark bg-slate-100 px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500/50 uppercase" 
-                                                value={tariff.activityCode} onChange={e => updateField(index, 'activityCode', e.target.value.toUpperCase())} placeholder="EX: CA1" />
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Code Trésor Public :</span>
+                                                <input type="text" className="text-xs font-black text-car-dark bg-slate-100 px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500/50 uppercase" 
+                                                    value={tariff.activityCode} onChange={e => updateField(index, 'activityCode', e.target.value.toUpperCase())} placeholder="EX: CA1" />
+                                            </div>
                                         </div>
                                     </div>
                                     
@@ -181,17 +210,13 @@ const AdminTariffs = () => {
                                     </div>
                                 </div>
 
-                                {/* CONTENU SELON LE MODE */}
-                                <div className="mb-6 flex-1 pl-4">
-                                    
-                                    {/* NOUVEAU : TAUX D'EFFORT MULTIPLES */}
+                                <div className="mb-6 flex-1 pl-10">
                                     {tariff.pricingMode === 'TAUX_EFFORT' && (
                                         <div className="bg-orange-500/5 border border-orange-500/20 p-6 rounded-2xl">
                                             <div className="flex justify-between items-center mb-4">
                                                 <h3 className="text-sm font-black text-orange-500 tracking-widest uppercase">Calcul (QF × Taux) et Dégressivité</h3>
                                                 <button onClick={() => addEffortRate(index)} className="text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 px-4 py-2 rounded-xl flex items-center gap-1 transition-colors"><Plus size={16}/> AJOUTER UN TAUX</button>
                                             </div>
-
                                             <div className="space-y-3">
                                                 {tariff.effortRates?.map((rate, rIdx) => (
                                                     <div key={rIdx} className="grid grid-cols-1 lg:grid-cols-5 gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm items-center">
@@ -221,12 +246,10 @@ const AdminTariffs = () => {
                                                         </div>
                                                     </div>
                                                 ))}
-                                                {(!tariff.effortRates || tariff.effortRates.length === 0) && <p className="text-center text-slate-400 italic text-sm py-4">Aucun taux configuré.</p>}
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* TRANCHES QF */}
                                     {tariff.pricingMode === 'QF_BRACKETS' && (
                                         <div className="bg-car-teal/5 border border-car-teal/20 p-6 rounded-2xl">
                                             <div className="flex justify-between items-center mb-4">
@@ -251,12 +274,10 @@ const AdminTariffs = () => {
                                                         <button onClick={() => removeBracket(index, bIdx)} className="p-3 text-slate-300 hover:text-car-pink hover:bg-car-pink/10 rounded-lg transition-colors"><Trash2 size={20}/></button>
                                                     </div>
                                                 ))}
-                                                {tariff.qfBrackets.length === 0 && <p className="text-center text-slate-400 italic text-sm py-4">Aucune tranche configurée.</p>}
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* PRIX FIXE */}
                                     {tariff.pricingMode === 'FIXED' && (
                                         <div className="bg-car-blue/5 border border-car-blue/20 p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-6">
                                             <div>
@@ -272,7 +293,6 @@ const AdminTariffs = () => {
                                     )}
                                 </div>
 
-                                {/* BOUTON SAUVEGARDE */}
                                 <div className="flex justify-end pt-4 border-t border-slate-100 pr-4">
                                     <button onClick={() => handleSave(tariff)} className="bg-car-dark text-white px-8 py-3 rounded-xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20">
                                         <Check size={20}/> ENREGISTRER L'ACTIVITÉ
