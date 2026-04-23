@@ -13,6 +13,7 @@ import BillingManager from './pages/BillingManager';
 import FamilyManager from './pages/FamilyManager';
 import CafStats from './pages/CafStats'; 
 import Mailing from './pages/Mailing';
+import AdminTariffs from './pages/AdminTariffs';
 
 export default function App() {
   const [auth, setAuth] = useState({ token: localStorage.getItem('token'), role: localStorage.getItem('role') });
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/admin/caf" element={<CafStats />} />
         <Route path="/admin/mailing" element={<Mailing />} />
         <Route path="*" element={<Navigate to="/" />} />
+        <Route path="/admin/tariffs" element={<AdminTariffs />} />
       </Routes>
     </BrowserRouter>
   );
