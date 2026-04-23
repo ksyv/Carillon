@@ -1,142 +1,205 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags } from 'lucide-react';
-import LogoTexte from '../components/LogoTexte';
+import { Tags, Save, Plus, Trash2, Check } from 'lucide-react';
+import api from '../api';
 
-const Dashboard = () => {
-  const navigate = useNavigate();
-  const role = localStorage.getItem('role');
-  const access = localStorage.getItem('categoryAccess') || 'Tous';
-  
-  const getSessionStatus = (session) => {
-      if (role === 'admin') return { locked: false, text: 'Admin' };
-      const now = new Date();
-      const time = now.getHours() * 60 + now.getMinutes();
+const AdminTariffs = () => {
+    const navigate = useNavigate();
+    const [tariffs, setTariffs] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-      if (session === 'MATIN') {
-          if (time >= 435 && time <= 525) return { locked: false };
-          return { locked: true, text: '7h15 - 8h45' };
-      }
-      if (session === 'MIDI') {
-          if (time >= 705 && time <= 845) return { locked: false };
-          return { locked: true, text: '11h45 - 14h05' };
-      }
-      if (session === 'SOIR') {
-          if (time >= 975 && time <= 1155) return { locked: false };
-          return { locked: true, text: '16h15 - 19h15' };
-      }
-      return { locked: true, text: 'Fermé' };
-  };
+    useEffect(() => {
+        loadTariffs();
+    }, []);
 
-  const handleLogout = () => { localStorage.clear(); window.location.href = '/'; };
+    const loadTariffs = async () => {
+        setIsLoading(true);
+        try {
+            // Note: tu devras créer la route GET /tariffs côté serveur
+            const { data } = await api.get('/tariffs');
+            if (data.length === 0) {
+                // Si la BDD est vide, on initialise avec tes 3 activités principales
+                setTariffs([
+                    { _id: 'new_matin', activityCode: 'CA2_MATIN', name: 'APS Matin', pricingMode: 'TAUX_EFFORT', tauxEffort: 0.000827, minPrice: 0.50, maxPrice: 3.50, qfBrackets: [], fixedPrice: 0 },
+                    { _id: 'new_midi', activityCode: 'CA1', name: 'Restauration (Cantine)', pricingMode: 'QF_BRACKETS', tauxEffort: 0, minPrice: 0, maxPrice: 0, qfBrackets: [{min: 0, max: 500, price: 0.85}], fixedPrice: 0 },
+                    { _id: 'new_soir', activityCode: 'CA2_SOIR', name: 'APS Soir (16h30-18h30)', pricingMode: 'TAUX_EFFORT', tauxEffort: 0.00164, minPrice: 1.00, maxPrice: 6.00, qfBrackets: [], fixedPrice: 0 },
+                    { _id: 'new_supp', activityCode: 'CA2_SUPP', name: 'APS Retard (18h30-19h)', pricingMode: 'TAUX_EFFORT', tauxEffort: 0.000827, minPrice: 0.10, maxPrice: 1.35, qfBrackets: [], fixedPrice: 0 }
+                ]);
+            } else {
+                setTariffs(data);
+            }
+        } catch (error) {
+            console.error("Erreur chargement tarifs", error);
+        }
+        setIsLoading(false);
+    };
 
-  const SessionButton = ({ title, icon: Icon, type, colorClass }) => {
-      const status = getSessionStatus(type);
-      return (
-          <button onClick={() => !status.locked && navigate(`/session/${format(new Date(), 'yyyy-MM-dd')}/${type}`)} disabled={status.locked}
-              className={`group relative p-8 rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all bg-white ${status.locked ? 'opacity-50 cursor-not-allowed border-slate-100 bg-slate-50' : `border-${colorClass} hover:shadow-2xl hover:-translate-y-1 shadow-lg shadow-${colorClass}/10`}`}>
-              {!status.locked && <div className={`absolute top-4 right-4 w-3 h-3 rounded-full bg-${colorClass} opacity-50 group-hover:animate-ping`}></div>}
-              {status.locked && <div className="absolute top-4 right-4 text-slate-400"><Lock size={20}/></div>}
-              <div className={`p-5 rounded-3xl mb-4 ${status.locked ? 'bg-slate-200 text-slate-400' : `bg-${colorClass}/10 text-${colorClass} group-hover:scale-110`} transition-transform`}><Icon strokeWidth={2.5} size={40} /></div>
-              <span className={`font-black text-xl uppercase tracking-wider ${status.locked ? 'text-slate-400' : 'text-car-dark'}`}>{title}</span>
-              {status.locked && <span className="text-xs font-bold text-slate-400 mt-2 bg-slate-200 px-3 py-1 rounded-lg">{status.text}</span>}
-          </button>
-      );
-  };
+    const handleSave = async (tariff) => {
+        try {
+            if (tariff._id.startsWith('new_')) {
+                const { _id, ...newTariff } = tariff;
+                const res = await api.post('/tariffs', newTariff);
+                setTariffs(tariffs.map(t => t._id === tariff._id ? res.data : t));
+            } else {
+                await api.put(`/tariffs/${tariff._id}`, tariff);
+            }
+            alert('Tarif sauvegardé avec succès !');
+        } catch (e) {
+            alert('Erreur lors de la sauvegarde');
+        }
+    };
 
-  return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      <header className="bg-white px-6 py-4 shadow-sm flex justify-between items-center sticky top-0 z-10">
-        <LogoTexte className="text-2xl" />
-        <div className="flex items-center gap-4">
-            {access !== 'Tous' && <span className="text-xs font-black text-car-teal bg-car-teal/10 px-4 py-1.5 rounded-full uppercase tracking-widest">{access}</span>}
-            <span className="text-xs font-black text-car-purple bg-car-purple/10 px-4 py-1.5 rounded-full uppercase tracking-widest">{role}</span>
-            <button onClick={handleLogout} className="text-slate-400 hover:text-car-pink transition-colors p-2"><LogOut size={22} /></button>
-        </div>
-      </header>
-      
-      <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-10 mt-4">
-        <section>
-            <div className="flex items-center gap-3 mb-6 ml-2">
-                <div className="h-2 w-2 rounded-full bg-car-teal"></div>
-                <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Pointage en cours</h2>
-                <span className="ml-auto text-sm font-bold text-car-dark">{format(new Date(), 'EEEE d MMMM', { locale: fr })}</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                <SessionButton title="Matin" icon={Sun} type="MATIN" colorClass="car-yellow" />
-                <SessionButton title="Midi (Cantine)" icon={Utensils} type="MIDI" colorClass="car-teal" />
-                <SessionButton title="Soir" icon={Moon} type="SOIR" colorClass="car-blue" />
-            </div>
-        </section>
+    const handleModeChange = (index, mode) => {
+        const newTariffs = [...tariffs];
+        newTariffs[index].pricingMode = mode;
+        setTariffs(newTariffs);
+    };
 
-        {(role === 'admin' || role === 'responsable') && (
-          <section className="pt-6 border-t border-slate-200 border-dashed">
-            <div className="flex items-center gap-3 mb-6 ml-2">
-                <div className="h-2 w-2 rounded-full bg-car-purple"></div>
-                <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Administration</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <button onClick={() => navigate('/admin/children')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                    <div className="bg-car-green/10 p-4 rounded-2xl w-fit group-hover:bg-car-green group-hover:text-white text-car-green transition-colors"><Users size={24} strokeWidth={2.5}/></div>
-                    <div><h3 className="font-black text-car-dark text-lg">Enfants & Fiches</h3><p className="text-xs text-slate-500 font-medium mt-1">Base de données, PAI...</p></div>
-                </button>
-                {role === 'admin' && (
-                    <>
-                        <button onClick={() => navigate('/admin/families')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group relative overflow-hidden">
-                            <div className="bg-car-yellow/10 p-4 rounded-2xl w-fit group-hover:bg-car-yellow group-hover:text-white text-car-yellow transition-colors"><FolderHeart size={24} strokeWidth={2.5}/></div>
-                            <div><h3 className="font-black text-car-dark text-lg">Dossiers Familles</h3><p className="text-xs text-slate-500 font-medium mt-1">Rattachement & CAF</p></div>
-                        </button>
-                        <button onClick={() => navigate('/report')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-car-teal/10 p-4 rounded-2xl w-fit group-hover:bg-car-teal group-hover:text-white text-car-teal transition-colors"><FileText size={24} strokeWidth={2.5}/></div>
-                            <div><h3 className="font-black text-car-dark text-lg">Rapports & Listes</h3><p className="text-xs text-slate-500 font-medium mt-1">Historique & PDF</p></div>
-                        </button>
-                        <button onClick={() => navigate('/admin/mailing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors">
-                                <Mail size={24} strokeWidth={2.5}/>
+    const updateField = (index, field, value) => {
+        const newTariffs = [...tariffs];
+        newTariffs[index][field] = value;
+        setTariffs(newTariffs);
+    };
+
+    const updateBracket = (tIndex, bIndex, field, value) => {
+        const newTariffs = [...tariffs];
+        newTariffs[tIndex].qfBrackets[bIndex][field] = value;
+        setTariffs(newTariffs);
+    };
+
+    const addBracket = (index) => {
+        const newTariffs = [...tariffs];
+        newTariffs[index].qfBrackets.push({ min: '', max: '', price: '' });
+        setTariffs(newTariffs);
+    };
+
+    const removeBracket = (tIndex, bIndex) => {
+        const newTariffs = [...tariffs];
+        newTariffs[tIndex].qfBrackets.splice(bIndex, 1);
+        setTariffs(newTariffs);
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
+            <div className="max-w-6xl mx-auto pb-20">
+                <button onClick={() => navigate('/admin')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Administration</button>
+                
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-orange-500/10 p-4 rounded-2xl">
+                            <Tags className="text-orange-500 w-8 h-8"/>
+                        </div>
+                        <div>
+                            <h1 className="text-4xl font-black text-car-dark">Grilles Tarifaires</h1>
+                            <p className="text-slate-500 font-medium mt-1">Configuration du moteur de facturation Trésor Public</p>
+                        </div>
+                    </div>
+                </div>
+
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-orange-500"></div>
+                    </div>
+                ) : (
+                    <div className="space-y-8">
+                        {tariffs.map((tariff, index) => (
+                            <div key={tariff._id} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col">
+                                
+                                {/* EN-TÊTE DE L'ACTIVITÉ */}
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-100 pb-6 gap-4">
+                                    <div>
+                                        <h2 className="text-2xl font-black text-car-dark uppercase">{tariff.name}</h2>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Code Trésor Public :</span>
+                                            <span className="text-xs font-black text-car-dark bg-slate-100 px-3 py-1 rounded-lg">{tariff.activityCode}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                                        <button onClick={() => handleModeChange(index, 'TAUX_EFFORT')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${tariff.pricingMode === 'TAUX_EFFORT' ? 'bg-white shadow-sm text-orange-500' : 'text-slate-400 hover:text-car-dark'}`}>Taux d'effort</button>
+                                        <button onClick={() => handleModeChange(index, 'QF_BRACKETS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${tariff.pricingMode === 'QF_BRACKETS' ? 'bg-white shadow-sm text-car-teal' : 'text-slate-400 hover:text-car-dark'}`}>Tranches QF</button>
+                                        <button onClick={() => handleModeChange(index, 'FIXED')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${tariff.pricingMode === 'FIXED' ? 'bg-white shadow-sm text-car-blue' : 'text-slate-400 hover:text-car-dark'}`}>Prix Fixe</button>
+                                    </div>
+                                </div>
+
+                                {/* CONTENU SELON LE MODE */}
+                                <div className="mb-6 flex-1">
+                                    {tariff.pricingMode === 'TAUX_EFFORT' && (
+                                        <div className="bg-orange-500/5 border border-orange-500/20 p-6 rounded-2xl">
+                                            <h3 className="text-sm font-black text-orange-500 tracking-widest uppercase mb-4">Calcul : QF × Taux</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 block mb-2 uppercase">Taux d'effort appliqué</label>
+                                                    <input type="number" step="0.000001" className="w-full bg-white border border-slate-200 p-4 rounded-xl outline-none focus:border-orange-500 font-black text-car-dark text-lg" value={tariff.tauxEffort || ''} onChange={e => updateField(index, 'tauxEffort', e.target.value)} placeholder="0.000827" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 block mb-2 uppercase">Prix Plancher (Minimum €)</label>
+                                                    <input type="number" step="0.01" className="w-full bg-white border border-slate-200 p-4 rounded-xl outline-none focus:border-orange-500 font-bold text-car-dark text-lg" value={tariff.minPrice || ''} onChange={e => updateField(index, 'minPrice', e.target.value)} placeholder="0.50" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 block mb-2 uppercase">Prix Plafond (Maximum €)</label>
+                                                    <input type="number" step="0.01" className="w-full bg-white border border-slate-200 p-4 rounded-xl outline-none focus:border-orange-500 font-bold text-car-dark text-lg" value={tariff.maxPrice || ''} onChange={e => updateField(index, 'maxPrice', e.target.value)} placeholder="3.50" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {tariff.pricingMode === 'QF_BRACKETS' && (
+                                        <div className="bg-car-teal/5 border border-car-teal/20 p-6 rounded-2xl">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-sm font-black text-car-teal tracking-widest uppercase">Paliers de facturation</h3>
+                                                <button onClick={() => addBracket(index)} className="text-xs font-bold text-white bg-car-teal hover:bg-teal-600 px-4 py-2 rounded-xl flex items-center gap-1 transition-colors"><Plus size={16}/> AJOUTER TRANCHE</button>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {tariff.qfBrackets.map((bracket, bIdx) => (
+                                                    <div key={bIdx} className="flex flex-wrap md:flex-nowrap items-center gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                                        <span className="font-black text-slate-400 w-24 uppercase text-xs tracking-widest">Tranche {bIdx + 1}</span>
+                                                        <div className="flex items-center gap-2 flex-1">
+                                                            <span className="text-xs font-bold text-slate-400">QF de</span>
+                                                            <input type="number" className="w-24 bg-slate-50 border border-slate-100 p-2 rounded-lg outline-none font-bold text-car-dark text-center" value={bracket.min} onChange={e => updateBracket(index, bIdx, 'min', e.target.value)} placeholder="0" />
+                                                            <span className="text-xs font-bold text-slate-400">à</span>
+                                                            <input type="number" className="w-24 bg-slate-50 border border-slate-100 p-2 rounded-lg outline-none font-bold text-car-dark text-center" value={bracket.max} onChange={e => updateBracket(index, bIdx, 'max', e.target.value)} placeholder="500" />
+                                                        </div>
+                                                        <span className="font-black text-slate-300">=</span>
+                                                        <div className="relative">
+                                                            <input type="number" step="0.01" className="w-32 bg-car-teal/10 border-none p-3 pl-8 rounded-lg outline-none font-black text-car-teal text-lg" value={bracket.price} onChange={e => updateBracket(index, bIdx, 'price', e.target.value)} placeholder="0.85" />
+                                                            <span className="absolute left-3 top-3 font-black text-car-teal">€</span>
+                                                        </div>
+                                                        <button onClick={() => removeBracket(index, bIdx)} className="p-3 text-slate-300 hover:text-car-pink hover:bg-car-pink/10 rounded-lg transition-colors"><Trash2 size={20}/></button>
+                                                    </div>
+                                                ))}
+                                                {tariff.qfBrackets.length === 0 && <p className="text-center text-slate-400 italic text-sm py-4">Aucune tranche configurée.</p>}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {tariff.pricingMode === 'FIXED' && (
+                                        <div className="bg-car-blue/5 border border-car-blue/20 p-6 rounded-2xl flex items-center gap-6">
+                                            <div>
+                                                <h3 className="text-sm font-black text-car-blue tracking-widest uppercase mb-1">Prix Unique</h3>
+                                                <p className="text-xs font-medium text-slate-500">Ce tarif sera appliqué sans tenir compte du QF de la famille.</p>
+                                            </div>
+                                            <div className="relative ml-auto">
+                                                <input type="number" step="0.01" className="w-48 bg-white border border-car-blue/30 p-4 pl-10 rounded-xl outline-none focus:border-car-blue font-black text-car-blue text-2xl text-center" value={tariff.fixedPrice || ''} onChange={e => updateField(index, 'fixedPrice', e.target.value)} placeholder="0.00" />
+                                                <span className="absolute left-4 top-4 font-black text-car-blue text-xl">€</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* BOUTON SAUVEGARDE */}
+                                <div className="flex justify-end pt-4 border-t border-slate-100">
+                                    <button onClick={() => handleSave(tariff)} className="bg-car-dark text-white px-8 py-3 rounded-xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20">
+                                        <Check size={20}/> ENREGISTRER L'ACTIVITÉ
+                                    </button>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="font-black text-car-dark text-lg">Communication</h3>
-                                <p className="text-xs text-slate-500 font-medium mt-1">Mails groupés & Relances</p>
-                            </div>
-                        </button>
-                        <button onClick={() => navigate('/admin/users')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-car-purple/10 p-4 rounded-2xl w-fit group-hover:bg-car-purple group-hover:text-white text-car-purple transition-colors"><Shield size={24} strokeWidth={2.5}/></div>
-                            <div><h3 className="font-black text-car-dark text-lg">Équipe</h3><p className="text-xs text-slate-500 font-medium mt-1">Accès & Rôles</p></div>
-                        </button>
-                        <button onClick={() => navigate('/admin/planned-notes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
-                            <div><h3 className="font-black text-car-dark text-lg">Notes plannifiées</h3><p className="text-xs text-slate-500 font-medium mt-1">& notes récurrentes</p></div>
-                        </button>
-
-                        {/* NOUVEAU BOUTON : GRILLES TARIFAIRES */}
-                        <button onClick={() => navigate('/admin/tariffs')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-orange-500 transition-colors"><Tags size={24} strokeWidth={2.5}/></div>
-                            <div><h3 className="font-black text-car-dark text-lg">Grilles Tarifaires</h3><p className="text-xs text-slate-500 font-medium mt-1">Taux d'effort & QF</p></div>
-                        </button>
-
-                        <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Banknote size={24} strokeWidth={2.5}/></div>
-                            <div><h3 className="font-black text-car-dark text-lg">Facturation</h3><p className="text-xs text-slate-500 font-medium mt-1">Génération & Export</p></div>
-                        </button>
-                        <button onClick={() => navigate('/admin/caf')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-slate-800 p-4 rounded-2xl w-fit group-hover:bg-car-dark group-hover:text-white text-slate-600 transition-colors">
-                                <Calculator size={24} strokeWidth={2.5}/>
-                            </div>
-                            <div>
-                                <h3 className="font-black text-car-dark text-lg">Déclaration CAF</h3>
-                                <p className="text-xs text-slate-500 font-medium mt-1">Actes & Heures PSO</p>
-                            </div>
-                        </button>
-                    </>
+                        ))}
+                    </div>
                 )}
             </div>
-          </section>
-        )}
-      </main>
-    </div>
-  );
+        </div>
+    );
 };
 
-export default Dashboard;
+export default AdminTariffs;
