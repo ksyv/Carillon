@@ -618,7 +618,7 @@ app.post('/api/parent/invite', auth(['admin']), async (req, res) => {
         });
 
         const mailHtml = `
-            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; rounded-2xl: 12px;">
+            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 12px;">
                 <h2 style="color: #1e3a8a;">Bienvenue sur Carillon</h2>
                 <p>Le service périscolaire de la Ville de Carignan-de-Bordeaux vient de configurer vos accès personnels.</p>
                 <p>Veuillez cliquer sur le lien ci-dessous pour configurer votre mot de passe et activer votre espace famille :</p>
