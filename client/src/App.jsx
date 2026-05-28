@@ -14,6 +14,7 @@ import FamilyManager from './pages/FamilyManager';
 import CafStats from './pages/CafStats'; 
 import Mailing from './pages/Mailing';
 import AdminTariffs from './pages/AdminTariffs';
+import CalendarExceptionManager from './pages/CalendarExceptionManager';
 
 export default function App() {
   const [auth, setAuth] = useState({ token: localStorage.getItem('token'), role: localStorage.getItem('role') });
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/admin/caf" element={<CafStats />} />
         <Route path="/admin/mailing" element={<Mailing />} />
         <Route path="/admin/tariffs" element={<AdminTariffs />} />
+        <Route path="/admin/calendar-exception" element={<CalendarExceptionManager />} />
         <Route path="*" element={<Navigate to="/" />} />
         
       </Routes>

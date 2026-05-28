@@ -684,6 +684,30 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
     }
 });
 
+// --- ROUTES DE GESTION DES JOURS DE FERMETURE (CALENDRIER ADMIN) ---
+
+app.get('/api/settings/closed-days', auth(), async (req, res) => {
+    try {
+        const setting = await Settings.findOne({ key: 'closed_days' });
+        res.json(setting ? JSON.parse(setting.value) : []);
+    } catch (e) { res.status(500).send(e); }
+});
+
+app.post('/api/settings/closed-days', auth(['admin']), async (req, res) => {
+    try {
+        const { dates } = req.body; // Doit recevoir un tableau de strings ['YYYY-MM-DD']
+        let setting = await Settings.findOne({ key: 'closed_days' });
+        
+        if (!setting) {
+            setting = new Settings({ key: 'closed_days', value: JSON.stringify(dates) });
+        } else {
+            setting.value = JSON.stringify(dates);
+        }
+        await setting.save();
+        res.json({ success: true, dates });
+    } catch (e) { res.status(500).send("Erreur enregistrement calendrier."); }
+});
+
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {

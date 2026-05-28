@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
 
 const Dashboard = () => {
@@ -110,10 +110,16 @@ const Dashboard = () => {
                             <div><h3 className="font-black text-car-dark text-lg">Notes plannifiées</h3><p className="text-xs text-slate-500 font-medium mt-1">& notes récurrentes</p></div>
                         </button>
 
-                        {/* NOUVEAU BOUTON : GRILLES TARIFAIRES */}
+                        {/* BOUTON : GRILLES TARIFAIRES */}
                         <button onClick={() => navigate('/admin/tariffs')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-orange-500 transition-colors"><Tags size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Grilles Tarifaires</h3><p className="text-xs text-slate-500 font-medium mt-1">Taux d'effort & QF</p></div>
+                        </button>
+
+                        {/* BOUTON : CALENDRIER DE FERMETURE */}
+                        <button onClick={() => navigate('/admin/calendar-exception')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                            <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarX size={24} strokeWidth={2.5}/></div>
+                            <div><h3 className="font-black text-car-dark text-lg">Jours de fermeture</h3><p className="text-xs text-slate-500 font-medium mt-1">Fériés et Vacances</p></div>
                         </button>
 
                         <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
