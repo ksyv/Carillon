@@ -786,8 +786,6 @@ app.post('/api/requests', auth(), async (req, res) => {
                 });
             }
         }
-        await ModificationRequest.updateMany({ familyId: effectiveFamilyId, status: 'PENDING' }, { status: 'REJECTED', refusalMessage: 'Nouvelle demande soumise' });
-        
         const request = new ModificationRequest({ 
             familyId: effectiveFamilyId, 
             childId: childId || null,
@@ -808,8 +806,8 @@ app.post('/api/requests', auth(), async (req, res) => {
 });
 
 app.get('/api/requests/family/:familyId', auth(), async (req, res) => {
-    const request = await ModificationRequest.findOne({ familyId: req.params.familyId }).sort({ createdAt: -1 });
-    res.json(request);
+    const requests = await ModificationRequest.find({ familyId: req.params.familyId, status: 'PENDING' }).sort({ createdAt: -1 });
+    res.json(requests);
 });
 
 app.post('/api/requests/:id/approve', auth(['admin']), async (req, res) => {

@@ -19,10 +19,7 @@ const FamilyManager = () => {
     const [editingChild, setEditingChild] = useState(null);
 
     // --- STATES DU WORKFLOW DE VALIDATION REEL ---
-    const [activeRequest, setActiveRequest] = useState(null);
-    const [refusalText, setRefusalText] = useState('');
-    const [showRefusalInput, setShowRefusalInput] = useState(false);
-
+    const [pendingRequests, setPendingRequests] = useState([]);
     const navigate = useNavigate();
 
     const summarizeRequest = (request) => {
@@ -70,36 +67,33 @@ const FamilyManager = () => {
             setEditFamily({ ...selectedFamily, responsables: resps, documents: docs });
             
             api.get(`/requests/family/${selectedFamily._id}`).then(res => {
-                setActiveRequest(res.data && res.data.status === 'PENDING' ? res.data : null);
-            }).catch(() => setActiveRequest(null));
+                setPendingRequests(Array.isArray(res.data) ? res.data : []);
+            }).catch(() => setPendingRequests([]));
         } else {
             setEditFamily(null);
-            setActiveRequest(null);
+            setPendingRequests([]);
         }
     }, [selectedFamily]);
 
-    const handleApproveRequest = async () => {
+    const handleApproveRequest = async (requestId) => {
         try {
-            const { data } = await api.post(`/requests/${activeRequest._id}/approve`);
+            const { data } = await api.post(`/requests/${requestId}/approve`);
             if (data.success) {
                 alert("✓ Modifications acceptées et appliquées sur le dossier de production !");
                 if (data.family) setSelectedFamily(data.family);
                 if (data.child?.family) setSelectedFamily(data.child.family);
-                setActiveRequest(null);
                 loadData();
             }
         } catch (e) { alert("Erreur lors de l'approbation de la demande."); }
     };
 
-    const handleRejectRequest = async (e) => {
-        e.preventDefault();
-        if (!refusalText.trim()) return alert("Veuillez saisir un motif.");
+    const handleRejectRequest = async (requestId) => {
+        const message = window.prompt("Motif du refus :");
+        if (!message || !message.trim()) return;
         try {
-            await api.post(`/requests/${activeRequest._id}/reject`, { message: refusalText });
+            await api.post(`/requests/${requestId}/reject`, { message });
             alert("Rejet enregistré. L'usager a été notifié sur son portail.");
-            setActiveRequest(null);
-            setShowRefusalInput(false);
-            setRefusalText('');
+            loadData();
         } catch (e) { alert("Erreur lors du rejet de la demande."); }
     };
 
@@ -187,6 +181,15 @@ const FamilyManager = () => {
         reader.onloadend = () => { handleDocChange(docType, 'fileUrl', reader.result); };
         reader.readAsDataURL(file);
     };
+
+    const familyRequests = pendingRequests.filter(request => !request.childId);
+    const childRequestsById = pendingRequests.reduce((accumulator, request) => {
+        if (!request.childId) return accumulator;
+        const key = request.childId.toString();
+        if (!accumulator[key]) accumulator[key] = [];
+        accumulator[key].push(request);
+        return accumulator;
+    }, {});
 
     const startAddChild = () => {
         setEditingChild({
@@ -448,35 +451,26 @@ const FamilyManager = () => {
                                     </div>
                                 </div>
 
-                                {/* --- WORKFLOW LIVE PARENT MODERATION ENCART --- */}
-                                {activeRequest && (
-                                    <div className="bg-orange-500/10 border-2 border-dashed border-orange-500/30 p-5 rounded-2xl flex flex-col gap-4 animate-in fade-in duration-300">
+                                {familyRequests.length > 0 && (
+                                    <div className="bg-orange-500/10 border-2 border-dashed border-orange-500/30 p-5 rounded-2xl flex flex-col gap-3 animate-in fade-in duration-300">
                                         <div className="flex items-start gap-3 text-orange-600">
                                             <AlertTriangle className="shrink-0 mt-0.5" size={20}/>
                                             <div>
-                                                <h4 className="font-black text-sm uppercase tracking-wide">Demande de modification soumise par l'usager</h4>
-                                                <p className="text-xs text-slate-600 font-medium mt-0.5">Le parent a demandé à appliquer de nouvelles données. Traitez la demande ci-dessous avant d'écrire définitivement.</p>
-                                                <div className="mt-2 text-xs bg-white p-2.5 rounded-xl border inline-flex items-start gap-2 font-mono text-slate-600 max-w-full">
-                                                    <CornerDownRight size={12} className="shrink-0 mt-0.5 text-slate-400"/>
-                                                    <span className="wrap-break-word">{summarizeRequest(activeRequest)}</span>
-                                                </div>
+                                                <h4 className="font-black text-sm uppercase tracking-wide">Modifications famille en attente</h4>
+                                                <p className="text-xs text-slate-600 font-medium mt-0.5">Chaque demande est validable séparément, directement ici.</p>
                                             </div>
                                         </div>
-                                        {!showRefusalInput ? (
-                                            <div className="flex gap-2 self-end text-xs font-black uppercase tracking-wider">
-                                                <button type="button" onClick={() => setShowRefusalInput(true)} className="bg-car-pink text-white px-4 py-2 rounded-xl hover:bg-pink-600 transition-all">Rejeter</button>
-                                                <button type="button" onClick={handleApproveRequest} className="bg-car-green text-white px-4 py-2 rounded-xl hover:bg-green-600 transition-all shadow-md">✓ Accepter et Écrire en BDD</button>
-                                            </div>
-                                        ) : (
-                                            <form onSubmit={handleRejectRequest} className="space-y-3 bg-white p-4 rounded-xl border">
-                                                <label className="text-[10px] font-bold text-slate-400 block uppercase">Motif du refus (Sera affiché aux parents) :</label>
-                                                <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-lg text-xs font-medium outline-none focus:border-car-pink" placeholder="Ex: Pièce jointe illisible. Merci de ré-uploader..." value={refusalText} onChange={e => setRefusalText(e.target.value)} required />
-                                                <div className="flex justify-end gap-2 text-[10px] font-bold uppercase">
-                                                    <button type="button" onClick={() => setShowRefusalInput(false)} className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-md">Annuler</button>
-                                                    <button type="submit" className="bg-car-pink text-white px-3 py-1.5 rounded-md">Envoyer le refus</button>
+                                        <div className="space-y-3">
+                                            {familyRequests.map(request => (
+                                                <div key={request._id} className="bg-white p-4 rounded-2xl border border-orange-200 shadow-sm flex flex-col gap-3">
+                                                    <div className="text-xs font-mono text-slate-600">{summarizeRequest(request)}</div>
+                                                    <div className="flex flex-wrap gap-2 justify-end text-[10px] font-black uppercase tracking-wider">
+                                                        <button type="button" onClick={() => handleRejectRequest(request._id)} className="bg-car-pink text-white px-4 py-2 rounded-xl hover:bg-pink-600 transition-all">Rejeter</button>
+                                                        <button type="button" onClick={() => handleApproveRequest(request._id)} className="bg-car-green text-white px-4 py-2 rounded-xl hover:bg-green-600 transition-all shadow-md">✓ Valider</button>
+                                                    </div>
                                                 </div>
-                                            </form>
-                                        )}
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
@@ -485,18 +479,37 @@ const FamilyManager = () => {
                                         <h3 className="font-black mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
                                         {attachedChildren.length > 0 ? (
                                             <div className="space-y-2 mb-6">
-                                                {attachedChildren.map(c => (
-                                                    <div key={c._id} className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
-                                                        <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
-                                                            <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={18}/></div>
-                                                            <span className="font-bold text-car-dark uppercase group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
+                                                {attachedChildren.map(c => {
+                                                    const childRequests = childRequestsById[c._id?.toString?.() || c._id] || [];
+                                                    return (
+                                                        <div key={c._id} className="space-y-2">
+                                                            <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
+                                                                <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
+                                                                    <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={18}/></div>
+                                                                    <span className="font-bold text-car-dark uppercase group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
+                                                                </div>
+                                                                <div className="flex items-center gap-1">
+                                                                    <button type="button" onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier"><Pencil size={18}/></button>
+                                                                    <button type="button" onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher"><X size={18}/></button>
+                                                                </div>
+                                                            </div>
+                                                            {childRequests.length > 0 && (
+                                                                <div className="pl-3 space-y-2">
+                                                                    {childRequests.map(request => (
+                                                                        <div key={request._id} className="bg-orange-500/10 border border-orange-200 rounded-2xl p-3 flex flex-col gap-2">
+                                                                            <div className="text-[11px] font-black uppercase tracking-widest text-orange-700">Modification enfant en attente</div>
+                                                                            <div className="text-xs font-mono text-slate-600">{summarizeRequest(request)}</div>
+                                                                            <div className="flex flex-wrap gap-2 justify-end text-[10px] font-black uppercase tracking-wider">
+                                                                                <button type="button" onClick={() => handleRejectRequest(request._id)} className="bg-car-pink text-white px-3 py-1.5 rounded-xl hover:bg-pink-600 transition-all">Rejeter</button>
+                                                                                <button type="button" onClick={() => handleApproveRequest(request._id)} className="bg-car-green text-white px-3 py-1.5 rounded-xl hover:bg-green-600 transition-all shadow-md">Valider</button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        <div className="flex items-center gap-1">
-                                                            <button type="button" onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier"><Pencil size={18}/></button>
-                                                            <button type="button" onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher"><X size={18}/></button>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         ) : ( <p className="text-slate-400 font-medium mb-6 italic text-sm">Aucun enfant rattaché.</p> )}
                                         <div className="mt-auto pt-4 border-t border-slate-200">
