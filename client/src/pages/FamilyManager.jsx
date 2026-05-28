@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { FolderHeart, AlertTriangle, CheckCircle, Search, Plus, Trash2, Download, Save, Users, Info, Pencil, X, Banknote, FileText, Phone, Check, Copy } from 'lucide-react';
+import { FolderHeart, AlertTriangle, CheckCircle, Search, Plus, Trash2, Download, Save, Users, Info, Pencil, X, Banknote, FileText, Phone, Check, Copy, CornerDownRight } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ChildInfoModal from '../components/ChildInfoModal';
@@ -17,6 +17,11 @@ const FamilyManager = () => {
     
     const [childInfoToView, setChildInfoToView] = useState(null);
     const [editingChild, setEditingChild] = useState(null);
+
+    // --- STATES DU WORKFLOW DE VALIDATION REEL ---
+    const [activeRequest, setActiveRequest] = useState(null);
+    const [refusalText, setRefusalText] = useState('');
+    const [showRefusalInput, setShowRefusalInput] = useState(false);
 
     const navigate = useNavigate();
 
@@ -36,17 +41,50 @@ const FamilyManager = () => {
         }
     };
 
+    // Lecture automatique des demandes réelles du serveur lors du clic sur une famille
     useEffect(() => {
         if (selectedFamily) {
             const resps = [...(selectedFamily.responsables || [])];
             while (resps.length < 2) resps.push({ firstName: '', lastName: '', qualite: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' });
             const docs = selectedFamily.documents || { assuranceRC: {}, vaccins: {}, avisImposition: {}, attestationCAF: {} };
             setEditFamily({ ...selectedFamily, responsables: resps, documents: docs });
+            
+            // On vérifie s'il existe une demande PENDING sur MongoDB
+            api.get(`/requests/family/${selectedFamily._id}`).then(res => {
+                setActiveRequest(res.data && res.data.status === 'PENDING' ? res.data : null);
+            }).catch(() => setActiveRequest(null));
         } else {
             setEditFamily(null);
+            setActiveRequest(null);
         }
     }, [selectedFamily]);
 
+    // --- FONCTIONS DE WORKFLOW DE REQUÊTES ---
+    const handleApproveRequest = async () => {
+        try {
+            const { data } = await api.post(`/requests/${activeRequest._id}/approve`);
+            if (data.success) {
+                alert("✓ Modifications acceptées et appliquées sur le dossier de production !");
+                setSelectedFamily(data.family);
+                setActiveRequest(null);
+                loadData();
+            }
+        } catch (e) { alert("Erreur lors de l'approbation de la demande."); }
+    };
+
+    const handleRejectRequest = async (e) => {
+        e.preventDefault();
+        if (!refusalText.trim()) return alert("Veuillez saisir un motif.");
+        try {
+            await api.post(`/requests/${activeRequest._id}/reject`, { message: refusalText });
+            alert("Rejet enregistré. L'usager a été notifié sur son portail.");
+            setActiveRequest(null);
+            setShowRefusalInput(false);
+            setRefusalText('');
+        } catch (e) { alert("Erreur lors du rejet de la demande."); }
+    };
+
+    // --- LE RESTE DES FONCTIONS EXISTANTES DU COMPOSANT ---
     const handleSearchOrCreateFamily = async (e) => {
         e.preventDefault();
         const searchName = searchFamilyText.trim().toUpperCase();
@@ -71,7 +109,6 @@ const FamilyManager = () => {
 
     const handleDeleteFamily = async (id) => {
         const confirmWord = window.prompt(`🛑 DANGER 🛑\n\nVous allez SUPPRIMER DÉFINITIVEMENT ce dossier famille.\nLes enfants ne seront pas effacés mais perdront leurs parents et deviendront "sans dossier".\n\nPour confirmer, tapez : SUPPRIMER`);
-        
         if (confirmWord === "SUPPRIMER") {
             await api.delete(`/families/${id}`);
             setSelectedFamily(null);
@@ -135,27 +172,19 @@ const FamilyManager = () => {
 
     const startAddChild = () => {
         setEditingChild({
-            _id: null,
-            active: true, 
-            firstName: '', lastName: selectedFamily.name, category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
+            _id: null, active: true, firstName: '', lastName: selectedFamily.name, category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
             medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '', autresInfos: '' },
-            hasPAI: false, paiDetails: '', isPAIAlimentaire: false, paiDocument: '', regimeAlimentaire: 'Standard',
-            personnesAutorisees: [],
-            documents: { vaccins: {}, assurance: {} }
+            hasPAI: false, paiDetails: '', isPAIAlimentaire: false, paiDocument: '', regimeAlimentaire: 'Standard', personnesAutorisees: [], documents: { vaccins: {}, assurance: {} }
         });
     };
 
     const startEditChild = (child) => {
         setEditingChild({
-            _id: child._id,
-            active: child.active !== false,
-            firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', sexe: child.sexe || '',
-            birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
-            droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
+            _id: child._id, active: child.active !== false, firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', sexe: child.sexe || '',
+            birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
             medical: child.medical || { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '', autresInfos: '' },
             hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false, paiDocument: child.paiDocument || '', regimeAlimentaire: child.regimeAlimentaire || 'Standard',
-            personnesAutorisees: child.personnesAutorisees || [],
-            documents: child.documents || { vaccins: {}, assurance: {} }
+            personnesAutorisees: child.personnesAutorisees || [], documents: child.documents || { vaccins: {}, assurance: {} }
         });
     };
 
@@ -219,29 +248,19 @@ const FamilyManager = () => {
         const appendDocumentToPDF = (fileUrl, title) => {
             if (!fileUrl) return;
             if (fileUrl.startsWith('data:image')) {
-                doc.addPage();
-                doc.setFontSize(16);
-                doc.setTextColor(0);
+                doc.addPage(); doc.setFontSize(16); doc.setTextColor(0);
                 doc.text(`ANNEXE : ${title.toUpperCase()}`, 14, 20);
                 try { doc.addImage(fileUrl, 14, 30, 180, 0); } catch(e) { console.error(e); }
             } else if (fileUrl.startsWith('data:application/pdf')) {
-                doc.addPage();
-                doc.setFontSize(16);
-                doc.setTextColor(0);
-                doc.text(`ANNEXE : ${title.toUpperCase()}`, 14, 20);
-                doc.setFontSize(12);
-                doc.setTextColor(100);
+                doc.addPage(); doc.setFontSize(16); doc.setTextColor(0);
+                doc.text(`ANNEXE : ${title.toUpperCase()}`, 14, 20); doc.setFontSize(12); doc.setTextColor(100);
                 doc.text("Document au format PDF. Consultez-le sur le logiciel.", 14, 40);
             }
         };
 
-        doc.setFontSize(18);
-        doc.text(`DOSSIER FAMILLE : ${editFamily.name.toUpperCase()}`, 14, yPos);
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        yPos += 8;
-        doc.text(`Statut : ${editFamily.dossierComplet ? 'Complet' : 'Incomplet'} | Edité le ${new Date().toLocaleDateString('fr-FR')}`, 14, yPos);
-        yPos += 12;
+        doc.setFontSize(18); doc.text(`DOSSIER FAMILLE : ${editFamily.name.toUpperCase()}`, 14, yPos);
+        doc.setFontSize(10); doc.setTextColor(100); yPos += 8;
+        doc.text(`Statut : ${editFamily.dossierComplet ? 'Complet' : 'Incomplet'} | Edité le ${new Date().toLocaleDateString('fr-FR')}`, 14, yPos); yPos += 12;
 
         const facturationData = [
             ['Code Portail', editFamily.portalCode || 'Non renseigné'],
@@ -267,17 +286,10 @@ const FamilyManager = () => {
             }
         });
 
-        if (respBody.length > 0) {
-            autoTable(doc, { startY: yPos, body: respBody, theme: 'grid' });
-            yPos = doc.lastAutoTable.finalY + 15;
-        }
+        if (respBody.length > 0) { autoTable(doc, { startY: yPos, body: respBody, theme: 'grid' }); yPos = doc.lastAutoTable.finalY + 15; }
 
         if (attachedChildren.length > 0) {
-            doc.setFontSize(14);
-            doc.setTextColor(20);
-            doc.text("Enfants rattachés au foyer :", 14, yPos);
-            yPos += 8;
-
+            doc.setFontSize(14); doc.setTextColor(20); doc.text("Enfants rattachés au foyer :", 14, yPos); yPos += 8;
             attachedChildren.forEach(child => {
                 if (yPos > 240) { doc.addPage(); yPos = 20; }
                 const childBody = [
@@ -287,9 +299,7 @@ const FamilyManager = () => {
                     ['Médical', `Médecin: ${child.medical?.medecinNom||'-'} | Sport: ${child.medical?.activitesPhysiques !== false ?'OUI':'NON'} | Autres: ${child.medical?.autresInfos ? 'OUI' : 'NON'}`],
                     ['Vaccins & Assurance', `Vaccins: ${child.documents?.vaccins?.status||'Manquant'} | Assurance RC: ${child.documents?.assurance?.status||'Manquant'}`]
                 ];
-                if (child.hasPAI) {
-                    childBody.push(['PAI', `ACTIF - ${child.isPAIAlimentaire ? 'Alimentaire' : 'Médical'} (${child.paiDetails})`]);
-                }
+                if (child.hasPAI) childBody.push(['PAI', `ACTIF - ${child.isPAIAlimentaire ? 'Alimentaire' : 'Médical'} (${child.paiDetails})`]);
 
                 autoTable(doc, { startY: yPos, head: [[`${child.firstName} ${child.lastName.toUpperCase()}`, 'Détails']], body: childBody, theme: 'grid', headStyles: { fillColor: [13, 148, 136] } });
                 yPos = doc.lastAutoTable.finalY + 5;
@@ -314,16 +324,9 @@ const FamilyManager = () => {
     };
 
     const orphans = children.filter(c => !c.family);
-    
-    const filteredOrphans = searchOrphan.length >= 2 
-        ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase()))
-        : [];
-        
+    const filteredOrphans = searchOrphan.length >= 2 ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase())) : [];
     const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id || c.family?._id === selectedFamily._id) : [];
-    
-    const filteredFamilies = searchFamilyText.trim() === '' 
-        ? families 
-        : families.filter(f => f.name.toLowerCase().includes(searchFamilyText.toLowerCase()));
+    const filteredFamilies = searchFamilyText.trim() === '' ? families : families.filter(f => f.name.toLowerCase().includes(searchFamilyText.toLowerCase()));
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
@@ -335,7 +338,7 @@ const FamilyManager = () => {
                         <div className="bg-car-yellow/10 p-4 rounded-2xl"><FolderHeart className="text-car-yellow w-8 h-8"/></div>
                         <div>
                             <h1 className="text-4xl font-black text-car-dark">Dossiers Familles</h1>
-                            <p className="text-slate-500 font-medium mt-1">Gestion centralisée & Rattachements</p>
+                            <p className="text-slate-500 font-medium mt-1">Gestion centralisée &amp; Rattachements</p>
                         </div>
                     </div>
                     
@@ -379,35 +382,60 @@ const FamilyManager = () => {
                         {selectedFamily && editFamily ? (
                             <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-100 min-h-[800px] flex flex-col">
                                 
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 border-b border-slate-100 pb-6">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4 border-b border-slate-100 pb-6">
                                     <div>
                                         <h2 className="text-3xl font-black text-car-dark uppercase">Famille <span className="text-car-yellow">{selectedFamily.name}</span></h2>
-                                        <div className="mt-3 flex items-center gap-3">
+                                        <div className="mt-3 flex flex-wrap items-center gap-3">
                                             <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
                                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">🔑 Code Portail :</span>
-                                                <input 
-                                                    type="text" 
-                                                    className="bg-transparent border-none outline-none font-black text-car-dark text-sm w-24 uppercase placeholder:text-slate-300" 
-                                                    value={editFamily.portalCode || ''} 
-                                                    onChange={e => setEditFamily({...editFamily, portalCode: e.target.value.toUpperCase()})} 
-                                                    placeholder="EX: 1234A" 
-                                                    title="Code d'accès à donner aux parents"
-                                                />
+                                                <input type="text" className="bg-transparent border-none outline-none font-black text-car-dark text-sm w-24 uppercase placeholder:text-slate-300" value={editFamily.portalCode || ''} onChange={e => setEditFamily({...editFamily, portalCode: e.target.value.toUpperCase()})} placeholder="EX: 1234A" />
                                             </div>
+                                            <label className="flex items-center gap-2 cursor-pointer group w-fit">
+                                                <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editFamily.dossierComplet} onChange={e => setEditFamily({...editFamily, dossierComplet: e.target.checked})} />
+                                                <span className={`font-bold text-sm ${editFamily.dossierComplet ? 'text-car-green' : 'text-car-pink group-hover:text-car-dark transition-colors'}`}>
+                                                    {editFamily.dossierComplet ? 'Dossier complet' : 'Dossier incomplet'}
+                                                </span>
+                                            </label>
                                         </div>
-                                        <label className="flex items-center gap-2 mt-3 cursor-pointer group w-fit">
-                                            <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editFamily.dossierComplet} onChange={e => setEditFamily({...editFamily, dossierComplet: e.target.checked})} />
-                                            <span className={`font-bold text-sm ${editFamily.dossierComplet ? 'text-car-green' : 'text-car-pink group-hover:text-car-dark transition-colors'}`}>
-                                                {editFamily.dossierComplet ? 'Dossier vérifié et complet' : 'Dossier incomplet (informations manquantes)'}
-                                            </span>
-                                        </label>
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3 flex-wrap">
                                         <button onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille"><Trash2 size={24}/></button>
                                         <button onClick={exportFamilyPDF} className="text-slate-400 hover:text-white hover:bg-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet"><Download size={24}/></button>
                                         <button onClick={handleSaveFamily} className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest hover:bg-green-600 transition-all flex items-center gap-2 shadow-lg shadow-car-green/20"><Save size={20}/> SAUVEGARDER LE DOSSIER</button>
                                     </div>
                                 </div>
+
+                                {/* --- WORKFLOW LIVE PARENT MODERATION ENCART --- */}
+                                {activeRequest && (
+                                    <div className="mb-6 bg-orange-500/10 border-2 border-dashed border-orange-500/30 p-5 rounded-2xl flex flex-col gap-4 animate-in fade-in duration-300">
+                                        <div className="flex items-start gap-3 text-orange-600">
+                                            <AlertTriangle className="shrink-0 mt-0.5" size={20}/>
+                                            <div>
+                                                <h4 className="font-black text-sm uppercase tracking-wide">Demande de modification soumise par l'usager</h4>
+                                                <p className="text-xs text-slate-600 font-medium mt-0.5">Le parent a demandé à appliquer de nouvelles données. Traitez la demande ci-dessous avant d'écrire définitivement.</p>
+                                                <div className="mt-2 text-xs bg-white p-2.5 rounded-xl border inline-block font-mono text-slate-600">
+                                                    <CornerDownRight size={12} className="inline mr-1 text-slate-400"/>
+                                                    Nouveau revenu transmis : <span className="line-through text-car-pink">{activeRequest.originalData?.revenuReference || '0'} €</span> → <span className="text-car-green font-black">{activeRequest.newData?.revenuReference || '0'} €</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {!showRefusalInput ? (
+                                            <div className="flex gap-2 self-end text-xs font-black uppercase tracking-wider">
+                                                <button type="button" onClick={() => setShowRefusalInput(true)} className="bg-car-pink text-white px-4 py-2 rounded-xl hover:bg-pink-600 transition-all">Rejeter</button>
+                                                <button type="button" onClick={handleApproveRequest} className="bg-car-green text-white px-4 py-2 rounded-xl hover:bg-green-600 transition-all shadow-md">✓ Accepter et Écrire en BDD</button>
+                                            </div>
+                                        ) : (
+                                            <form onSubmit={handleRejectRequest} className="space-y-3 bg-white p-4 rounded-xl border">
+                                                <label className="text-[10px] font-bold text-slate-400 block uppercase">Motif du refus (Sera affiché aux parents) :</label>
+                                                <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-lg text-xs font-medium outline-none focus:border-car-pink" placeholder="Ex: Pièce jointe illisible. Merci de ré-uploader..." value={refusalText} onChange={e => setRefusalText(e.target.value)} required />
+                                                <div className="flex justify-end gap-2 text-[10px] font-bold uppercase">
+                                                    <button type="button" onClick={() => setShowRefusalInput(false)} className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-md">Annuler</button>
+                                                    <button type="submit" className="bg-car-pink text-white px-3 py-1.5 rounded-md">Envoyer le refus</button>
+                                                </div>
+                                            </form>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col">
@@ -454,7 +482,7 @@ const FamilyManager = () => {
 
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                                         <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
-                                            <h3 className="font-black text-car-dark text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation & QF</h3>
+                                            <h3 className="font-black text-car-dark text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation &amp; QF</h3>
                                             <select className="bg-white border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-xs" value={editFamily.payeur} onChange={e => setEditFamily({...editFamily, payeur: e.target.value})}>
                                                 <option value="Responsable 1">Facture à Resp. 1</option>
                                                 <option value="Responsable 2">Facture à Resp. 2</option>
@@ -487,8 +515,7 @@ const FamilyManager = () => {
                                             </div>
                                             <div className="flex flex-col gap-3">
                                                 <div className="flex gap-2">
-                                                    <select className={`flex-1 p-2 rounded-lg text-sm font-bold border outline-none ${editFamily.documents?.attestationCAF?.status === 'Valide' ? 'bg-car-green/10 text-car-green border-car-green/20' : 'bg-slate-50 text-slate-600 border-slate-100'}`} 
-                                                        value={editFamily.documents?.attestationCAF?.status || 'Manquant'} onChange={e => handleDocChange('attestationCAF', 'status', e.target.value)}>
+                                                    <select className={`flex-1 p-2 rounded-lg text-sm font-bold border outline-none ${editFamily.documents?.attestationCAF?.status === 'Valide' ? 'bg-car-green/10 text-car-green border-car-green/20' : 'bg-slate-50 text-slate-600 border-slate-100'}`} value={editFamily.documents?.attestationCAF?.status || 'Manquant'} onChange={e => handleDocChange('attestationCAF', 'status', e.target.value)}>
                                                         <option value="Manquant">Manquant</option><option value="Valide">Valide</option><option value="Expiré">Expiré</option>
                                                     </select>
                                                     <input type="date" className="flex-1 bg-slate-50 border border-slate-100 p-2 rounded-lg outline-none focus:border-car-yellow font-medium text-car-dark text-sm" value={editFamily.documents?.attestationCAF?.expiryDate ? editFamily.documents.attestationCAF.expiryDate.split('T')[0] : ''} onChange={e => handleDocChange('attestationCAF', 'expiryDate', e.target.value)} />
@@ -669,7 +696,7 @@ const FamilyManager = () => {
                             </div>
 
                             <div>
-                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Santé & Médical</h4>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Santé &amp; Médical</h4>
                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                     <div className="grid grid-cols-2 gap-4 mb-4">
                                         <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.lunettes} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, lunettes: e.target.checked}})} /> Lunettes</label>
@@ -689,7 +716,7 @@ const FamilyManager = () => {
                             </div>
 
                             <div>
-                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">PAI & Cantine</h4>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">PAI &amp; Cantine</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="bg-car-pink/5 border border-car-pink/20 p-4 rounded-2xl flex flex-col gap-3">
                                         <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-pink"><input type="checkbox" className="w-5 h-5 accent-car-pink" checked={editingChild.hasPAI} onChange={e => setEditingChild({...editingChild, hasPAI: e.target.checked})} /> L'enfant a un PAI</label>

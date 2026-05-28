@@ -17,6 +17,7 @@ const EmailTemplate = require('./models/EmailTemplate');
 // NOUVEAU : Import du modèle Tariff
 const Tariff = require('./models/Tariff');
 const nodemailer = require('nodemailer');
+const ModificationRequest = require('./models/ModificationRequest');
 
 const SettingsSchema = new mongoose.Schema({ key: String, value: String });
 const Settings = mongoose.model('Settings', SettingsSchema);
@@ -706,6 +707,59 @@ app.post('/api/settings/closed-days', auth(['admin']), async (req, res) => {
         await setting.save();
         res.json({ success: true, dates });
     } catch (e) { res.status(500).send("Erreur enregistrement calendrier."); }
+});
+
+// --- ROUTES DU WORKFLOW DE VALIDATION (PORTAIL <=> STAFF) ---
+// 1. Soumettre une demande (Côté Parent)
+app.post('/api/requests', auth(), async (req, res) => {
+    try {
+        const { familyId, portalCode, newData } = req.body;
+        // On rejette poliment les anciennes demandes en attente de cette famille
+        await ModificationRequest.updateMany({ familyId, status: 'PENDING' }, { status: 'REJECTED', refusalMessage: 'Remplacée par une nouvelle demande.' });
+        
+        const request = new ModificationRequest({ familyId, portalCode, newData, status: 'PENDING' });
+        await request.save();
+        res.status(201).json(request);
+    } catch (e) { res.status(500).send("Erreur soumission demande"); }
+});
+
+// 2. Récupérer la dernière demande d'une famille (Côté Parent & Côté Staff)
+app.get('/api/requests/family/:familyId', auth(), async (req, res) => {
+    try {
+        const request = await ModificationRequest.findOne({ familyId: req.params.familyId }).sort({ createdAt: -1 });
+        res.json(request);
+    } catch (e) { res.status(500).send(e); }
+});
+
+// 3. Traiter une demande : Approbation (Côté Staff)
+app.post('/api/requests/:id/approve', auth(['admin']), async (req, res) => {
+    try {
+        const request = await ModificationRequest.findById(req.params.id);
+        if (!request) return res.status(404).send("Demande introuvable");
+
+        // On écrase les vraies données de la famille avec les nouvelles validées
+        const updatedFamily = await Family.findByIdAndUpdate(request.familyId, request.newData, { new: true });
+        
+        request.status = 'APPROVED';
+        await request.save();
+        
+        res.json({ success: true, family: updatedFamily });
+    } catch (e) { res.status(500).send("Erreur approbation"); }
+});
+
+// 4. Traiter une demande : Refus (Côté Staff)
+app.post('/api/requests/:id/reject', auth(['admin']), async (req, res) => {
+    try {
+        const { message } = req.body;
+        const request = await ModificationRequest.findById(req.params.id);
+        if (!request) return res.status(404).send("Demande introuvable");
+
+        request.status = 'REJECTED';
+        request.refusalMessage = message;
+        await request.save();
+
+        res.json({ success: true });
+    } catch (e) { res.status(500).send("Erreur refus"); }
 });
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
