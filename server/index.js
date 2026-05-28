@@ -518,7 +518,7 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
         const families = await Family.find();
         const children = await Child.find({ active: true });
         const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } });
-        const alternateBillings = await Billing.find({ dates: { $城乡: { $gte: startDate, $lte: endDate } } });
+        const alternateBillings = await Billing.find({ dates: { $elemMatch: { $gte: startDate, $lte: endDate } } });
 
         // Dictionnaires pour accélérer les recherches dans la boucle
         const tariffMap = tariffs.reduce((acc, t) => ({ ...acc, [t.activityCode]: t }), {});
