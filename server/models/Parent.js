@@ -9,14 +9,18 @@ const ParentSchema = new mongoose.Schema({
     activationToken: { type: String, default: null }
 }, { timestamps: true });
 
-// Hashage automatique du mot de passe avant sauvegarde
+// LA CORRECTION EST ICI : on utilise la fonction callback (next)
 ParentSchema.pre('save', async function(next) {
     if (!this.isModified('password')) return next();
-    this.password = await bcrypt.hash(this.password, 10);
-    next();
+    
+    try {
+        this.password = await bcrypt.hash(this.password, 10);
+        next(); // <--- C'EST ÇA QUI MANQUAIT !
+    } catch (err) {
+        next(err); // En cas d'erreur, on passe l'erreur à Mongoose
+    }
 });
 
-// Méthode pour comparer les mots de passe
 ParentSchema.methods.comparePassword = async function(candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
