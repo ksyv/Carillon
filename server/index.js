@@ -506,6 +506,117 @@ app.delete('/api/tariffs/:id', auth(['admin']), async (req, res) => {
 
 // --- FIN DES ROUTES TARIFAIRES ---
 
+// --- MOTEUR DE CALCUL DE FACTURATION MENSUELLE ---
+
+app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) return res.status(400).send("Dates manquantes");
+
+    try {
+        // 1. Charger la matière première : Tarifs, Familles, Enfants, Présences, Alternances
+        const tariffs = await Tariff.find();
+        const families = await Family.find();
+        const children = await Child.find({ active: true });
+        const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } });
+        const alternateBillings = await Billing.find({ dates: { $城乡: { $gte: startDate, $lte: endDate } } });
+
+        // Dictionnaires pour accélérer les recherches dans la boucle
+        const tariffMap = tariffs.reduce((acc, t) => ({ ...acc, [t.activityCode]: t }), {});
+        const childrenInFamily = children.reduce((acc, c) => {
+            if (!c.family) return acc;
+            const famId = c.family.toString();
+            acc[famId] = (acc[famId] || 0) + 1;
+            return acc;
+        }, {});
+
+        let invoiceDrafts = {};
+
+        // 2. Parcourir chaque pointage du mois
+        attendances.forEach(att => {
+            const child = children.find(c => c._id.toString() === att.child.toString());
+            if (!child || !child.family) return;
+
+            const family = families.find(f => f._id.toString() === child.family.toString());
+            if (!family) return;
+
+            const familyId = family._id.toString();
+            const fratrieCount = childrenInFamily[familyId] || 1;
+            const qf = family.quotientFamilial || 0;
+
+            // Déterminer le payeur par défaut (La Famille) ou l'exception (Garde alternée)
+            let payeurNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
+            const altRule = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(att.date));
+            if (altRule) {
+                payeurNom = `Garde Alternée : ${altRule.billTo} (Enfant: ${child.firstName})`;
+            }
+
+            // Initialiser la facture du payeur si elle n'existe pas
+            if (!invoiceDrafts[payeurNom]) {
+                invoiceDrafts[payeurNom] = { payeur: payeurNom, items: {}, totalGlobal: 0 };
+            }
+
+            // Identifier la bonne activité tarifaire selon le type de pointage
+            let targetCode = '';
+            let label = '';
+            if (att.sessionType === 'MATIN') { targetCode = 'CA2_MATIN'; label = 'APS Matin'; }
+            else if (att.sessionType === 'MIDI') {
+                targetCode = child.regimeAlimentaire === 'PAI' ? 'CA1_PAI' : 'CA1';
+                label = child.regimeAlimentaire === 'PAI' ? 'Cantine (Tarif PAI)' : 'Cantine (Repas Enfant)';
+            }
+            else if (att.sessionType === 'SOIR') {
+                targetCode = att.isLate ? 'CA2_SUPP' : 'CA2_SOIR';
+                label = att.isLate ? 'Supplément Fin de Soirée (18h30-19h)' : 'APS Soir (16h30-18h30)';
+            }
+
+            const rule = tariffMap[targetCode];
+            if (!rule) return; // Activité non configurée en admin
+
+            // 3. Calcul du prix unitaire selon la règle stricte enregistrée
+            let prixUnitaire = 0;
+
+            if (rule.pricingMode === 'FIXED') {
+                prixUnitaire = rule.fixedPrice || 0;
+            } 
+            else if (rule.pricingMode === 'QF_BRACKETS') {
+                const bracket = rule.qfBrackets.find(b => qf >= b.min && qf <= b.max);
+                prixUnitaire = bracket ? bracket.price : 0;
+            } 
+            else if (rule.pricingMode === 'TAUX_EFFORT') {
+                // Trouver le taux correspondant au nombre d'enfants de la famille
+                const effortRule = rule.effortRates.find(r => r.childrenCount === fratrieCount) 
+                                   || rule.effortRates[0]; // Fallback enfant 1 si non trouvé
+
+                if (effortRule) {
+                    let calcul = qf * effortRule.rate;
+                    prixUnitaire = Math.max(effortRule.min, Math.min(effortRule.max, calcul));
+                }
+            }
+
+            // Accumuler dans la ligne de facture
+            if (!invoiceDrafts[payeurNom].items[targetCode]) {
+                invoiceDrafts[payeurNom].items[targetCode] = { label, unitPrice: prixUnitaire, count: 0, total: 0 };
+            }
+            
+            invoiceDrafts[payeurNom].items[targetCode].count += 1;
+            invoiceDrafts[payeurNom].items[targetCode].total += prixUnitaire;
+            invoiceDrafts[payeurNom].totalGlobal += prixUnitaire;
+        });
+
+        // Convertir l'objet en tableau propre pour le front-end
+        const result = Object.values(invoiceDrafts).map(draft => ({
+            ...draft,
+            items: Object.values(draft.items),
+            totalGlobal: Number(draft.totalGlobal.toFixed(2))
+        })).filter(draft => draft.totalGlobal > 0); // On masque les factures à 0€
+
+        res.json(result);
+    } catch (e) {
+        console.error("Erreur calcul factures:", e);
+        res.status(500).send("Erreur pendant le calcul.");
+    }
+});
+
+
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
