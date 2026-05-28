@@ -596,72 +596,50 @@ app.post('/api/settings/closed-days', auth(['admin']), async (req, res) => {
 
 // --- WORKFLOW D'INVITATION PARENT AVEC ENVOI DE MAIL REEL ---
 app.post('/api/parent/invite', async (req, res) => {
-    if (req.user && req.user.role !== 'admin') {
-        return res.status(403).send("Accès refusé : Droits insuffisants.");
-    }
     try {
-        // 1. SÉCURITÉ ET VÉRIFICATION DU TOKEN À LA MAIN
-        const authHeader = req.headers.authorization?.split(' ')[1];
-        if (!authHeader) return res.status(401).send('Accès refusé : Aucun token fourni.');
-
-        try {
-            const verified = jwt.verify(authHeader, process.env.JWT_SECRET);
-            req.user = verified;
-            
-            // On vérifie que c'est bien un administrateur qui clique
-            if (req.user.role !== 'admin') {
-                return res.status(403).send('Interdit : Réservé aux administrateurs.');
-            }
-        } catch (err) {
-            return res.status(400).send('Token invalide ou expiré.');
-        }
-
-        // 2. LOGIQUE MÉTIER D'INVITATION
         const { email, familyId } = req.body;
         if (!email || !familyId) return res.status(400).send("Champs requis.");
 
         const activationToken = crypto.randomBytes(20).toString('hex');
-        const temporaryPassword = crypto.randomBytes(8).toString('hex');
         
+        // --- LOGIQUE INTELLIGENTE : RÉCUPÉRER OU CRÉER ---
         let parent = await Parent.findOne({ email });
-        if (parent) return res.status(400).send("Un compte existe déjà avec cet e-mail.");
 
-        parent = new Parent({ email, family: familyId, password: temporaryPassword, activationToken });
-        await parent.save();
+        if (parent) {
+            // Si le parent existe, on met juste à jour son token
+            parent.activationToken = activationToken;
+            await parent.save(); 
+        } else {
+            // S'il n'existe pas, on le crée
+            const temporaryPassword = crypto.randomBytes(8).toString('hex');
+            parent = new Parent({ 
+                email, 
+                family: familyId, 
+                password: temporaryPassword, 
+                activationToken 
+            });
+            await parent.save();
+        }
 
         const activationLink = `${req.headers.referer || 'https://carillon.demo-ksyv.com'}/parent/portal?token=${activationToken}`;
 
-        // 3. ENVOI RÉEL VIA TON SERVICE DE MAILING GMAIL
+        // --- ENVOI DE L'EMAIL ---
         const transporter = nodemailer.createTransport({ 
             service: 'gmail', 
             auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } 
         });
 
-        const mailHtml = `
-            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 12px;">
-                <h2 style="color: #1e3a8a;">Bienvenue sur Carillon</h2>
-                <p>Le service périscolaire de la Ville de Carignan-de-Bordeaux vient de configurer vos accès personnels.</p>
-                <p>Veuillez cliquer sur le lien ci-dessous pour configurer votre mot de passe et activer votre espace famille :</p>
-                <div style="margin: 25px 0; text-align: center;">
-                    <a href="${activationLink}" style="background-color: #1e3a8a; color: white; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 8px; display: inline-block;">ACTIVER MON COMPTE PARENT</a>
-                </div>
-                <p style="font-size: 11px; color: #666;">Si le bouton ne fonctionne pas, copiez-collez ce lien : <br/> ${activationLink}</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="font-size: 10px; color: #888;"><i>Ceci est un envoi officiel automatisé de la Mairie. Ne pas répondre.</i></p>
-            </div>
-        `;
-
         await transporter.sendMail({
             from: `"Portail Carillon" <${process.env.EMAIL_USER}>`,
             to: email,
             subject: "Configuration de votre compte Portail Famille Carillon",
-            html: mailHtml
+            html: `<p>Cliquez ici pour activer votre espace : <a href="${activationLink}">Activer mon compte</a></p>`
         });
 
         res.json({ success: true, link: activationLink });
     } catch (e) { 
-        console.error("Erreur d'envoi d'invitation parent :", e);
-        res.status(500).send(`Erreur invitation mail : ${e.message}`); 
+        console.error(e);
+        res.status(500).send(`Erreur : ${e.message}`); 
     }
 });
 
