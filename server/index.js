@@ -674,9 +674,23 @@ app.post('/api/parent/activate', async (req, res) => {
         const { token, password } = req.body;
         const parent = await Parent.findOne({ activationToken: token });
         if (!parent) return res.status(404).send("Lien invalide.");
-        parent.password = password; parent.isFirstConnection = false; parent.activationToken = null;
-        await parent.save(); res.json({ success: true });
-    } catch (e) { res.status(500).send("Erreur."); }
+
+        // 1. Hacher le mot de passe ici manuellement
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // 2. Mettre à jour le parent
+        parent.password = hashedPassword; // On injecte le hash directement
+        parent.isFirstConnection = false;
+        parent.activationToken = null;
+        
+        // 3. Sauvegarder sans passer par un hook complexe
+        await parent.save(); 
+        
+        res.json({ success: true });
+    } catch (e) { 
+        console.error("Erreur activation :", e);
+        res.status(500).send("Erreur lors de l'activation."); 
+    }
 });
 
 app.post('/api/parent/login', async (req, res) => {
