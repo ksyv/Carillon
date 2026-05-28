@@ -9,20 +9,22 @@ const ParentSchema = new mongoose.Schema({
     activationToken: { type: String, default: null }
 }, { timestamps: true });
 
-// LA CORRECTION EST ICI : on utilise la fonction callback (next)
-ParentSchema.pre('save', async function(next) {
-    if (!this.isModified('password')) return next();
-    
-    try {
-        this.password = await bcrypt.hash(this.password, 10);
-        next(); // <--- C'EST ÇA QUI MANQUAIT !
-    } catch (err) {
-        next(err); // En cas d'erreur, on passe l'erreur à Mongoose
-    }
+// Correction ici : PAS d'async sur la fonction parente, 
+// on utilise .hash() de manière classique ou dans un bloc try/catch
+ParentSchema.pre('save', function(next) {
+    const parent = this;
+
+    if (!parent.isModified('password')) return next();
+
+    bcrypt.hash(parent.password, 10, (err, hash) => {
+        if (err) return next(err);
+        parent.password = hash;
+        next();
+    });
 });
 
 ParentSchema.methods.comparePassword = async function(candidatePassword) {
-    return bcrypt.compare(candidatePassword, this.password);
+    return await bcrypt.compare(candidatePassword, this.password);
 };
 
 module.exports = mongoose.model('Parent', ParentSchema);
