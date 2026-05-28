@@ -327,6 +327,34 @@ const FamilyManager = () => {
     const filteredOrphans = searchOrphan.length >= 2 ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase())) : [];
     const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id || c.family?._id === selectedFamily._id) : [];
     const filteredFamilies = searchFamilyText.trim() === '' ? families : families.filter(f => f.name.toLowerCase().includes(searchFamilyText.toLowerCase()));
+    const handleSendParentInvite = async () => {
+        // On récupère l'email du Responsable 1 renseigné dans le formulaire
+        const emailResp1 = editFamily.responsables[0]?.email;
+        
+        if (!emailResp1) {
+            return alert("⚠️ Veuillez d'abord renseigner une adresse email valide pour le Responsable 1 afin de lui envoyer son accès.");
+        }
+
+        if (window.confirm(`Voulez-vous générer et envoyer un lien d'activation du Portail Famille à l'adresse : ${emailResp1} ?`)) {
+            try {
+                const { data } = await api.post('/parent/invite', {
+                    email: emailResp1,
+                    familyId: selectedFamily._id
+                });
+                
+                if (data.success) {
+                    // Si Nodemailer n'est pas configuré, ou par sécurité pour la démo, on affiche le lien
+                    // Tu pourras ainsi copier/coller le lien ou le donner directement à l'élu s'il est à côté de toi
+                    window.prompt(
+                        "✅ Compte parent créé sur le serveur ! Voici le lien unique d'activation généré (il a aussi été loggé sur le VPS) :", 
+                        data.link
+                    );
+                }
+            } catch (e) {
+                alert(`Erreur : ${e.response?.data || "Impossible de générer l'invitation."}`);
+            }
+        }
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
@@ -401,6 +429,7 @@ const FamilyManager = () => {
                                     <div className="flex items-center gap-3 flex-wrap">
                                         <button onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille"><Trash2 size={24}/></button>
                                         <button onClick={exportFamilyPDF} className="text-slate-400 hover:text-white hover:bg-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet"><Download size={24}/></button>
+                                        <button type="button" onClick={handleSendParentInvite} className="bg-car-blue text-white px-6 py-4 rounded-2xl font-black tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg shadow-car-blue/10"> <Mail size={20}/> CONFIGURER ACCÈS PARENT</button>
                                         <button onClick={handleSaveFamily} className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest hover:bg-green-600 transition-all flex items-center gap-2 shadow-lg shadow-car-green/20"><Save size={20}/> SAUVEGARDER LE DOSSIER</button>
                                     </div>
                                 </div>

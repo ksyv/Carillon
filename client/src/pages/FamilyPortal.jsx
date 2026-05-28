@@ -1,55 +1,102 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FolderHeart, AlertTriangle, CheckCircle, Save, Users, Info, Pencil, Banknote, FileText, LogOut, Lock, UploadCloud, Bell, RefreshCw, X, Check, Copy } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FolderHeart, AlertTriangle, CheckCircle, Save, Users, Info, Pencil, Banknote, FileText, LogOut, Lock, UploadCloud, Bell, RefreshCw, Mail, Eye, Key } from 'lucide-react';
 import api from '../api';
 import ChildInfoModal from '../components/ChildInfoModal';
 
 const FamilyPortal = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const activationToken = searchParams.get('token'); // Intercepte le ?token= de l'email
 
-    const [portalCodeInput, setPortalCodeInput] = useState('');
+    // --- FORM STATES ---
+    const [emailInput, setEmailInput] = useState('');
+    const [passwordInput, setPasswordInput] = useState('');
+    const [newPasswordInput, setNewPasswordInput] = useState('');
+    
+    // --- AUTH & DATA STATES ---
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    
-    const [children, setChildren] = useState([]);
-    const [families, setFamilies] = useState([]);
-    const [selectedFamily, setSelectedFamily] = useState(null);
-    const [editFamily, setEditFamily] = useState(null); 
-    
-    const [childInfoToView, setChildInfoToView] = useState(null);
-    const [editingChild, setEditingChild] = useState(null);
-
-    const [serverRequest, setServerRequest] = useState(null);
+    const [isActivationMode, setIsActivationMode] = useState(!!activationToken);
     const [isProcessing, setIsProcessing] = useState(false);
 
-    const loadData = async () => {
+    const [children, setChildren] = useState([]);
+    const [selectedFamily, setSelectedFamily] = useState(null);
+    const [editFamily, setEditFamily] = useState(null); 
+    const [serverRequest, setServerRequest] = useState(null);
+    const [childInfoToView, setChildInfoToView] = useState(null);
+
+    // Chargement des données de la famille connectée (via son Token JWT Parent)
+    const loadParentDossier = async (familyId) => {
         try {
-            const [kidsRes, famRes] = await Promise.all([api.get(`/children`), api.get(`/families`)]);
-            setChildren(kidsRes.data);
-            setFamilies(famRes.data);
+            const [kidsRes, reqRes] = await Promise.all([
+                api.get(`/children`),
+                api.get(`/requests/family/${familyId}`)
+            ]);
+            // On filtre les enfants rattachés à cette famille uniquement
+            setChildren(kidsRes.data.filter(c => c.family === familyId || c.family?._id === familyId));
+            setServerRequest(reqRes.data);
         } catch (e) { console.error(e); }
     };
 
-    const checkFamilyRequestStatus = async (familyId) => {
-        try {
-            const { data } = await api.get(`/requests/family/${familyId}`);
-            setServerRequest(data);
-        } catch (e) { console.error(e); }
-    };
-
-    const handlePortalLogin = async (e) => {
+    // Soumission du formulaire de connexion standard
+    const handleLoginSubmit = async (e) => {
         e.preventDefault();
-        const code = portalCodeInput.trim().toUpperCase();
-        if (!code) return;
-
-        const targetFamily = families.find(f => f.portalCode === code);
-        if (targetFamily) {
-            setSelectedFamily(targetFamily);
-            await checkFamilyRequestStatus(targetFamily._id);
+        setIsProcessing(true);
+        try {
+            const { data } = await api.post('/parent/login', { email: emailInput, password: passwordInput });
+            localStorage.setItem('parent_token', data.token);
+            localStorage.setItem('parent_family_id', data.family._id);
+            
+            // Configuration du header pour les appels suivants
+            api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+            
+            setSelectedFamily(data.family);
+            await loadParentDossier(data.family._id);
             setIsAuthenticated(true);
-        } else { alert("❌ Code portail erroné."); }
+        } catch (e) {
+            alert("❌ Email ou mot de passe incorrect.");
+        }
+        setIsProcessing(false);
     };
 
-    useEffect(() => { loadData(); }, []);
+    // Soumission de la création du mot de passe (Lien d'activation du mail)
+    const handleActivationSubmit = async (e) => {
+        e.preventDefault();
+        if (newPasswordInput.length < 6) return alert("Le mot de passe doit contenir au moins 6 caractères.");
+        setIsProcessing(true);
+        try {
+            await api.post('/parent/activate', { token: activationToken, password: newPasswordInput });
+            alert("🔑 Votre mot de passe a été enregistré avec succès ! Vous pouvez maintenant vous connecter.");
+            setIsActivationMode(false);
+            navigate('/parent/portal'); // Nettoie l'URL
+        } catch (e) {
+            alert("❌ Ce lien d'activation est invalide ou a déjà été utilisé.");
+        }
+        setIsProcessing(false);
+    };
+
+    // Restauration de la session au rechargement de la page
+    useEffect(() => {
+        const storedToken = localStorage.getItem('parent_token');
+        const storedFamilyId = localStorage.getItem('parent_family_id');
+        if (storedToken && storedFamilyId && !activationToken) {
+            api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+            api.get(`/families`).then(res => {
+                const fam = res.data.find(f => f._id === storedFamilyId);
+                if (fam) {
+                    setSelectedFamily(fam);
+                    loadParentDossier(fam._id);
+                    setIsAuthenticated(true);
+                }
+            }).catch(() => handleLogout());
+        }
+    }, []);
+
+    const handleLogout = () => {
+        localStorage.removeItem('parent_token');
+        localStorage.removeItem('parent_family_id');
+        setIsAuthenticated(false);
+    };
 
     useEffect(() => {
         if (selectedFamily) {
@@ -57,19 +104,15 @@ const FamilyPortal = () => {
             while (resps.length < 2) resps.push({ firstName: '', lastName: '', qualite: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' });
             const docs = selectedFamily.documents || { assuranceRC: {}, vaccins: {}, avisImposition: {}, attestationCAF: {} };
             setEditFamily({ ...selectedFamily, responsables: resps, documents: docs });
-        } else { setEditFamily(null); }
+        }
     }, [selectedFamily]);
 
     const handleParentSubmitRequest = async () => {
         setIsProcessing(true);
         try {
-            const { data } = await api.post('/requests', {
-                familyId: selectedFamily._id,
-                portalCode: selectedFamily.portalCode,
-                newData: editFamily
-            });
+            const { data } = await api.post('/requests', { familyId: selectedFamily._id, portalCode: "PORTAIL", newData: editFamily });
             setServerRequest(data);
-            alert("✓ Votre demande a bien été envoyée à la mairie !");
+            alert("✓ Vos modifications ont été soumises à la validation de la mairie.");
         } catch (e) { alert("Erreur."); }
         setIsProcessing(false);
     };
@@ -104,35 +147,56 @@ const FamilyPortal = () => {
         reader.readAsDataURL(file);
     };
 
-    const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id || c.family?._id === selectedFamily._id) : [];
-
-    if (!isAuthenticated) {
+    // --- INTERFACE 1 : MODE CHOIX DU MOT DE PASSE (PREMIÈRE ACTIVATION) ---
+    if (isActivationMode) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 max-w-md w-full text-center space-y-6">
-                    <div className="bg-car-blue/10 p-5 rounded-2xl w-fit mx-auto text-car-blue"><Lock size={36} strokeWidth={2.5}/></div>
-                    <div><h1 className="text-3xl font-black text-car-dark">Espace Parent</h1><p className="text-slate-400 text-sm font-medium mt-1">Authentification usager</p></div>
-                    <form onSubmit={handlePortalLogin} className="space-y-4">
-                        <input type="text" className="w-full text-center p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl font-black text-xl text-car-dark uppercase tracking-widest outline-none focus:border-car-blue tracking-widest" placeholder="CODE PORTAIL" value={portalCodeInput} onChange={e => setPortalCodeInput(e.target.value)} required />
-                        <button type="submit" className="w-full bg-car-blue text-white font-black tracking-widest p-4 rounded-2xl shadow-md uppercase text-sm">Ouvrir mon espace</button>
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border max-w-md w-full text-center space-y-6">
+                    <div className="bg-car-green/10 p-5 rounded-2xl w-fit mx-auto text-car-green"><Key size={36} strokeWidth={2.5}/></div>
+                    <div><h1 className="text-2xl font-black text-car-dark">Première Activation</h1><p className="text-slate-400 text-sm font-medium mt-1">Choisissez le mot de passe confidentiel de votre espace famille</p></div>
+                    <form onSubmit={handleActivationSubmit} className="space-y-4">
+                        <input type="password" className="w-full text-center p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl font-bold text-base outline-none focus:border-car-green transition-all" placeholder="Nouveau mot de passe" value={newPasswordInput} onChange={e => setNewPasswordInput(e.target.value)} required minLength={6} />
+                        <button type="submit" disabled={isProcessing} className="w-full bg-car-green text-white font-black tracking-widest p-4 rounded-2xl shadow-lg shadow-car-green/20 uppercase text-sm">{isProcessing ? "Configuration..." : "Activer mon compte"}</button>
                     </form>
-                    <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold text-xs transition-colors">← Quitter</button>
                 </div>
             </div>
         );
     }
 
+    // --- INTERFACE 2 : FORMULAIRE DE CONNEXION STANDARD (EMAIL + MDP) ---
+    if (!isAuthenticated) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 max-w-md w-full text-center space-y-6">
+                    <div className="bg-car-blue/10 p-5 rounded-2xl w-fit mx-auto text-car-blue"><Lock size={36} strokeWidth={2.5}/></div>
+                    <div><h1 className="text-3xl font-black text-car-dark">Espace Parent</h1><p className="text-slate-400 text-sm font-medium mt-1">Connectez-vous à votre espace Carillon</p></div>
+                    <form onSubmit={handleLoginSubmit} className="space-y-4 text-left">
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Adresse Email :</label>
+                            <input type="email" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm text-car-dark outline-none focus:bg-white focus:border-car-blue transition-all" placeholder="parents@email.com" value={emailInput} onChange={e => setEmailInput(e.target.value)} required />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Mot de passe :</label>
+                            <input type="password" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm text-car-dark outline-none focus:bg-white focus:border-car-blue transition-all" placeholder="••••••••" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} required />
+                        </div>
+                        <button type="submit" disabled={isProcessing} className="w-full bg-car-blue text-white font-black tracking-widest p-4 rounded-2xl shadow-lg hover:bg-blue-600 transition-all uppercase text-sm mt-2">{isProcessing ? "Connexion..." : "Se connecter"}</button>
+                    </form>
+                    <button onClick={() => navigate('/')} className="text-slate-400 hover:text-car-dark font-bold text-xs transition-colors">← Retour Communal</button>
+                </div>
+            </div>
+        );
+    }
+
+    // --- INTERFACE 3 : DOSSIER PARENT CONNECTÉ ---
     return (
         <div className="min-h-screen bg-slate-50 p-4 md:p-10 flex flex-col">
             <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col">
-                
-                {/* HEADER PARENT */}
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
                     <div className="flex items-center gap-4">
                         <div className="bg-car-blue/10 p-4 rounded-2xl text-car-blue"><FolderHeart size={32}/></div>
                         <div>
                             <h1 className="text-4xl font-black text-car-dark uppercase">Mon Espace : <span className="text-car-blue">{selectedFamily.name}</span></h1>
-                            <p className="text-slate-500 font-medium mt-1">Dossier Famille Connecté</p>
+                            <p className="text-slate-500 font-medium mt-1">Espace Famille Sécurisé ({emailInput})</p>
                         </div>
                     </div>
                     <div className="flex gap-2">
@@ -140,16 +204,15 @@ const FamilyPortal = () => {
                             {isProcessing ? <RefreshCw className="animate-spin" size={20}/> : <Save size={20}/>}
                             SOUMETTRE À LA MAIRIE
                         </button>
-                        <button onClick={() => setIsAuthenticated(false)} className="text-slate-400 hover:text-car-pink bg-white border border-slate-200 p-4 rounded-2xl transition-colors"><LogOut size={24}/></button>
+                        <button onClick={handleLogout} className="text-slate-400 hover:text-car-pink bg-white border border-slate-200 p-4 rounded-2xl transition-colors"><LogOut size={24}/></button>
                     </div>
                 </div>
 
-                {/* LES BANNIÈRES DE STATUTS SYNCHRONISÉES EN BDD */}
                 {serverRequest && serverRequest.status === 'PENDING' && (
-                    <div className="p-4 rounded-2xl border mb-6 text-sm font-bold flex items-center gap-3 bg-amber-500/10 text-amber-700 border-amber-500/20"><Bell size={20}/> ⏳ Demande en attente de validation par le service scolaire. Votre dossier est gelé.</div>
+                    <div className="p-4 rounded-2xl border mb-6 text-sm font-bold flex items-center gap-3 bg-amber-500/10 text-amber-700 border-amber-500/20"><Bell size={20}/> ⏳ Modifications transmises. Dossier temporairement gelé en attente de vérification par la Mairie.</div>
                 )}
                 {serverRequest && serverRequest.status === 'APPROVED' && (
-                    <div className="p-4 rounded-2xl border mb-6 text-sm font-bold flex items-center gap-3 bg-emerald-500/10 text-emerald-700 border-emerald-500/20"><CheckCircle size={20}/> ✅ Vos dernières modifications ont été validées et enregistrées par la Mairie.</div>
+                    <div className="p-4 rounded-2xl border mb-6 text-sm font-bold flex items-center gap-3 bg-emerald-500/10 text-emerald-700 border-emerald-500/20"><CheckCircle size={20}/> ✅ Vos modifications ont été vérifiées et approuvées par le service scolaire.</div>
                 )}
                 {serverRequest && serverRequest.status === 'REJECTED' && (
                     <div className="p-4 rounded-2xl border mb-6 text-sm font-bold flex items-center gap-3 bg-car-pink/10 text-car-pink border-car-pink/20"><AlertTriangle size={20}/> ❌ Modifications refusées par le service scolaire. Motif : "{serverRequest.refusalMessage}"</div>
@@ -161,9 +224,9 @@ const FamilyPortal = () => {
                             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                                 <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Les enfants de mon foyer</h3>
                                 <div className="space-y-2">
-                                    {attachedChildren.map(c => (
-                                        <div key={c._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                            <span className="font-bold text-car-dark uppercase">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
+                                    {children.map(c => (
+                                        <div key={c._id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold text-car-dark uppercase">
+                                            {c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -186,7 +249,7 @@ const FamilyPortal = () => {
                                     <span className="font-black text-car-blue text-lg">{editFamily.quotientFamilial || '-'} €</span>
                                 </div>
                                 <div className="bg-slate-50/50 p-4 rounded-2xl border-2 border-dashed border-slate-200 mt-4 space-y-3">
-                                    <span className="text-xs font-bold text-slate-500 uppercase block"><UploadCloud size={14} className="inline mr-1"/> Transmettre Attestation CAF</span>
+                                    <span className="text-xs font-bold text-slate-500 uppercase block"><UploadCloud size={14} className="inline mr-1"/> Déposer l'Attestation CAF</span>
                                     <input type="file" accept=".pdf, image/*" onChange={(e) => handleFileUpload('attestationCAF', e)} className="text-xs text-slate-400 cursor-pointer"/>
                                 </div>
                             </div>

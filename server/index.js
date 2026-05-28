@@ -18,6 +18,8 @@ const EmailTemplate = require('./models/EmailTemplate');
 const Tariff = require('./models/Tariff');
 const nodemailer = require('nodemailer');
 const ModificationRequest = require('./models/ModificationRequest');
+const Parent = require('./models/Parent');
+const crypto = require('crypto');
 
 const SettingsSchema = new mongoose.Schema({ key: String, value: String });
 const Settings = mongoose.model('Settings', SettingsSchema);
@@ -707,6 +709,81 @@ app.post('/api/settings/closed-days', auth(['admin']), async (req, res) => {
         await setting.save();
         res.json({ success: true, dates });
     } catch (e) { res.status(500).send("Erreur enregistrement calendrier."); }
+});
+
+// --- ROUTES AUTHENTIFICATION PORTAIL FAMILLE ---
+
+// 1. Générer et envoyer un lien d'activation (Appelé par le Staff en Admin, ou simulation automatique)
+app.post('/api/parent/invite', auth(['admin']), async (req, res) => {
+    try {
+        const { email, familyId } = req.body;
+        
+        // Génération d'un token d'activation unique
+        const activationToken = crypto.randomBytes(20).toString('hex');
+        
+        // On crée le compte parent temporaire (mot de passe provisoire complexe)
+        const temporaryPassword = crypto.randomBytes(8).toString('hex');
+        
+        let parent = await Parent.findOne({ email });
+        if (parent) return res.status(400).send("Un compte parent existe déjà avec cet email.");
+
+        parent = new Parent({
+            email,
+            family: familyId,
+            password: temporaryPassword, // Sera écrasé à la première connexion
+            activationToken
+        });
+        await parent.save();
+
+        // SIMULATION OU ENVOI REEL DU MAIL D'INVITATION
+        const activationLink = `${req.headers.referer || 'http://localhost:3000'}/parent/portal?token=${activationToken}`;
+        console.log(`✉️ [Carillon Mailer] Lien d'activation généré pour ${email} : ${activationLink}`);
+        
+        // Ici tu pourras brancher ton transporteur Nodemailer pour envoyer le vrai mail
+        
+        res.json({ success: true, link: activationLink });
+    } catch (e) { res.status(500).send(e.message); }
+});
+
+// 2. Activer le compte (Définition du premier mot de passe par le parent)
+app.post('/api/parent/activate', async (req, res) => {
+    try {
+        const { token, password } = req.body;
+        const parent = await Parent.findOne({ activationToken: token });
+        if (!parent) return res.status(404).send("Lien d'activation invalide ou expiré.");
+
+        parent.password = password;
+        parent.isFirstConnection = false;
+        parent.activationToken = null; // Le token est consommé
+        await parent.save();
+
+        res.json({ success: true });
+    } catch (e) { res.status(500).send("Erreur lors de l'activation."); }
+});
+
+// 3. Connexion au Portail Famille (ID + MDP)
+app.post('/api/parent/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const parent = await Parent.findOne({ email }).populate('family');
+        if (!parent) return res.status(401).send("Identifiants incorrects.");
+
+        const isMatch = await parent.comparePassword(password);
+        if (!isMatch) return res.status(401).send("Identifiants incorrects.");
+
+        // Génération d'un JWT étiqueté 'parent' pour la sécurité
+        const token = jwt.sign(
+            { id: parent._id, familyId: parent.family._id, role: 'parent' },
+            process.env.JWT_SECRET || 'SECRET_CARILLON',
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            token,
+            family: parent.family,
+            email: parent.email
+        });
+    } catch (e) { res.status(500).send("Erreur serveur."); }
 });
 
 // --- ROUTES DU WORKFLOW DE VALIDATION (PORTAIL <=> STAFF) ---
