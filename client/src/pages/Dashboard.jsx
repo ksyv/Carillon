@@ -1,15 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX, Bell } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
+import api from '../api';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const role = localStorage.getItem('role');
   const access = localStorage.getItem('categoryAccess') || 'Tous';
   
+  const [pendingRequests, setPendingRequests] = useState(0);
+
+  // Vérification périodique des demandes en attente
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const { data } = await api.get('/requests/pending-count');
+        setPendingRequests(data.count);
+      } catch (e) { console.error("Erreur récup. demandes:", e); }
+    };
+
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 30000); // Rafraîchissement toutes les 30 secondes
+    return () => clearInterval(interval);
+  }, []);
+
   const getSessionStatus = (session) => {
       if (role === 'admin') return { locked: false, text: 'Admin' };
       const now = new Date();
@@ -55,22 +72,26 @@ const Dashboard = () => {
             <span className="text-xs font-black text-car-purple bg-car-purple/10 px-4 py-1.5 rounded-full uppercase tracking-widest">{role}</span>
             <button onClick={handleLogout} className="text-slate-400 hover:text-car-pink transition-colors p-2"><LogOut size={22} /></button>
         </div>
-        <div className="flex items-center gap-4">
-            {/* BOUTON SIMULATEUR PORTAIL FAMILLE */}
-            <button 
-                onClick={() => navigate('/parent/portal')} 
-                className="bg-car-blue/10 text-car-blue border border-car-blue/20 hover:bg-car-blue hover:text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all"
-            >
-                Voir le Portail Famille Parent ↗
-            </button>
-
-            <button onClick={handleLogout} className="...">
-                <LogOut size={20} />
-            </button>
-        </div>
       </header>
       
       <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-10 mt-4">
+        
+        {/* --- ALERTE DEMANDES PARENTS --- */}
+        {pendingRequests > 0 && (
+            <div onClick={() => navigate('/admin/families')} className="cursor-pointer bg-orange-50 border-2 border-orange-200 p-6 rounded-[2rem] flex justify-between items-center shadow-sm hover:shadow-md transition-all group">
+                <div className="flex items-center gap-4">
+                    <div className="bg-orange-500 p-3 rounded-2xl text-white"><Bell size={24} className="animate-pulse"/></div>
+                    <div>
+                        <h2 className="text-orange-900 font-black text-lg">Modifications en attente</h2>
+                        <p className="text-orange-700 text-sm font-medium">{pendingRequests} dossier(s) famille nécessite(nt) votre validation.</p>
+                    </div>
+                </div>
+                <div className="bg-white text-orange-600 font-black px-6 py-3 rounded-2xl group-hover:bg-orange-500 group-hover:text-white transition-colors border-2 border-orange-500">
+                    VOIR LES DEMANDES
+                </div>
+            </div>
+        )}
+
         <section>
             <div className="flex items-center gap-3 mb-6 ml-2">
                 <div className="h-2 w-2 rounded-full bg-car-teal"></div>
@@ -97,7 +118,7 @@ const Dashboard = () => {
                 </button>
                 {role === 'admin' && (
                     <>
-                        <button onClick={() => navigate('/admin/families')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group relative overflow-hidden">
+                        <button onClick={() => navigate('/admin/families')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-yellow/10 p-4 rounded-2xl w-fit group-hover:bg-car-yellow group-hover:text-white text-car-yellow transition-colors"><FolderHeart size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Dossiers Familles</h3><p className="text-xs text-slate-500 font-medium mt-1">Rattachement & CAF</p></div>
                         </button>
@@ -106,13 +127,8 @@ const Dashboard = () => {
                             <div><h3 className="font-black text-car-dark text-lg">Rapports & Listes</h3><p className="text-xs text-slate-500 font-medium mt-1">Historique & PDF</p></div>
                         </button>
                         <button onClick={() => navigate('/admin/mailing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors">
-                                <Mail size={24} strokeWidth={2.5}/>
-                            </div>
-                            <div>
-                                <h3 className="font-black text-car-dark text-lg">Communication</h3>
-                                <p className="text-xs text-slate-500 font-medium mt-1">Mails groupés & Relances</p>
-                            </div>
+                            <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Mail size={24} strokeWidth={2.5}/></div>
+                            <div><h3 className="font-black text-car-dark text-lg">Communication</h3><p className="text-xs text-slate-500 font-medium mt-1">Mails groupés & Relances</p></div>
                         </button>
                         <button onClick={() => navigate('/admin/users')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-purple/10 p-4 rounded-2xl w-fit group-hover:bg-car-purple group-hover:text-white text-car-purple transition-colors"><Shield size={24} strokeWidth={2.5}/></div>
@@ -122,31 +138,21 @@ const Dashboard = () => {
                             <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Notes plannifiées</h3><p className="text-xs text-slate-500 font-medium mt-1">& notes récurrentes</p></div>
                         </button>
-
-                        {/* BOUTON : GRILLES TARIFAIRES */}
                         <button onClick={() => navigate('/admin/tariffs')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-orange-500 transition-colors"><Tags size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Grilles Tarifaires</h3><p className="text-xs text-slate-500 font-medium mt-1">Taux d'effort & QF</p></div>
                         </button>
-
-                        {/* BOUTON : CALENDRIER DE FERMETURE */}
                         <button onClick={() => navigate('/admin/calendar-exception')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarX size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Jours de fermeture</h3><p className="text-xs text-slate-500 font-medium mt-1">Fériés et Vacances</p></div>
                         </button>
-
                         <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Banknote size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Facturation</h3><p className="text-xs text-slate-500 font-medium mt-1">Génération & Export</p></div>
                         </button>
                         <button onClick={() => navigate('/admin/caf')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-slate-800 p-4 rounded-2xl w-fit group-hover:bg-car-dark group-hover:text-white text-slate-600 transition-colors">
-                                <Calculator size={24} strokeWidth={2.5}/>
-                            </div>
-                            <div>
-                                <h3 className="font-black text-car-dark text-lg">Déclaration CAF</h3>
-                                <p className="text-xs text-slate-500 font-medium mt-1">Actes & Heures PSO</p>
-                            </div>
+                            <div className="bg-slate-800 p-4 rounded-2xl w-fit group-hover:bg-car-dark group-hover:text-white text-slate-600 transition-colors"><Calculator size={24} strokeWidth={2.5}/></div>
+                            <div><h3 className="font-black text-car-dark text-lg">Déclaration CAF</h3><p className="text-xs text-slate-500 font-medium mt-1">Actes & Heures PSO</p></div>
                         </button>
                     </>
                 )}

@@ -75,22 +75,31 @@ const FamilyPortal = () => {
         setIsProcessing(false);
     };
 
+    const [isLoading, setIsLoading] = useState(true);
     // Restauration de la session au rechargement de la page
     useEffect(() => {
         const storedToken = localStorage.getItem('parent_token');
         const storedFamilyId = localStorage.getItem('parent_family_id');
-        if (storedToken && storedFamilyId && !activationToken) {
+
+        if (storedToken && storedFamilyId) {
+            // Injection IMMÉDIATE du header
             api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-            api.get(`/families`).then(res => {
-                const fam = res.data.find(f => f._id === storedFamilyId);
-                if (fam) {
-                    setSelectedFamily(fam);
-                    loadParentDossier(fam._id);
+            
+            loadParentDossier(storedFamilyId)
+                .then(() => {
                     setIsAuthenticated(true);
-                }
-            }).catch(() => handleLogout());
+                    setIsLoading(false);
+                })
+                .catch(() => {
+                    handleLogout();
+                    setIsLoading(false);
+                });
+        } else {
+            setIsLoading(false);
         }
     }, []);
+
+    if (isLoading) return <div>Chargement...</div>;
 
     const handleLogout = () => {
         localStorage.removeItem('parent_token');

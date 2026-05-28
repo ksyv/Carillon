@@ -708,10 +708,35 @@ app.post('/api/parent/login', async (req, res) => {
 app.post('/api/requests', auth(), async (req, res) => {
     try {
         const { familyId, portalCode, newData } = req.body;
-        await ModificationRequest.updateMany({ familyId, status: 'PENDING' }, { status: 'REJECTED', refusalMessage: 'Remplacée.' });
-        const request = new ModificationRequest({ familyId, portalCode, newData, status: 'PENDING' });
-        await request.save(); res.status(201).json(request);
-    } catch (e) { res.status(500).send("Erreur."); }
+        const oldFamily = await Family.findById(familyId).lean();
+        
+        let changes = [];
+        
+        // Comparaison des revenus et parts
+        if (oldFamily.revenuReference !== newData.revenuReference) changes.push(`Revenu : ${oldFamily.revenuReference}€ → ${newData.revenuReference}€`);
+        if (oldFamily.nombreParts !== newData.nombreParts) changes.push(`Parts : ${oldFamily.nombreParts} → ${newData.nombreParts}`);
+        
+        // Comparaison des responsables (on regarde les 2)
+        newData.responsables.forEach((resp, i) => {
+            const old = oldFamily.responsables[i] || {};
+            if (resp.phoneMobile !== old.phoneMobile) changes.push(`Resp ${i+1} Tel : ${old.phoneMobile} → ${resp.phoneMobile}`);
+            if (resp.email !== old.email) changes.push(`Resp ${i+1} Email : ${old.email} → ${resp.email}`);
+        });
+
+        // On annule les anciennes demandes en attente
+        await ModificationRequest.updateMany({ familyId, status: 'PENDING' }, { status: 'REJECTED', refusalMessage: 'Nouvelle demande soumise' });
+        
+        const request = new ModificationRequest({ 
+            familyId, 
+            portalCode, 
+            newData, 
+            oldData: oldFamily, 
+            changeSummary: changes.join(' | ') || "Modifications sur le dossier",
+            status: 'PENDING' 
+        });
+        await request.save();
+        res.status(201).json(request);
+    } catch (e) { res.status(500).send("Erreur serveur"); }
 });
 
 app.get('/api/requests/family/:familyId', auth(), async (req, res) => {
@@ -780,5 +805,10 @@ if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../client/dist')));
     app.get(/.*/, (req, res) => res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html')));
 }
+
+app.get('/api/requests/pending-count', auth(['admin', 'responsable']), async (req, res) => {
+    const count = await ModificationRequest.countDocuments({ status: 'PENDING' });
+    res.json({ count });
+});
 
 app.listen(process.env.PORT || 5000, () => console.log('Server running'));
