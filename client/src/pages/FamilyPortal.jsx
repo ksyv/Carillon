@@ -24,6 +24,7 @@ const FamilyPortal = () => {
     const [editFamily, setEditFamily] = useState(null); 
     const [serverRequest, setServerRequest] = useState(null);
     const [childInfoToView, setChildInfoToView] = useState(null);
+    const [editingChild, setEditingChild] = useState(null);
 
     // Chargement des données de la famille connectée (via son Token JWT Parent)
     const loadParentDossier = async (familyId) => {
@@ -79,19 +80,13 @@ const FamilyPortal = () => {
     // Restauration de la session au rechargement de la page
     useEffect(() => {
         const storedToken = localStorage.getItem('parent_token');
-        const storedFamilyId = localStorage.getItem('parent_family_id');
-
-        // On ne charge que si on a les infos et PAS en mode activation
-        if (storedToken && storedFamilyId && !activationToken) {
-            api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-            
-            // Appel direct
-            api.get(`/families`)
-                .then(res => {
-                    const fam = res.data.find(f => f._id === storedFamilyId);
-                    if (fam) {
-                        setSelectedFamily(fam);
-                        loadParentDossier(fam._id);
+        if (storedToken && !activationToken) {
+            api.get('/parent/me')
+                .then(({ data }) => {
+                    if (data?.family?._id) {
+                        localStorage.setItem('parent_family_id', data.family._id);
+                        setSelectedFamily(data.family);
+                        loadParentDossier(data.family._id);
                         setIsAuthenticated(true);
                     } else {
                         handleLogout();
@@ -105,7 +100,61 @@ const FamilyPortal = () => {
     const handleLogout = () => {
         localStorage.removeItem('parent_token');
         localStorage.removeItem('parent_family_id');
+        delete api.defaults.headers.common['Authorization'];
         setIsAuthenticated(false);
+    };
+
+    const startEditChild = (child) => {
+        setEditingChild({
+            _id: child._id,
+            firstName: child.firstName || '',
+            lastName: child.lastName || '',
+            birthDate: child.birthDate ? child.birthDate.split('T')[0] : '',
+            category: child.category || 'Maternelle',
+            sexe: child.sexe || '',
+            droitImage: !!child.droitImage,
+            autorisationSortieSeul: !!child.autorisationSortieSeul,
+            regimeAlimentaire: child.regimeAlimentaire || 'Standard',
+            persistentNote: child.persistentNote || '',
+            medical: {
+                autresInfos: child.medical?.autresInfos || ''
+            }
+        });
+    };
+
+    const handleChildEditChange = (field, value) => {
+        setEditingChild(prev => prev ? { ...prev, [field]: value } : prev);
+    };
+
+    const handleChildMedicalChange = (field, value) => {
+        setEditingChild(prev => prev ? { ...prev, medical: { ...(prev.medical || {}), [field]: value } } : prev);
+    };
+
+    const handleChildEditSubmit = async (e) => {
+        e.preventDefault();
+        if (!editingChild) return;
+        setIsProcessing(true);
+        try {
+            const payload = {
+                firstName: editingChild.firstName,
+                lastName: editingChild.lastName,
+                birthDate: editingChild.birthDate || null,
+                category: editingChild.category,
+                sexe: editingChild.sexe,
+                droitImage: editingChild.droitImage,
+                autorisationSortieSeul: editingChild.autorisationSortieSeul,
+                regimeAlimentaire: editingChild.regimeAlimentaire,
+                persistentNote: editingChild.persistentNote,
+                medical: { autresInfos: editingChild.medical?.autresInfos || '' }
+            };
+            await api.put(`/parent/children/${editingChild._id}`, payload);
+            setEditingChild(null);
+            await loadParentDossier(selectedFamily._id);
+            alert('✓ Fiche enfant enregistrée.');
+        } catch (e) {
+            alert("Erreur lors de la sauvegarde de la fiche enfant.");
+        }
+        setIsProcessing(false);
     };
 
     useEffect(() => {
@@ -231,19 +280,24 @@ const FamilyPortal = () => {
                 {editFamily && (
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                         <div className="xl:col-span-1 space-y-6">
-                            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Les enfants de mon foyer</h3>
+                            <div className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100">
+                                <h3 className="font-black mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Les enfants de mon foyer</h3>
                                 <div className="space-y-2">
                                     {children.map(c => (
-                                        <div key={c._id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold text-car-dark uppercase">
-                                            {c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span>
+                                        <div key={c._id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold text-car-dark uppercase flex items-center justify-between gap-3">
+                                            <div>
+                                                {c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span>
+                                            </div>
+                                            <button type="button" onClick={() => startEditChild(c)} className="text-xs font-black uppercase tracking-widest bg-white border border-slate-200 px-3 py-2 rounded-xl text-car-blue hover:bg-car-blue hover:text-white transition-colors">
+                                                Modifier
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
-                                <h3 className="font-black text-car-dark text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Ma tarification (QF)</h3>
+                            <div className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 space-y-4">
+                                <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Ma tarification (QF)</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase">Revenu Réf. (€)</label>
@@ -266,7 +320,7 @@ const FamilyPortal = () => {
                         </div>
 
                         <div className="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm space-y-4">
+                            <div className="bg-white border border-slate-100 p-6 rounded-4xl shadow-sm space-y-4">
                                 <h3 className="font-black text-car-blue text-sm tracking-widest uppercase border-b pb-2">Responsable Légal 1</h3>
                                 <div className="space-y-3">
                                     <div className="flex gap-2">
@@ -281,7 +335,7 @@ const FamilyPortal = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm space-y-4">
+                            <div className="bg-white border border-slate-100 p-6 rounded-4xl shadow-sm space-y-4">
                                 <h3 className="font-black text-car-teal text-sm tracking-widest uppercase border-b pb-2">Responsable Légal 2</h3>
                                 <div className="space-y-3">
                                     <div className="flex gap-2">
@@ -299,6 +353,91 @@ const FamilyPortal = () => {
                     </div>
                 )}
             </div>
+            {editingChild && (
+                <div className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <form onSubmit={handleChildEditSubmit} className="bg-white w-full max-w-3xl rounded-4xl shadow-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto space-y-6">
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                            <div>
+                                <h3 className="text-3xl font-black text-car-dark">Modifier la fiche enfant</h3>
+                                <p className="text-slate-400 text-sm font-medium mt-1">Les champs ouverts ici sont ceux que le portail famille peut modifier.</p>
+                            </div>
+                            <button type="button" onClick={() => setEditingChild(null)} className="bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-car-dark px-4 py-2 rounded-xl font-black text-sm transition-colors">
+                                Fermer
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Prénom</label>
+                                <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-car-dark outline-none focus:border-car-blue" value={editingChild.firstName} onChange={e => handleChildEditChange('firstName', e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Nom</label>
+                                <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-car-dark outline-none focus:border-car-blue uppercase" value={editingChild.lastName} onChange={e => handleChildEditChange('lastName', e.target.value.toUpperCase())} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Date de naissance</label>
+                                <input type="date" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-car-dark outline-none focus:border-car-blue" value={editingChild.birthDate} onChange={e => handleChildEditChange('birthDate', e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Catégorie</label>
+                                <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-car-dark outline-none focus:border-car-blue" value={editingChild.category} onChange={e => handleChildEditChange('category', e.target.value)}>
+                                    <option value="Maternelle">Maternelle</option>
+                                    <option value="Élémentaire">Élémentaire</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Régime alimentaire</label>
+                                <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-car-dark outline-none focus:border-car-blue" value={editingChild.regimeAlimentaire} onChange={e => handleChildEditChange('regimeAlimentaire', e.target.value)}>
+                                    <option value="Standard">Standard</option>
+                                    <option value="Sans-porc">Sans-porc</option>
+                                    <option value="Végétarien">Végétarien</option>
+                                    <option value="PAI">PAI</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Sexe</label>
+                                <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-car-dark outline-none focus:border-car-blue" value={editingChild.sexe} onChange={e => handleChildEditChange('sexe', e.target.value)}>
+                                    <option value="">Non renseigné</option>
+                                    <option value="Masculin">Masculin</option>
+                                    <option value="Féminin">Féminin</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <label className={`flex items-center gap-3 p-4 rounded-2xl border ${editingChild.droitImage ? 'border-car-green bg-car-green/5' : 'border-slate-200 bg-slate-50'}`}>
+                                <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editingChild.droitImage} onChange={e => handleChildEditChange('droitImage', e.target.checked)} />
+                                <span className="font-bold text-car-dark">Droit à l'image</span>
+                            </label>
+                            <label className={`flex items-center gap-3 p-4 rounded-2xl border ${editingChild.autorisationSortieSeul ? 'border-car-blue bg-car-blue/5' : 'border-slate-200 bg-slate-50'}`}>
+                                <input type="checkbox" className="w-5 h-5 accent-car-blue" checked={editingChild.autorisationSortieSeul} onChange={e => handleChildEditChange('autorisationSortieSeul', e.target.checked)} />
+                                <span className="font-bold text-car-dark">Autorisé à sortir seul</span>
+                            </label>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Informations médicales / remarques</label>
+                            <textarea className="w-full min-h-35 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-medium text-car-dark outline-none focus:border-car-blue resize-y" value={editingChild.medical?.autresInfos || ''} onChange={e => handleChildMedicalChange('autresInfos', e.target.value)} />
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 block">Note permanente</label>
+                            <textarea className="w-full min-h-30 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-medium text-car-dark outline-none focus:border-car-blue resize-y" value={editingChild.persistentNote} onChange={e => handleChildEditChange('persistentNote', e.target.value)} />
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 justify-end pt-2">
+                            <button type="button" onClick={() => setEditingChild(null)} className="px-5 py-4 rounded-2xl border border-slate-200 bg-white text-slate-500 font-black tracking-widest uppercase text-sm hover:bg-slate-50">
+                                Annuler
+                            </button>
+                            <button type="submit" disabled={isProcessing} className="px-6 py-4 rounded-2xl bg-car-blue text-white font-black tracking-widest uppercase text-sm shadow-lg shadow-car-blue/20 hover:bg-blue-600 transition-colors disabled:opacity-40">
+                                {isProcessing ? 'Sauvegarde...' : 'Enregistrer'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
         </div>
     );

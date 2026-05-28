@@ -7,6 +7,9 @@ const ModificationRequestSchema = new mongoose.Schema({
     status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
     dateRequest: { type: String, default: () => new Date().toLocaleTimeString('fr-FR') },
     newData: { type: mongoose.Schema.Types.Mixed, required: true },
+    originalData: { type: mongoose.Schema.Types.Mixed, default: {} },
+    oldData: { type: mongoose.Schema.Types.Mixed, default: {} },
+    changeSummary: { type: String, default: '' },
     refusalMessage: { type: String, default: '' }
 }, { timestamps: true });
 

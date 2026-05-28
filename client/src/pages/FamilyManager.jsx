@@ -25,6 +25,27 @@ const FamilyManager = () => {
 
     const navigate = useNavigate();
 
+    const summarizeRequest = (request) => {
+        if (!request) return '';
+        if (request.changeSummary && request.changeSummary.trim()) return request.changeSummary;
+
+        const oldData = request.originalData || request.oldData || {};
+        const newData = request.newData || {};
+        const changes = [];
+
+        const compare = (label, key) => {
+            if (oldData[key] !== newData[key]) {
+                changes.push(`${label} : ${oldData[key] ?? 'vide'} → ${newData[key] ?? 'vide'}`);
+            }
+        };
+
+        compare('Revenu', 'revenuReference');
+        compare('Parts', 'nombreParts');
+        compare('Facturation', 'payeur');
+
+        return changes.length > 0 ? changes.join(' | ') : 'Modifications générales';
+    };
+
     useEffect(() => { loadData(); }, []);
 
     const loadData = async () => {
@@ -373,7 +394,7 @@ const FamilyManager = () => {
                             <button type="submit" title="Créer un nouveau dossier" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors shrink-0"><Plus size={20}/></button>
                         </form>
 
-                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[800px]">
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-200">
                             <div className="p-4 bg-slate-50 border-b border-slate-100 font-black text-slate-400 text-xs tracking-widest uppercase flex justify-between">
                                 <span>{filteredFamilies.length} Dossiers</span>
                                 {searchFamilyText && <span className="text-car-yellow">Filtré</span>}
@@ -397,7 +418,7 @@ const FamilyManager = () => {
 
                     <div className="xl:col-span-3">
                         {selectedFamily && editFamily ? (
-                            <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-100 min-h-[800px] flex flex-col gap-6">
+                            <div className="bg-white rounded-4xl p-6 sm:p-8 shadow-sm border border-slate-100 min-h-200 flex flex-col gap-6">
                                 
                                 {/* HEADER ACTIONS DU DOSSIER RE-PAQUETÉ CORRECTEMENT AVEC FLEX-WRAP */}
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6 w-full">
@@ -434,9 +455,9 @@ const FamilyManager = () => {
                                             <div>
                                                 <h4 className="font-black text-sm uppercase tracking-wide">Demande de modification soumise par l'usager</h4>
                                                 <p className="text-xs text-slate-600 font-medium mt-0.5">Le parent a demandé à appliquer de nouvelles données. Traitez la demande ci-dessous avant d'écrire définitivement.</p>
-                                                <div className="mt-2 text-xs bg-white p-2.5 rounded-xl border inline-block font-mono text-slate-600">
-                                                    <CornerDownRight size={12} className="inline mr-1 text-slate-400"/>
-                                                    Nouveau revenu transmis : <span className="line-through text-car-pink">{activeRequest.originalData?.revenuReference || '0'} €</span> → <span className="text-car-green font-black">{activeRequest.newData?.revenuReference || '0'} €</span>
+                                                <div className="mt-2 text-xs bg-white p-2.5 rounded-xl border inline-flex items-start gap-2 font-mono text-slate-600 max-w-full">
+                                                    <CornerDownRight size={12} className="shrink-0 mt-0.5 text-slate-400"/>
+                                                    <span className="wrap-break-word">{summarizeRequest(activeRequest)}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -460,7 +481,7 @@ const FamilyManager = () => {
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col">
-                                        <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
+                                        <h3 className="font-black mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
                                         {attachedChildren.length > 0 ? (
                                             <div className="space-y-2 mb-6">
                                                 {attachedChildren.map(c => (
@@ -503,7 +524,7 @@ const FamilyManager = () => {
 
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                                         <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
-                                            <h3 className="font-black text-car-dark text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation &amp; QF</h3>
+                                            <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation &amp; QF</h3>
                                             <select className="bg-white border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-xs" value={editFamily.payeur} onChange={e => setEditFamily({...editFamily, payeur: e.target.value})}>
                                                 <option value="Responsable 1">Facture à Resp. 1</option>
                                                 <option value="Responsable 2">Facture à Resp. 2</option>
@@ -520,7 +541,7 @@ const FamilyManager = () => {
                                                 <input type="number" step="0.5" className="w-full bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow font-bold text-car-dark text-sm" value={editFamily.nombreParts || ''} onChange={e => handleQFChange('nombreParts', e.target.value)} />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase text-car-blue">QF Calculé</label>
+                                                <label className="text-[10px] font-bold block mb-1 uppercase text-car-blue">QF Calculé</label>
                                                 <div className="w-full bg-car-blue/10 border border-car-blue/20 p-3 rounded-xl font-black text-car-blue text-center text-sm">{editFamily.quotientFamilial || '-'}</div>
                                             </div>
                                         </div>
@@ -599,7 +620,7 @@ const FamilyManager = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="bg-slate-100/50 rounded-[2rem] h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-200 p-10 text-center">
+                            <div className="bg-slate-100/50 rounded-4xl h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-200 p-10 text-center">
                                 <FolderHeart size={64} className="text-slate-300 mb-4"/>
                                 <h3 className="font-black text-slate-400 text-2xl mb-2">Aucun dossier sélectionné</h3>
                             </div>
@@ -611,8 +632,8 @@ const FamilyManager = () => {
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
 
             {editingChild && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-100 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-4xl p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
                         <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                             <div className="flex items-center gap-4">
                                 <h3 className="text-3xl font-black text-car-dark">{editingChild._id ? 'Modifier' : 'Créer'} la fiche enfant</h3>

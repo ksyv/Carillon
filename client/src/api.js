@@ -6,7 +6,7 @@ const api = axios.create({
 
 // L'intercepteur magique qui ajoute le token partout !
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token') || localStorage.getItem('parent_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

@@ -25,8 +25,17 @@ const Dashboard = () => {
             } catch (e) { console.error("Erreur récup. demandes:", e); }
         };
         fetchPendingCount();
-        const interval = setInterval(fetchPendingCount, 30000);
-        return () => clearInterval(interval);
+        const interval = setInterval(fetchPendingCount, 10000);
+        window.addEventListener('focus', fetchPendingCount);
+        const handleVisibilityChange = () => {
+            if (!document.hidden) fetchPendingCount();
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', fetchPendingCount);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }
   }, [role]);
 
@@ -56,7 +65,7 @@ const Dashboard = () => {
       const status = getSessionStatus(type);
       return (
           <button onClick={() => !status.locked && navigate(`/session/${format(new Date(), 'yyyy-MM-dd')}/${type}`)} disabled={status.locked}
-              className={`group relative p-8 rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all bg-white ${status.locked ? 'opacity-50 cursor-not-allowed border-slate-100 bg-slate-50' : `border-${colorClass} hover:shadow-2xl hover:-translate-y-1 shadow-lg shadow-${colorClass}/10`}`}>
+              className={`group relative p-8 rounded-4xl border-2 flex flex-col items-center justify-center transition-all bg-white ${status.locked ? 'opacity-50 cursor-not-allowed border-slate-100 bg-slate-50' : `border-${colorClass} hover:shadow-2xl hover:-translate-y-1 shadow-lg shadow-${colorClass}/10`}`}>
               {!status.locked && <div className={`absolute top-4 right-4 w-3 h-3 rounded-full bg-${colorClass} opacity-50 group-hover:animate-ping`}></div>}
               {status.locked && <div className="absolute top-4 right-4 text-slate-400"><Lock size={20}/></div>}
               <div className={`p-5 rounded-3xl mb-4 ${status.locked ? 'bg-slate-200 text-slate-400' : `bg-${colorClass}/10 text-${colorClass} group-hover:scale-110`} transition-transform`}><Icon strokeWidth={2.5} size={40} /></div>
@@ -81,7 +90,7 @@ const Dashboard = () => {
         
         {/* --- ALERTE DEMANDES PARENTS --- */}
         {pendingRequests > 0 && (
-            <div onClick={() => navigate('/admin/families')} className="cursor-pointer bg-orange-50 border-2 border-orange-200 p-6 rounded-[2rem] flex justify-between items-center shadow-sm hover:shadow-md transition-all group">
+            <div onClick={() => navigate('/admin/families')} className="cursor-pointer bg-orange-50 border-2 border-orange-200 p-6 rounded-4xl flex justify-between items-center shadow-sm hover:shadow-md transition-all group">
                 <div className="flex items-center gap-4">
                     <div className="bg-orange-500 p-3 rounded-2xl text-white"><Bell size={24} className="animate-pulse"/></div>
                     <div>
@@ -115,45 +124,45 @@ const Dashboard = () => {
                 <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Administration</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <button onClick={() => navigate('/admin/children')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                <button onClick={() => navigate('/admin/children')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-green/10 p-4 rounded-2xl w-fit group-hover:bg-car-green group-hover:text-white text-car-green transition-colors"><Users size={24} strokeWidth={2.5}/></div>
                     <div><h3 className="font-black text-car-dark text-lg">Enfants & Fiches</h3><p className="text-xs text-slate-500 font-medium mt-1">Base de données, PAI...</p></div>
                 </button>
                 {role === 'admin' && (
                     <>
-                        <button onClick={() => navigate('/admin/families')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                        <button onClick={() => navigate('/admin/families')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-yellow/10 p-4 rounded-2xl w-fit group-hover:bg-car-yellow group-hover:text-white text-car-yellow transition-colors"><FolderHeart size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Dossiers Familles</h3><p className="text-xs text-slate-500 font-medium mt-1">Rattachement & CAF</p></div>
                         </button>
-                        <button onClick={() => navigate('/report')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                        <button onClick={() => navigate('/report')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-teal/10 p-4 rounded-2xl w-fit group-hover:bg-car-teal group-hover:text-white text-car-teal transition-colors"><FileText size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Rapports & Listes</h3><p className="text-xs text-slate-500 font-medium mt-1">Historique & PDF</p></div>
                         </button>
-                        <button onClick={() => navigate('/admin/mailing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                        <button onClick={() => navigate('/admin/mailing')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Mail size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Communication</h3><p className="text-xs text-slate-500 font-medium mt-1">Mails groupés & Relances</p></div>
                         </button>
-                        <button onClick={() => navigate('/admin/users')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                        <button onClick={() => navigate('/admin/users')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-purple/10 p-4 rounded-2xl w-fit group-hover:bg-car-purple group-hover:text-white text-car-purple transition-colors"><Shield size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Équipe</h3><p className="text-xs text-slate-500 font-medium mt-1">Accès & Rôles</p></div>
                         </button>
-                        <button onClick={() => navigate('/admin/planned-notes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                        <button onClick={() => navigate('/admin/planned-notes')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarDays size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Notes plannifiées</h3><p className="text-xs text-slate-500 font-medium mt-1">& notes récurrentes</p></div>
                         </button>
-                        <button onClick={() => navigate('/admin/tariffs')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                        <button onClick={() => navigate('/admin/tariffs')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-orange-500 transition-colors"><Tags size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Grilles Tarifaires</h3><p className="text-xs text-slate-500 font-medium mt-1">Taux d'effort & QF</p></div>
                         </button>
-                        <button onClick={() => navigate('/admin/calendar-exception')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                        <button onClick={() => navigate('/admin/calendar-exception')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-pink/10 p-4 rounded-2xl w-fit group-hover:bg-car-pink group-hover:text-white text-car-pink transition-colors"><CalendarX size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Jours de fermeture</h3><p className="text-xs text-slate-500 font-medium mt-1">Fériés et Vacances</p></div>
                         </button>
-                        <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                        <button onClick={() => navigate('/admin/billing')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-car-blue/10 p-4 rounded-2xl w-fit group-hover:bg-car-blue group-hover:text-white text-car-blue transition-colors"><Banknote size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Facturation</h3><p className="text-xs text-slate-500 font-medium mt-1">Génération & Export</p></div>
                         </button>
-                        <button onClick={() => navigate('/admin/caf')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                        <button onClick={() => navigate('/admin/caf')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                             <div className="bg-slate-800 p-4 rounded-2xl w-fit group-hover:bg-car-dark group-hover:text-white text-slate-600 transition-colors"><Calculator size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Déclaration CAF</h3><p className="text-xs text-slate-500 font-medium mt-1">Actes & Heures PSO</p></div>
                         </button>

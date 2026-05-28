@@ -145,6 +145,56 @@ app.delete('/api/children/:id', auth(['admin']), async (req, res) => {
     } catch (e) { res.status(500).send('Erreur suppression'); }
 });
 
+app.put('/api/parent/children/:id', auth(), async (req, res) => {
+    try {
+        if (req.user.role !== 'parent') return res.status(403).send('Interdit');
+
+        const parent = await Parent.findById(req.user.id);
+        if (!parent) return res.status(404).send('Parent introuvable');
+
+        const child = await Child.findById(req.params.id);
+        if (!child) return res.status(404).send('Enfant introuvable');
+        if (!child.family || child.family.toString() !== parent.family.toString()) {
+            return res.status(403).send('Cet enfant ne dépend pas de votre famille.');
+        }
+
+        const allowedKeys = [
+            'firstName',
+            'lastName',
+            'category',
+            'sexe',
+            'birthDate',
+            'droitImage',
+            'autorisationSortieSeul',
+            'persistentNote',
+            'regimeAlimentaire',
+            'hasPAI',
+            'paiDetails',
+            'isPAIAlimentaire',
+            'paiDocument'
+        ];
+
+        allowedKeys.forEach((key) => {
+            if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+                child[key] = req.body[key];
+            }
+        });
+
+        if (req.body.medical && typeof req.body.medical === 'object') {
+            child.medical = {
+                ...(child.medical || {}),
+                autresInfos: typeof req.body.medical.autresInfos === 'string' ? req.body.medical.autresInfos : (child.medical?.autresInfos || '')
+            };
+        }
+
+        await child.save();
+        await child.populate('family');
+        res.json(child);
+    } catch (e) {
+        res.status(500).send('Erreur modification enfant');
+    }
+});
+
 // --- ROUTES DOSSIERS FAMILLES ---
 app.get('/api/families', auth(['admin', 'responsable']), async (req, res) => {
     try {
@@ -704,6 +754,17 @@ app.post('/api/parent/login', async (req, res) => {
     } catch (e) { res.status(500).send("Erreur."); }
 });
 
+app.get('/api/parent/me', auth(), async (req, res) => {
+    try {
+        if (req.user.role !== 'parent') return res.status(403).send('Interdit');
+        const parent = await Parent.findById(req.user.id).populate('family');
+        if (!parent || !parent.family) return res.status(404).send('Parent introuvable');
+        res.json({ email: parent.email, family: parent.family });
+    } catch (e) {
+        res.status(500).send('Erreur.');
+    }
+});
+
 // --- MANAGEMENT ROUTE SYSTEM VALIDATION (PORTAIL <=> STAFF) ---
 app.post('/api/requests', auth(), async (req, res) => {
     try {
@@ -732,6 +793,7 @@ app.post('/api/requests', auth(), async (req, res) => {
             familyId, 
             portalCode, 
             newData, 
+            originalData: oldFamily,
             oldData: oldFamily, 
             changeSummary: changes.length > 0 ? changes.join(' | ') : "Modifications générales",
             status: 'PENDING' 
