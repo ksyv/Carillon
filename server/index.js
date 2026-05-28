@@ -714,7 +714,11 @@ app.post('/api/settings/closed-days', auth(['admin']), async (req, res) => {
 // --- ROUTES AUTHENTIFICATION PORTAIL FAMILLE ---
 
 // 1. Générer et envoyer un lien d'activation (Appelé par le Staff en Admin, ou simulation automatique)
-app.post('/api/parent/invite', auth(['admin']), async (req, res) => {
+app.post('/api/parent/invite', auth, async (req, res) => {
+    // Sécurité : Si l'utilisateur connecté n'est pas admin, on bloque direct
+    if (req.user && req.user.role !== 'admin') {
+        return res.status(403).send("Accès refusé : Droits insuffisants.");
+    }
     try {
         const { email, familyId } = req.body;
         
