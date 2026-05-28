@@ -55,6 +55,19 @@ const Dashboard = () => {
             <span className="text-xs font-black text-car-purple bg-car-purple/10 px-4 py-1.5 rounded-full uppercase tracking-widest">{role}</span>
             <button onClick={handleLogout} className="text-slate-400 hover:text-car-pink transition-colors p-2"><LogOut size={22} /></button>
         </div>
+        <div className="flex items-center gap-4">
+            {/* BOUTON SIMULATEUR PORTAIL FAMILLE */}
+            <button 
+                onClick={() => navigate('/parent/portal')} 
+                className="bg-car-blue/10 text-car-blue border border-car-blue/20 hover:bg-car-blue hover:text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all"
+            >
+                Voir le Portail Famille Parent ↗
+            </button>
+
+            <button onClick={handleLogout} className="...">
+                <LogOut size={20} />
+            </button>
+        </div>
       </header>
       
       <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-10 mt-4">
