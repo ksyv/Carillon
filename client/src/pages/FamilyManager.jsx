@@ -426,12 +426,26 @@ const FamilyManager = () => {
                                             </label>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3 flex-wrap">
-                                        <button onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille"><Trash2 size={24}/></button>
-                                        <button onClick={exportFamilyPDF} className="text-slate-400 hover:text-white hover:bg-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet"><Download size={24}/></button>
-                                        <button type="button" onClick={handleSendParentInvite} className="bg-car-blue text-white px-6 py-4 rounded-2xl font-black tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg shadow-car-blue/10"> <Mail size={20}/> CONFIGURER ACCÈS PARENT</button>
-                                        <button onClick={handleSaveFamily} className="bg-car-green text-white px-8 py-4 rounded-2xl font-black tracking-widest hover:bg-green-600 transition-all flex items-center gap-2 shadow-lg shadow-car-green/20"><Save size={20}/> SAUVEGARDER LE DOSSIER</button>
-                                    </div>
+                                    {/* --- PAR CETTE SÉPARATION NETTE ET PROPRE --- */}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {/* Boutons utilitaires discrets */}
+                                            <button onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille"><Trash2 size={24}/></button>
+                                            <button onClick={exportFamilyPDF} className="text-slate-400 hover:text-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet"><Download size={24}/></button>
+                                            
+                                            {/* BOUTON INVITATION LIVE PARENT (Couleur Distincte pour la démo) */}
+                                            <button 
+                                                type="button" 
+                                                onClick={handleSendParentInvite} 
+                                                className="bg-car-blue text-white px-6 py-4 rounded-2xl font-black tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg shadow-car-blue/15"
+                                            > 
+                                                <Mail size={20}/> ENVOYER ACCÈS PARENT
+                                            </button>
+
+                                            {/* Bouton de sauvegarde principal */}
+                                            <button onClick={handleSaveFamily} className="bg-car-green text-white px-6 py-4 rounded-2xl font-black tracking-widest hover:bg-green-600 transition-all flex items-center gap-2 shadow-lg shadow-car-green/15">
+                                                <Save size={20}/> ENREGISTRER
+                                            </button>
+                                        </div>
                                 </div>
 
                                 {/* --- WORKFLOW LIVE PARENT MODERATION ENCART --- */}
