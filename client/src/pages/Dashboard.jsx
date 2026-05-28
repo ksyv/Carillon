@@ -15,8 +15,8 @@ const Dashboard = () => {
 
   // Vérification périodique des demandes en attente
   useEffect(() => {
-    // Vérifie que le rôle est admin/responsable
-    if (role === 'admin' || role === 'responsable') {
+        const token = localStorage.getItem('token');
+        if (token) {
         const fetchPendingCount = async () => {
             try {
                 // IMPORTANT : Vérifie que ton instance 'api' pointe bien vers /api

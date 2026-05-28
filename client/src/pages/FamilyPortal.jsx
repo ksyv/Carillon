@@ -130,6 +130,63 @@ const FamilyPortal = () => {
         setEditingChild(prev => prev ? { ...prev, medical: { ...(prev.medical || {}), [field]: value } } : prev);
     };
 
+    const buildFamilyFieldRequests = (originalFamily, updatedFamily) => {
+        const requests = [];
+        const addRequest = (changeSummary, newData) => {
+            requests.push({
+                portalCode: 'PORTAIL',
+                newData,
+                changeSummary
+            });
+        };
+
+        if ((originalFamily?.revenuReference ?? null) !== (updatedFamily?.revenuReference ?? null)) {
+            addRequest(
+                `Revenu : ${originalFamily?.revenuReference ?? 'vide'} -> ${updatedFamily?.revenuReference ?? 'vide'}`,
+                { revenuReference: updatedFamily?.revenuReference ?? null }
+            );
+        }
+
+        if ((originalFamily?.nombreParts ?? null) !== (updatedFamily?.nombreParts ?? null)) {
+            addRequest(
+                `Parts : ${originalFamily?.nombreParts ?? 'vide'} -> ${updatedFamily?.nombreParts ?? 'vide'}`,
+                { nombreParts: updatedFamily?.nombreParts ?? null }
+            );
+        }
+
+        if ((originalFamily?.payeur ?? '') !== (updatedFamily?.payeur ?? '')) {
+            addRequest(
+                `Payeur : ${originalFamily?.payeur ?? 'vide'} -> ${updatedFamily?.payeur ?? 'vide'}`,
+                { payeur: updatedFamily?.payeur ?? '' }
+            );
+        }
+
+        const oldResp = originalFamily?.responsables || [];
+        const newResp = updatedFamily?.responsables || [];
+        const maxResp = Math.max(oldResp.length, newResp.length, 2);
+
+        for (let index = 0; index < maxResp; index += 1) {
+            const oldR = oldResp[index] || {};
+            const newR = newResp[index] || {};
+            if ((oldR.phoneMobile || '') !== (newR.phoneMobile || '')) {
+                const nextResponsables = [...newResp];
+                addRequest(
+                    `Resp ${index + 1} Tel : ${oldR.phoneMobile || 'vide'} -> ${newR.phoneMobile || 'vide'}`,
+                    { responsables: nextResponsables }
+                );
+            }
+            if ((oldR.email || '') !== (newR.email || '')) {
+                const nextResponsables = [...newResp];
+                addRequest(
+                    `Resp ${index + 1} Email : ${oldR.email || 'vide'} -> ${newR.email || 'vide'}`,
+                    { responsables: nextResponsables }
+                );
+            }
+        }
+
+        return requests;
+    };
+
     const handleChildEditSubmit = async (e) => {
         e.preventDefault();
         if (!editingChild) return;
@@ -147,15 +204,27 @@ const FamilyPortal = () => {
                 persistentNote: editingChild.persistentNote,
                 medical: { autresInfos: editingChild.medical?.autresInfos || '' }
             };
-            const { data } = await api.post(`/parent/requests/children/${editingChild._id}`, {
-                portalCode: 'PORTAIL',
-                newData: payload
-            });
+            let data = null;
+            try {
+                const res = await api.post(`/parent/requests/children/${editingChild._id}`, {
+                    portalCode: 'PORTAIL',
+                    newData: payload
+                });
+                data = res.data;
+            } catch (firstError) {
+                const fallback = await api.post('/requests', {
+                    familyId: selectedFamily?._id,
+                    childId: editingChild._id,
+                    portalCode: 'PORTAIL',
+                    newData: payload
+                });
+                data = fallback.data;
+            }
             setServerRequest(data);
             setEditingChild(null);
             alert('✓ Votre demande de modification enfant a été envoyée au staff pour validation.');
         } catch (e) {
-            alert("Erreur lors de la sauvegarde de la fiche enfant.");
+            alert(`Erreur lors de la sauvegarde de la fiche enfant : ${e?.response?.data || e?.message || 'inconnue'}`);
         }
         setIsProcessing(false);
     };
@@ -172,10 +241,33 @@ const FamilyPortal = () => {
     const handleParentSubmitRequest = async () => {
         setIsProcessing(true);
         try {
-            const { data } = await api.post('/parent/requests/family', { portalCode: "PORTAIL", newData: editFamily });
-            setServerRequest(data);
-            alert("✓ Vos modifications ont été soumises à la validation de la mairie.");
-        } catch (e) { alert("Erreur."); }
+            const requests = buildFamilyFieldRequests(selectedFamily, editFamily);
+            if (requests.length === 0) {
+                alert("Aucune modification détectée.");
+                setIsProcessing(false);
+                return;
+            }
+
+            const created = [];
+            for (const requestBody of requests) {
+                try {
+                    const res = await api.post('/parent/requests/family', requestBody);
+                    created.push(res.data);
+                } catch (firstError) {
+                    const fallback = await api.post('/requests', {
+                        familyId: selectedFamily?._id,
+                        portalCode: 'PORTAIL',
+                        ...requestBody
+                    });
+                    created.push(fallback.data);
+                }
+            }
+
+            setServerRequest(created[0] || null);
+            alert(`✓ ${created.length} demande(s) de modification ont été soumises à la validation.`);
+        } catch (e) {
+            alert(`Erreur: ${e?.response?.data || e?.message || 'inconnue'}`);
+        }
         setIsProcessing(false);
     };
 
