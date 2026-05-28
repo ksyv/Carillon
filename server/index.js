@@ -725,6 +725,77 @@ app.get('/api/parent/me', auth(), async (req, res) => {
 });
 
 // --- MANAGEMENT ROUTE SYSTEM VALIDATION (PORTAIL <=> STAFF) ---
+const createModificationRequest = async ({ familyId, childId = null, portalCode, newData }) => {
+    const effectiveFamilyId = familyId?.toString?.() || familyId;
+    if (!effectiveFamilyId) throw new Error('Famille manquante');
+
+    let oldData = null;
+    let requestType = childId ? 'CHILD_UPDATE' : 'FAMILY_UPDATE';
+    const changes = [];
+
+    if (childId) {
+        const child = await Child.findById(childId).lean();
+        if (!child) throw new Error('Enfant introuvable');
+        if (child.family && child.family.toString() !== effectiveFamilyId.toString()) {
+            throw new Error('Cet enfant ne dépend pas de votre famille.');
+        }
+        oldData = child;
+
+        const compare = (label, key) => {
+            if (oldData?.[key] !== newData?.[key]) {
+                changes.push(`${label} : ${oldData?.[key] ?? 'vide'} → ${newData?.[key] ?? 'vide'}`);
+            }
+        };
+
+        compare('Prénom', 'firstName');
+        compare('Nom', 'lastName');
+        compare('Date de naissance', 'birthDate');
+        compare('Catégorie', 'category');
+        compare('Sexe', 'sexe');
+        compare('Régime alimentaire', 'regimeAlimentaire');
+        compare('Note permanente', 'persistentNote');
+        if ((oldData.medical?.autresInfos || '') !== (newData.medical?.autresInfos || '')) {
+            changes.push(`Autres infos médicales : ${oldData.medical?.autresInfos || 'vide'} → ${newData.medical?.autresInfos || 'vide'}`);
+        }
+    } else {
+        oldData = await Family.findById(effectiveFamilyId).lean();
+        if (!oldData) throw new Error('Famille introuvable');
+
+        const compare = (label, key) => {
+            if (oldData?.[key] !== newData?.[key]) {
+                changes.push(`${label} : ${oldData?.[key] ?? 'vide'} → ${newData?.[key] ?? 'vide'}`);
+            }
+        };
+
+        compare('Revenu', 'revenuReference');
+        compare('Parts', 'nombreParts');
+        compare('Payeur', 'payeur');
+
+        if (newData.responsables && oldData.responsables) {
+            newData.responsables.forEach((resp, i) => {
+                const old = oldData.responsables[i] || {};
+                if (resp.phoneMobile !== old.phoneMobile) changes.push(`Resp ${i+1} Tel : ${old.phoneMobile || 'vide'} → ${resp.phoneMobile || 'vide'}`);
+                if (resp.email !== old.email) changes.push(`Resp ${i+1} Email : ${old.email || 'vide'} → ${resp.email || 'vide'}`);
+            });
+        }
+    }
+
+    const request = new ModificationRequest({
+        familyId: effectiveFamilyId,
+        childId,
+        portalCode: portalCode || 'PORTAIL',
+        newData,
+        originalData: oldData,
+        oldData,
+        changeSummary: changes.length > 0 ? changes.join(' | ') : 'Modifications générales',
+        type: requestType,
+        status: 'PENDING'
+    });
+
+    await request.save();
+    return request;
+};
+
 app.post('/api/requests', auth(), async (req, res) => {
     try {
         const { familyId, childId, portalCode, newData } = req.body;
@@ -736,72 +807,42 @@ app.post('/api/requests', auth(), async (req, res) => {
             return res.status(403).send('Interdit');
         }
 
-        let oldData = null;
-        let requestType = 'FAMILY_UPDATE';
-        let changes = [];
-
-        if (childId) {
-            requestType = 'CHILD_UPDATE';
-            const child = await Child.findById(childId).lean();
-            if (!child) return res.status(404).send('Enfant introuvable');
-            if (child.family && child.family.toString() !== effectiveFamilyId.toString()) {
-                return res.status(403).send('Cet enfant ne dépend pas de votre famille.');
-            }
-            oldData = child;
-
-            const compare = (label, key) => {
-                if (oldData?.[key] !== newData?.[key]) {
-                    changes.push(`${label} : ${oldData?.[key] ?? 'vide'} → ${newData?.[key] ?? 'vide'}`);
-                }
-            };
-
-            compare('Prénom', 'firstName');
-            compare('Nom', 'lastName');
-            compare('Date de naissance', 'birthDate');
-            compare('Catégorie', 'category');
-            compare('Sexe', 'sexe');
-            compare('Régime alimentaire', 'regimeAlimentaire');
-            compare('Note permanente', 'persistentNote');
-            if ((oldData.medical?.autresInfos || '') !== (newData.medical?.autresInfos || '')) {
-                changes.push(`Autres infos médicales : ${oldData.medical?.autresInfos || 'vide'} → ${newData.medical?.autresInfos || 'vide'}`);
-            }
-        } else {
-            oldData = await Family.findById(effectiveFamilyId).lean();
-            if (!oldData) return res.status(404).send('Famille introuvable');
-            const compare = (label, key) => {
-                if (oldData?.[key] !== newData?.[key]) {
-                    changes.push(`${label} : ${oldData?.[key] ?? 'vide'} → ${newData?.[key] ?? 'vide'}`);
-                }
-            };
-
-            compare('Revenu', 'revenuReference');
-            compare('Parts', 'nombreParts');
-            compare('Payeur', 'payeur');
-
-            if (newData.responsables && oldData.responsables) {
-                newData.responsables.forEach((resp, i) => {
-                    const old = oldData.responsables[i] || {};
-                    if (resp.phoneMobile !== old.phoneMobile) changes.push(`Resp ${i+1} Tel : ${old.phoneMobile || 'vide'} → ${resp.phoneMobile || 'vide'}`);
-                    if (resp.email !== old.email) changes.push(`Resp ${i+1} Email : ${old.email || 'vide'} → ${resp.email || 'vide'}`);
-                });
-            }
-        }
-        const request = new ModificationRequest({ 
-            familyId: effectiveFamilyId, 
-            childId: childId || null,
-            portalCode, 
-            newData, 
-            originalData: oldData,
-            oldData: oldData, 
-            changeSummary: changes.length > 0 ? changes.join(' | ') : "Modifications générales",
-            type: requestType,
-            status: 'PENDING' 
-        });
-        await request.save();
+        const request = await createModificationRequest({ familyId: effectiveFamilyId, childId, portalCode, newData });
         res.status(201).json(request);
-    } catch (e) { 
+    } catch (e) {
         console.error(e);
-        res.status(500).send("Erreur serveur"); 
+        res.status(500).send(e.message || 'Erreur serveur');
+    }
+});
+
+app.post('/api/parent/requests/family', auth(), async (req, res) => {
+    try {
+        if (req.user.role !== 'parent') return res.status(403).send('Interdit');
+        const request = await createModificationRequest({
+            familyId: req.user.familyId,
+            portalCode: req.body.portalCode,
+            newData: req.body.newData || {}
+        });
+        res.status(201).json(request);
+    } catch (e) {
+        console.error(e);
+        res.status(500).send(e.message || 'Erreur serveur');
+    }
+});
+
+app.post('/api/parent/requests/children/:id', auth(), async (req, res) => {
+    try {
+        if (req.user.role !== 'parent') return res.status(403).send('Interdit');
+        const request = await createModificationRequest({
+            familyId: req.user.familyId,
+            childId: req.params.id,
+            portalCode: req.body.portalCode,
+            newData: req.body.newData || {}
+        });
+        res.status(201).json(request);
+    } catch (e) {
+        console.error(e);
+        res.status(500).send(e.message || 'Erreur serveur');
     }
 });
 

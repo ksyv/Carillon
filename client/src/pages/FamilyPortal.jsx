@@ -35,7 +35,7 @@ const FamilyPortal = () => {
             ]);
             // On filtre les enfants rattachés à cette famille uniquement
             setChildren(kidsRes.data.filter(c => c.family === familyId || c.family?._id === familyId));
-            setServerRequest(reqRes.data);
+            setServerRequest(Array.isArray(reqRes.data) ? reqRes.data[0] || null : reqRes.data);
         } catch (e) { console.error(e); }
     };
 
@@ -147,9 +147,7 @@ const FamilyPortal = () => {
                 persistentNote: editingChild.persistentNote,
                 medical: { autresInfos: editingChild.medical?.autresInfos || '' }
             };
-            const { data } = await api.post('/requests', {
-                familyId: selectedFamily._id,
-                childId: editingChild._id,
+            const { data } = await api.post(`/parent/requests/children/${editingChild._id}`, {
                 portalCode: 'PORTAIL',
                 newData: payload
             });
@@ -174,7 +172,7 @@ const FamilyPortal = () => {
     const handleParentSubmitRequest = async () => {
         setIsProcessing(true);
         try {
-            const { data } = await api.post('/requests', { familyId: selectedFamily._id, portalCode: "PORTAIL", newData: editFamily });
+            const { data } = await api.post('/parent/requests/family', { portalCode: "PORTAIL", newData: editFamily });
             setServerRequest(data);
             alert("✓ Vos modifications ont été soumises à la validation de la mairie.");
         } catch (e) { alert("Erreur."); }
