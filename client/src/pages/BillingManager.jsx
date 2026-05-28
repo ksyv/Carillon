@@ -84,7 +84,7 @@ const BillingManager = () => {
             return calculatedInvoices.reduce((sum, inv) => sum + inv.totalGlobal, 0).toFixed(2);
         }, [calculatedInvoices]);
 
-        const exportInvoicePDF = (invoice) => {
+    const exportInvoicePDF = (invoice) => {
         const doc = new jsPDF();
         const exercice = startDate.split('-')[0];
         const startStr = new Date(startDate).toLocaleDateString('fr-FR');
@@ -179,6 +179,171 @@ const BillingManager = () => {
         doc.save(`Facture_Carillon_${invoice.payeur.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
     };
 
+    const exportGeneralRecapPDF = () => {
+        const doc = new jsPDF();
+        const startStr = new Date(startDate).toLocaleDateString('fr-FR');
+        const endStr = new Date(endDate).toLocaleDateString('fr-FR');
+        const dateGeneration = new Date().toLocaleDateString('fr-FR');
+
+        // En-tête officiel
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59);
+        doc.text("VILLE DE CARIGNAN-DE-BORDEAUX", 14, 20);
+        
+        doc.setFontSize(11);
+        doc.text(`RÔLE GÉNÉRAL DE RECETTES - PÉRISCOLAIRE & CANTINE`, 14, 28);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text(`Période de facturation : Du ${startStr} au ${endStr}`, 14, 34);
+        doc.text(`Généré par Carillon le : ${dateGeneration}`, 14, 39);
+
+        // Construction du tableau
+        const tableHead = [["N°", "Payeur / Famille", "Détail des Prestations", "Total Dû"]];
+        
+        const tableBody = calculatedInvoices.map((inv, idx) => {
+            const detailStr = inv.items.map(item => `${item.label} (x${item.count})`).join("\n");
+            return [
+                (idx + 1).toString(),
+                inv.payeur,
+                detailStr,
+                `${inv.totalGlobal.toFixed(2)} €`
+            ];
+        });
+
+        // Ligne de total général tout en bas du tableau
+        const grandTotal = calculatedInvoices.reduce((sum, inv) => sum + inv.totalGlobal, 0);
+        tableBody.push([
+            "",
+            "TOTAL GÉNÉRAL DU RÔLE",
+            `${calculatedInvoices.length} familles facturées`,
+            `${grandTotal.toFixed(2)} €`
+        ]);
+
+        autoTable(doc, {
+            startY: 45,
+            head: tableHead,
+            body: tableBody,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
+            styles: { font: 'helvetica', fontSize: 9, cellPadding: 4, valign: 'middle' },
+            columnStyles: {
+                0: { halign: 'center', width: 10 },
+                1: { fontStyle: 'bold', width: 60 },
+                2: { fontSize: 8 },
+                3: { halign: 'right', fontStyle: 'bold', width: 30 }
+            },
+            // Style spécifique pour la ligne de total général (la dernière)
+            didParseCell: (data) => {
+                if (data.row.index === tableBody.length - 1) {
+                    data.cell.styles.fillColor = [241, 245, 249];
+                    data.cell.styles.fontStyle = 'bold';
+                    if (data.column.index === 3) {
+                        data.cell.styles.textColor = [30, 58, 138]; // car-blue
+                    }
+                }
+            }
+        });
+
+        doc.save(`Recap_General_Facturation_${startDate}_${endDate}.pdf`);
+    };
+
+    const exportAllInvoicesCombinedPDF = () => {
+        if (calculatedInvoices.length === 0) return;
+        
+        const doc = new jsPDF();
+        const exercice = startDate.split('-')[0];
+        const startStr = new Date(startDate).toLocaleDateString('fr-FR');
+        const endStr = new Date(endDate).toLocaleDateString('fr-FR');
+
+        calculatedInvoices.forEach((invoice, index) => {
+            // À partir de la deuxième facture, on crée une nouvelle page blanche
+            if (index > 0) {
+                doc.addPage();
+            }
+
+            // --- DESIGN DE LA FACTURE INDIVIDUELLE (Idem ton composant précédent) ---
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(20);
+            doc.setTextColor(30, 41, 59);
+            doc.text("CARIGNAN", 14, 20);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(12);
+            doc.text("DE BORDEAUX", 14, 25);
+            
+            doc.setFontSize(9);
+            doc.setTextColor(100);
+            doc.text("MAIRIE DE CARIGNAN DE BORDEAUX", 14, 35);
+            doc.text("24 RUE DE VERDUN 33360 CARIGNAN-DE-BORDEAUX", 14, 40);
+            doc.text("mairie@carignandebordeaux.fr", 14, 45);
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(30, 58, 138);
+            doc.text(`Identifiant PAYFIP : 017556`, 120, 20);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(30, 41, 59);
+            const refFacture = `${exercice}21000${String(index + 1).padStart(4, '0')}`;
+            doc.text(`Référence : ${refFacture}`, 120, 26);
+            doc.text(`Période : Du ${startStr} au ${endStr}`, 120, 32);
+
+            doc.rect(118, 42, 78, 25);
+            doc.setFont("helvetica", "bold");
+            doc.text("DESTINATAIRE :", 122, 48);
+            doc.setFont("helvetica", "normal");
+            doc.text(invoice.payeur, 122, 55);
+            doc.text("33360 CARIGNAN-DE-BORDEAUX", 122, 61);
+
+            doc.setFont("helvetica", "black");
+            doc.setFontSize(18);
+            doc.setTextColor(30, 41, 59);
+            doc.text("FACTURE : PRESTATIONS PÉRISCOLAIRES", 14, 78);
+
+            const tableHead = [["Prestation", "Nombre d'actes", "Prix Unitaire (€)", "Montant Total (€)"]];
+            const tableBody = invoice.items.map(item => [
+                item.label,
+                item.count.toString(),
+                `${item.unitPrice.toFixed(2)} €`,
+                `${item.total.toFixed(2)} €`
+            ]);
+
+            autoTable(doc, {
+                startY: 85,
+                head: tableHead,
+                body: tableBody,
+                theme: 'grid',
+                headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
+                styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 },
+                columnStyles: { 
+                    1: { halign: 'center' }, 
+                    2: { halign: 'right' }, 
+                    3: { halign: 'right', fontStyle: 'bold' } 
+                },
+            });
+
+            const finalY = doc.lastAutoTable.finalY + 10;
+            doc.rect(130, finalY, 66, 14, 'F', [241, 245, 249]);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(12);
+            doc.setTextColor(30, 41, 59);
+            doc.text("NET À PAYER :", 134, finalY + 9);
+            doc.setTextColor(30, 58, 138);
+            doc.setFontSize(14);
+            doc.text(`${invoice.totalGlobal.toFixed(2)} €`, 166, finalY + 9);
+
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(8);
+            doc.setTextColor(120);
+            doc.text("Modalités de règlement : Vous recevrez un avis des sommes à payer du Trésor Public.", 14, finalY + 25);
+            doc.text("Règlement possible par chèque, virement ou en ligne sur www.payfip.gouv.fr", 14, finalY + 30);
+
+            doc.setFont("helvetica", "normal");
+            doc.text(`Page ${index + 1} / ${calculatedInvoices.length}`, 170, doc.internal.pageSize.getHeight() - 10);
+        });
+
+        doc.save(`LOT_FACTURES_INDIVIDUELLES_${startDate}_${endDate}.pdf`);
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col pb-20">
             {/* EN-TÊTE FIXE */}
@@ -226,15 +391,34 @@ const BillingManager = () => {
                     {calculatedInvoices.length > 0 && (
                         <div className="space-y-6 animate-in fade-in duration-300">
                             {/* RAPPORTS FINANCIERS RAPIDES */}
-                            <div className="bg-car-dark text-white p-8 rounded-[2rem] shadow-xl flex justify-between items-center relative overflow-hidden">
+                            <div className="bg-car-dark text-white p-8 rounded-[2rem] shadow-xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden">
                                 <div className="z-10">
-                                    <h2 className="text-xs font-black tracking-widest uppercase opacity-60 mb-1">Total des titres émis</h2>
+                                    <h2 className="text-xs font-black tracking-widest uppercase opacity-60 mb-1">Total du rôle mensuel</h2>
                                     <p className="text-5xl font-black">{totalRecettesCommune} €</p>
                                     <span className="inline-block text-xs bg-white/20 px-3 py-1 rounded-lg font-bold mt-3 text-slate-200">Sur la base de {calculatedInvoices.length} payeurs uniques</span>
                                 </div>
-                                <div className="flex gap-4 z-10">
-                                    <button onClick={() => alert('Étape suivante : Génération du flux XML PES V2 en cours de développement...')} className="bg-white text-car-dark px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 transition-all shadow-md flex items-center gap-2">
-                                        <FileSpreadsheet size={18}/> 1. Export PES_V2 (DGFIP)
+                                
+                                {/* LES 3 BOUTONS D'ACTION POUR LA DÉMO */}
+                                <div className="flex flex-wrap gap-3 z-10 w-full lg:w-auto">
+                                    <button 
+                                        onClick={exportGeneralRecapPDF} 
+                                        className="bg-white/10 text-white border border-white/20 hover:bg-white hover:text-car-dark px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 flex-1 lg:flex-none justify-center"
+                                    >
+                                        Aperçu du Rôle
+                                    </button>
+                                    
+                                    <button 
+                                        onClick={exportAllInvoicesCombinedPDF} 
+                                        className="bg-white text-car-dark hover:bg-slate-100 px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 flex-1 lg:flex-none justify-center shadow-md"
+                                    >
+                                        Télécharger le Lot (PDF)
+                                    </button>
+
+                                    <button 
+                                        onClick={() => alert("Simulation d'exportation : Le flux XML PES V2 est gelé pendant la phase de validation de R&D.")} 
+                                        className="bg-slate-700/50 text-slate-400 cursor-not-allowed px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 flex-1 lg:flex-none justify-center border border-slate-600/50"
+                                    >
+                                        Export PES_V2 (DGFIP)
                                     </button>
                                 </div>
                             </div>
