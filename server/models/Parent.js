@@ -9,20 +9,7 @@ const ParentSchema = new mongoose.Schema({
     activationToken: { type: String, default: null }
 }, { timestamps: true });
 
-// Correction ici : PAS d'async sur la fonction parente, 
-// on utilise .hash() de manière classique ou dans un bloc try/catch
-ParentSchema.pre('save', function(next) {
-    const parent = this;
-
-    if (!parent.isModified('password')) return next();
-
-    bcrypt.hash(parent.password, 10, (err, hash) => {
-        if (err) return next(err);
-        parent.password = hash;
-        next();
-    });
-});
-
+// Plus de hook pre('save'), on gère le hash dans index.js
 ParentSchema.methods.comparePassword = async function(candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 };
