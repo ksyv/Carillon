@@ -506,19 +506,23 @@ app.delete('/api/tariffs/:id', auth(['admin']), async (req, res) => {
 
 // --- FIN DES ROUTES TARIFAIRES ---
 
-// --- MOTEUR DE CALCUL DE FACTURATION MENSUELLE (CORRIGÉ AVEC POINTAGE INVERSÉ CANTINE) ---
+// --- MOTEUR DE CALCUL DE FACTURATION (DOUBLE SÉCURITÉ : CALENDRIER + POINTAGE RÉEL) ---
 
 app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).send("Dates manquantes");
 
     try {
-        // 1. Charger les données
+        // 1. Charger les données de base
         const tariffs = await Tariff.find();
         const families = await Family.find();
         const children = await Child.find({ active: true });
         const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } });
         const alternateBillings = await Billing.find({ dates: { $elemMatch: { $gte: startDate, $lte: endDate } } });
+
+        // Récupérer les jours de fermeture configurés
+        const closedDaysSetting = await Settings.findOne({ key: 'closed_days' });
+        const closedDays = closedDaysSetting ? JSON.parse(closedDaysSetting.value) : [];
 
         const tariffMap = tariffs.reduce((acc, t) => ({ ...acc, [t.activityCode]: t }), {});
         const childrenInFamily = children.reduce((acc, c) => {
@@ -528,20 +532,36 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
             return acc;
         }, {});
 
-        // Extraire la liste unique de TOUS les jours ouvrés où il y a eu de l'activité (école) ce mois-ci
-        // Cela nous donne automatiquement les jours d'école réels sans devoir gérer un calendrier des vacances
-        const schoolDays = [...new Set(attendances.map(a => a.date))].sort();
+        // Extraction des jours qui ont eu de l'activité réelle ce mois-ci
+        const daysWithRealActivity = [...new Set(attendances.map(a => a.date))];
+
+        // 2. Générer les jours d'école valides (Double condition : Calendrier ET Activité Réelle)
+        let schoolDays = [];
+        let start = new Date(startDate);
+        let end = new Date(endDate);
+
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            const dayOfWeek = d.getDay();
+
+            const isSchoolDayOfWeek = [1, 2, 4, 5].includes(dayOfWeek);
+            const isClosedOnCalendar = closedDays.includes(dateStr);
+            const hasActivity = daysWithRealActivity.includes(dateStr);
+
+            // DOUBLE SÉCURITÉ : Doit être un jour ouvré, NE PAS être fermé au calendrier, ET avoir du pointage réel
+            if (isSchoolDayOfWeek && !isClosedOnCalendar && hasActivity) {
+                schoolDays.push(dateStr);
+            }
+        }
 
         let invoiceDrafts = {};
 
-        // Fonction utilitaire pour initialiser une facture
         const initInvoice = (payeurNom) => {
             if (!invoiceDrafts[payeurNom]) {
                 invoiceDrafts[payeurNom] = { payeur: payeurNom, items: {}, totalGlobal: 0 };
             }
         };
 
-        // Fonction utilitaire pour appliquer les tarifs (Taux d'effort / Tranches QF / Fixe)
         const calculateUnitPrice = (rule, fratrieCount, qf) => {
             if (rule.pricingMode === 'FIXED') return rule.fixedPrice || 0;
             if (rule.pricingMode === 'QF_BRACKETS') {
@@ -559,7 +579,7 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
         };
 
         // ===================================================================
-        // ÉTAPE A : CALCUL DU MIDI (CANTINE) -> LOGIQUE INVERSÉE (PAR ABSENCE)
+        // ÉTAPE A : CALCUL DU MIDI (CANTINE LOGIQUE INVERSÉE)
         // ===================================================================
         children.forEach(child => {
             if (!child.family) return;
@@ -570,24 +590,19 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
             const fratrieCount = childrenInFamily[familyId] || 1;
             const qf = family.quotientFamilial || 0;
 
-            // Déterminer le code tarifaire (Standard vs PAI)
             const targetCode = child.regimeAlimentaire === 'PAI' ? 'CA1_PAI' : 'CA1';
             const label = child.regimeAlimentaire === 'PAI' ? 'Cantine (Tarif PAI)' : 'Cantine (Repas Enfant)';
             const rule = tariffMap[targetCode];
             if (!rule) return;
 
-            // Pour chaque jour d'école du mois, on vérifie si l'enfant était PRÉSENT (c'est-à-dire pas pointé ABSENT)
             schoolDays.forEach(date => {
-                // On cherche si un pointage d'absence MIDI existe pour cet enfant ce jour-là
                 const isAbsentMidi = attendances.some(a => 
                     a.child.toString() === child._id.toString() && 
                     a.date === date && 
                     a.sessionType === 'MIDI'
                 );
 
-                // Si l'enfant n'est PAS absent, alors il a mangé ! On le facture
                 if (!isAbsentMidi) {
-                    // Gestion garde alternée / exception payeur
                     let payeurNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
                     const altRule = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(date));
                     if (altRule) {
@@ -608,10 +623,9 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
         });
 
         // ===================================================================
-        // ÉTAPE B : CALCUL MATIN & SOIR -> LOGIQUE CLASSIQUE (PAR PRÉSENCE)
+        // ÉTAPE B : CALCUL MATIN & SOIR (PRÉSENCE CLASSIQUE)
         // ===================================================================
         attendances.forEach(att => {
-            // On ignore le midi ici puisqu'on vient de le traiter au-dessus
             if (att.sessionType === 'MIDI') return;
 
             const child = children.find(c => c._id.toString() === att.child.toString());
@@ -619,6 +633,9 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
 
             const family = families.find(f => f._id.toString() === child.family.toString());
             if (!family) return;
+
+            // Sécurité absolue calendrier
+            if (closedDays.includes(att.date)) return;
 
             const familyId = family._id.toString();
             const fratrieCount = childrenInFamily[familyId] || 1;
@@ -654,7 +671,6 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
             invoiceDrafts[payeurNom].totalGlobal += prixUnitaire;
         });
 
-        // 3. Nettoyer et renvoyer le résultat
         const result = Object.values(invoiceDrafts).map(draft => ({
             ...draft,
             items: Object.values(draft.items),
@@ -667,7 +683,6 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
         res.status(500).send("Erreur pendant le calcul.");
     }
 });
-
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
