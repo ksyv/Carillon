@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Banknote, Search, Users, Trash2, Check, Calculator, FileSpreadsheet, Layers, ShieldCheck } from 'lucide-react';
 import InteractiveCalendar from '../components/InteractiveCalendar';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const BillingManager = () => {
     const navigate = useNavigate();
@@ -79,8 +81,103 @@ const BillingManager = () => {
     };
 
     const totalRecettesCommune = useMemo(() => {
-        return calculatedInvoices.reduce((sum, inv) => sum + inv.totalGlobal, 0).toFixed(2);
-    }, [calculatedInvoices]);
+            return calculatedInvoices.reduce((sum, inv) => sum + inv.totalGlobal, 0).toFixed(2);
+        }, [calculatedInvoices]);
+
+        const exportInvoicePDF = (invoice) => {
+        const doc = new jsPDF();
+        const exercice = startDate.split('-')[0];
+        const startStr = new Date(startDate).toLocaleDateString('fr-FR');
+        const endStr = new Date(endDate).toLocaleDateString('fr-FR');
+        
+        // 1. EN-TÊTE ET LOGO TEXTE (Style Carignan-de-Bordeaux)
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(20);
+        doc.setTextColor(30, 41, 59); // car-dark
+        doc.text("CARIGNAN", 14, 20);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(12);
+        doc.text("DE BORDEAUX", 14, 25);
+        
+        // Cadre Collectivité (Infos réelles extraites de ton document d'origine)
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.text("MAIRIE DE CARIGNAN DE BORDEAUX", 14, 35);
+        doc.text("24 RUE DE VERDUN 33360 CARIGNAN-DE-BORDEAUX", 14, 40);
+        doc.text("mairie@carignandebordeaux.fr", 14, 45);
+
+        // 2. BLOC INFOS FACTURE (À droite)
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(30, 58, 138); // car-blue
+        doc.text(`Identifiant PAYFIP : 017556`, 120, 20);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Référence : ${exercice}-CA-00-CARILLON`, 120, 26);
+        doc.text(`Période : Du ${startStr} au ${endStr}`, 120, 32);
+
+        // 3. BLOC DESTINATAIRE (Cadre Famille)
+        doc.rect(118, 42, 78, 25);
+        doc.setFont("helvetica", "bold");
+        doc.text("DESTINATAIRE :", 122, 48);
+        doc.setFont("helvetica", "normal");
+        doc.text(invoice.payeur, 122, 55);
+        doc.text("33360 CARIGNAN-DE-BORDEAUX", 122, 61);
+
+        // Titre du Document
+        doc.setFont("helvetica", "black");
+        doc.setFontSize(18);
+        doc.setTextColor(30, 41, 59);
+        doc.text("FACTURE : PRESTATIONS PÉRISCOLAIRES", 14, 78);
+
+        // 4. TABLEAU DES PRESTATIONS
+        const tableHead = [["Prestation", "Nombre d'actes", "Prix Unitaire (€)", "Montant Total (€)"]];
+        const tableBody = invoice.items.map(item => [
+            item.label,
+            item.count.toString(),
+            `${item.unitPrice.toFixed(2)} €`,
+            `${item.total.toFixed(2)} €`
+        ]);
+
+        autoTable(doc, {
+            startY: 85,
+            head: tableHead,
+            body: tableBody,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }, // car-blue
+            styles: { font: 'helvetica', fontSize: 10, cellPadding: 5 },
+            columnStyles: { 
+                1: { halign: 'center' }, 
+                2: { halign: 'right' }, 
+                3: { halign: 'right', fontStyle: 'bold' } 
+            },
+        });
+
+        // 5. BLOC TOTAL GLOBAL
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.rect(130, finalY, 66, 14, 'F', [241, 245, 249]); // Fond gris clair pour le total
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.setTextColor(30, 41, 59);
+        doc.text("NET À PAYER :", 134, finalY + 9);
+        doc.setTextColor(30, 58, 138);
+        doc.setFontSize(14);
+        doc.text(`${invoice.totalGlobal.toFixed(2)} €`, 166, finalY + 9);
+
+        // 6. MENTION LÉGALE PAYFIP (Rassure le DGS sur les normes)
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8);
+        doc.setTextColor(120);
+        doc.text("Modalités de règlement : Vous recevrez un avis des sommes à payer du Trésor Public.", 14, finalY + 30);
+        doc.text("Règlement possible par chèque, virement ou en ligne sur www.payfip.gouv.fr", 14, finalY + 35);
+
+        // Pied de page
+        doc.setFont("helvetica", "normal");
+        doc.text(`Document de simulation généré en temps réel par Carillon.`, 14, doc.internal.pageSize.getHeight() - 10);
+
+        // Téléchargement
+        doc.save(`Facture_Carillon_${invoice.payeur.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col pb-20">
@@ -151,7 +248,7 @@ const BillingManager = () => {
                                 <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
                                     {calculatedInvoices.map((inv, idx) => (
                                         <div key={idx} className="p-6 hover:bg-slate-50/50 transition-colors flex flex-col md:flex-row justify-between md:items-center gap-4">
-                                            <div className="space-y-2">
+                                            <div className="space-y-2 flex-1">
                                                 <h4 className="font-black text-car-dark text-base">{inv.payeur}</h4>
                                                 <div className="flex flex-wrap gap-2">
                                                     {inv.items.map((item, iIdx) => (
@@ -161,8 +258,16 @@ const BillingManager = () => {
                                                     ))}
                                                 </div>
                                             </div>
-                                            <div className="text-right">
+                                            
+                                            {/* ZONE DE DROITE : MONTANT + BOUTON PDF */}
+                                            <div className="flex items-center gap-6 justify-between md:justify-end">
                                                 <span className="text-2xl font-black text-car-blue">{inv.totalGlobal.toFixed(2)} €</span>
+                                                <button 
+                                                    onClick={() => exportInvoicePDF(inv)}
+                                                    className="bg-slate-100 text-slate-700 hover:bg-car-dark hover:text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
+                                                >
+                                                    Aperçu PDF
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
