@@ -6,6 +6,9 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const path = require('path');
 
 const User = require('./models/User');
 const Child = require('./models/Child');
@@ -14,32 +17,31 @@ const PlannedNote = require('./models/PlannedNote');
 const Billing = require('./models/Billing');
 const Family = require('./models/Family');
 const EmailTemplate = require('./models/EmailTemplate');
-// NOUVEAU : Import du modèle Tariff
 const Tariff = require('./models/Tariff');
-const nodemailer = require('nodemailer');
 const ModificationRequest = require('./models/ModificationRequest');
 const Parent = require('./models/Parent');
-const crypto = require('crypto');
 
 const SettingsSchema = new mongoose.Schema({ key: String, value: String });
 const Settings = mongoose.model('Settings', SettingsSchema);
 
-// --- MODÈLE ÉVACUATION ---
 const EvacuationSchema = new mongoose.Schema({
     date: String,
     sessionType: String,
-    safeChildren: [{ type: String }] // IDs des enfants mis en sécurité
+    safeChildren: [{ type: String }]
 });
 const Evacuation = mongoose.model('Evacuation', EvacuationSchema);
 
 const app = express();
 
+app.use(helmet({
+    contentSecurityPolicy: false // Évite les blocages d'iFrames pour l'aperçu des PDF Justificatifs
+}));
 app.set('trust proxy', 1);
 
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 1000,
-    message: "Trop de requêtes depuis cette IP, veuillez réessayer plus tard."
+    message: "Trop de requêtes depuis cette IP, veuillez réessayer later."
 });
 app.use('/api/', apiLimiter);
 
@@ -57,6 +59,7 @@ mongoose.connect(process.env.MONGO_URI)
   .then(async () => { console.log('MongoDB Connected'); })
   .catch(err => console.log(err));
 
+// --- MIDDLEWARE D'AUTHENTIFICATION UNIFIÉ ---
 const auth = (roles = []) => (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).send('Accès refusé');
@@ -68,6 +71,7 @@ const auth = (roles = []) => (req, res, next) => {
     } catch (e) { res.status(400).send('Token invalide'); }
 };
 
+// --- ROUTES AUTHENTIFICATION STAFF ---
 app.post('/api/login', loginLimiter, async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
@@ -89,7 +93,7 @@ app.post('/api/users', auth(['admin']), async (req, res) => {
         const user = new User({ username: req.body.username, password: hash, role: req.body.role, categoryAccess: req.body.categoryAccess || 'Tous' });
         await user.save();
         res.json({ _id: user._id, username: user.username, role: user.role, categoryAccess: user.categoryAccess });
-    } catch (e) { res.status(400).send('Erreur création utilisateur (nom déjà pris ?)'); }
+    } catch (e) { res.status(400).send('Nom déjà pris ?'); }
 });
 
 app.put('/api/users/:id', auth(['admin']), async (req, res) => {
@@ -104,6 +108,7 @@ app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
     res.json({ success: true });
 });
 
+// --- ROUTES BASE ENFANTS ---
 app.get('/api/children', auth(), async (req, res) => {
     const children = await Child.find().sort({ lastName: 1, firstName: 1 }).populate('family'); 
     res.json(children);
@@ -136,10 +141,11 @@ app.delete('/api/children/:id', auth(['admin']), async (req, res) => {
         await Child.findByIdAndDelete(childId);
         await Attendance.deleteMany({ child: childId });
         await PlannedNote.deleteMany({ child: childId });
-        res.json({ success: true, message: "Enfant et historique supprimés définitivement" });
-    } catch (e) { res.status(500).send('Erreur lors de la suppression'); }
+        res.json({ success: true });
+    } catch (e) { res.status(500).send('Erreur suppression'); }
 });
 
+// --- ROUTES DOSSIERS FAMILLES ---
 app.get('/api/families', auth(['admin', 'responsable']), async (req, res) => {
     try {
         const families = await Family.find().sort({ name: 1 });
@@ -170,6 +176,7 @@ app.delete('/api/families/:id', auth(['admin']), async (req, res) => {
     } catch (e) { res.status(400).send('Erreur suppression famille'); }
 });
 
+// --- ROUTES POINTAGES & SYNCHRO ---
 app.get('/api/attendance', auth(), async (req, res) => {
     const { date, sessionType } = req.query;
     const list = await Attendance.find({ date, sessionType }).populate('child');
@@ -252,6 +259,7 @@ app.post('/api/attendance/sync', auth(), async (req, res) => {
     res.json({ message: "Synchronisation terminée", successCount, ignoredCount });
 });
 
+// --- ROUTES NOTES PLANIFIÉES ---
 app.get('/api/planned-notes/date', auth(), async (req, res) => {
     const { date } = req.query;
     if (!date) return res.json([]);
@@ -278,6 +286,7 @@ app.delete('/api/planned-notes/:id', auth(['admin']), async (req, res) => {
     res.json({ success: true });
 });
 
+// --- COMPOSANTS DE FACTURATION EXCEPTION ---
 app.get('/api/billing/child/:childId', auth(['admin']), async (req, res) => {
     const rules = await Billing.find({ child: req.params.childId });
     res.json(rules);
@@ -299,7 +308,6 @@ app.delete('/api/billing/:id', auth(['admin']), async (req, res) => {
 
 app.get('/api/report', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
-    
     const start = startDate || req.query.date;
     const end = endDate || req.query.date;
 
@@ -308,7 +316,6 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
     const billings = await Billing.find();
 
     const attendanceMap = {};
-    
     atts.forEach(a => {
         const childObj = children.find(c => c._id.toString() === a.child.toString());
         if (!childObj) return; 
@@ -337,17 +344,13 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
         });
     });
 
-    res.json({
-        children: children.map(c => ({ child: c })), 
-        attendances: Object.values(attendanceMap)    
-    });
+    res.json({ children: children.map(c => ({ child: c })), attendances: Object.values(attendanceMap) });
 });
 
 app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
     try {
         const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } }).populate('child');
-        
         let globalStats = { 
             matin: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } }, 
             soir: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } }, 
@@ -378,28 +381,23 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
                     supplement: { under6: { acts: 0, hours: 0 }, over6: { acts: 0, hours: 0 } }
                 };
             }
-
             const childId = att.child._id.toString();
 
             if (att.sessionType === 'MATIN') {
                 uniqueTotal.all.add(childId); uniqueTotal[ageGroup].add(childId);
                 uniqueMatin.all.add(childId); uniqueMatin[ageGroup].add(childId);
-                
                 globalStats.matin[ageGroup].acts += 1; globalStats.matin[ageGroup].hours += 1;
                 globalStats.total.acts += 1; globalStats.total.hours += 1;
                 dailyStats[att.date].matin[ageGroup].acts += 1; dailyStats[att.date].matin[ageGroup].hours += 1;
-            
             } else if (att.sessionType === 'SOIR' && (att.checkOut || att.isLate)) {
                 uniqueTotal.all.add(childId); uniqueTotal[ageGroup].add(childId);
                 uniqueSoir.all.add(childId); uniqueSoir[ageGroup].add(childId);
-                
                 globalStats.soir[ageGroup].acts += 1; globalStats.soir[ageGroup].hours += 2;
                 globalStats.total.acts += 1; globalStats.total.hours += 2;
                 dailyStats[att.date].soir[ageGroup].acts += 1; dailyStats[att.date].soir[ageGroup].hours += 2;
                 
                 if (att.isLate) {
                     uniqueSupplement.all.add(childId); uniqueSupplement[ageGroup].add(childId);
-                    
                     globalStats.supplement[ageGroup].acts += 1; globalStats.supplement[ageGroup].hours += 0.5;
                     globalStats.total.acts += 1; globalStats.total.hours += 0.5;
                     dailyStats[att.date].supplement[ageGroup].acts += 1; dailyStats[att.date].supplement[ageGroup].hours += 0.5;
@@ -413,20 +411,15 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
             soir: { all: uniqueSoir.all.size, under6: uniqueSoir.under6.size, over6: uniqueSoir.over6.size },
             supplement: { all: uniqueSupplement.all.size, under6: uniqueSupplement.under6.size, over6: uniqueSupplement.over6.size }
         };
-
         res.json({ global: globalStats, daily: Object.values(dailyStats).sort((a, b) => a.date.localeCompare(b.date)) });
     } catch (e) { res.status(500).send('Erreur Stats CAF'); }
 });
 
-// --- ROUTES ÉVACUATION (SYNCHRO TEMPS RÉEL) ---
-
+// --- ROUTES ÉVACUATION ---
 app.get('/api/evacuation', auth(), async (req, res) => {
     const { date, sessionType } = req.query;
     let evac = await Evacuation.findOne({ date, sessionType });
-    if (!evac) {
-        evac = new Evacuation({ date, sessionType, safeChildren: [] });
-        await evac.save();
-    }
+    if (!evac) { evac = new Evacuation({ date, sessionType, safeChildren: [] }); await evac.save(); }
     res.json(evac);
 });
 
@@ -434,11 +427,9 @@ app.post('/api/evacuation/toggle', auth(), async (req, res) => {
     const { date, sessionType, childId } = req.body;
     let evac = await Evacuation.findOne({ date, sessionType });
     if (!evac) evac = new Evacuation({ date, sessionType, safeChildren: [] });
-    
     const index = evac.safeChildren.indexOf(childId);
     if (index > -1) evac.safeChildren.splice(index, 1);
     else evac.safeChildren.push(childId);
-    
     await evac.save();
     res.json(evac);
 });
@@ -449,408 +440,268 @@ app.post('/api/evacuation/clear', auth(['admin', 'responsable']), async (req, re
     res.json({ success: true });
 });
 
-// --- FIN DES ROUTES ÉVACUATION ---
-
-// --- NOUVELLES ROUTES TARIFAIRES ---
-
+// --- ROUTES GRILLES TARIFAIRES ---
 app.get('/api/tariffs', auth(['admin']), async (req, res) => {
     try {
         const tariffs = await Tariff.find().sort({ displayOrder: 1 });
         res.json(tariffs);
-    } catch (err) {
-        res.status(500).json({ message: "Erreur serveur", error: err });
-    }
+    } catch (err) { res.status(500).json({ message: "Erreur", error: err }); }
 });
 
 app.post('/api/tariffs', auth(['admin']), async (req, res) => {
     try {
         const newTariff = new Tariff(req.body);
-        const savedTariff = await newTariff.save();
-        res.status(201).json(savedTariff);
-    } catch (err) {
-        res.status(400).json({ message: "Erreur de création", error: err });
-    }
+        await newTariff.save();
+        res.status(201).json(newTariff);
+    } catch (err) { res.status(400).json({ error: err }); }
 });
 
 app.post('/api/tariffs/reorder', auth(['admin']), async (req, res) => {
     try {
         const { orderedIds } = req.body;
-        // On boucle sur la nouvelle liste et on met à jour la position de chacun
         for (let i = 0; i < orderedIds.length; i++) {
             await Tariff.findByIdAndUpdate(orderedIds[i], { displayOrder: i });
         }
         res.json({ success: true });
-    } catch (e) { 
-        res.status(500).send("Erreur lors de la réorganisation"); 
-    }
+    } catch (e) { res.status(500).send("Erreur réorganisation"); }
 });
 
 app.put('/api/tariffs/:id', auth(['admin']), async (req, res) => {
     try {
-        const updatedTariff = await Tariff.findByIdAndUpdate(
-            req.params.id, 
-            req.body, 
-            { new: true, runValidators: true }
-        );
-        res.json(updatedTariff);
-    } catch (err) {
-        res.status(400).json({ message: "Erreur de mise à jour", error: err });
-    }
+        const updated = await Tariff.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(updated);
+    } catch (err) { res.status(400).json({ error: err }); }
 });
 
 app.delete('/api/tariffs/:id', auth(['admin']), async (req, res) => {
-    try {
-        await Tariff.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ message: "Erreur suppression" });
-    }
+    try { await Tariff.findByIdAndDelete(req.params.id); res.json({ success: true }); } catch (err) { res.status(500).send("Erreur"); }
 });
 
-// --- FIN DES ROUTES TARIFAIRES ---
-
-// --- MOTEUR DE CALCUL DE FACTURATION (DOUBLE SÉCURITÉ : CALENDRIER + POINTAGE RÉEL) ---
-
+// --- MOTEUR DE CALCUL AVEC DOUBLE SÉCURITÉ & LOGIQUE CANTINE INVERSÉE ---
 app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).send("Dates manquantes");
-
     try {
-        // 1. Charger les données de base
         const tariffs = await Tariff.find();
         const families = await Family.find();
         const children = await Child.find({ active: true });
         const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } });
         const alternateBillings = await Billing.find({ dates: { $elemMatch: { $gte: startDate, $lte: endDate } } });
-
-        // Récupérer les jours de fermeture configurés
         const closedDaysSetting = await Settings.findOne({ key: 'closed_days' });
         const closedDays = closedDaysSetting ? JSON.parse(closedDaysSetting.value) : [];
 
         const tariffMap = tariffs.reduce((acc, t) => ({ ...acc, [t.activityCode]: t }), {});
         const childrenInFamily = children.reduce((acc, c) => {
             if (!c.family) return acc;
-            const famId = c.family.toString();
-            acc[famId] = (acc[famId] || 0) + 1;
+            acc[c.family.toString()] = (acc[c.family.toString()] || 0) + 1;
             return acc;
         }, {});
 
-        // Extraction des jours qui ont eu de l'activité réelle ce mois-ci
         const daysWithRealActivity = [...new Set(attendances.map(a => a.date))];
-
-        // 2. Générer les jours d'école valides (Double condition : Calendrier ET Activité Réelle)
         let schoolDays = [];
         let start = new Date(startDate);
         let end = new Date(endDate);
-
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
-            const dayOfWeek = d.getDay();
-
-            const isSchoolDayOfWeek = [1, 2, 4, 5].includes(dayOfWeek);
-            const isClosedOnCalendar = closedDays.includes(dateStr);
-            const hasActivity = daysWithRealActivity.includes(dateStr);
-
-            // DOUBLE SÉCURITÉ : Doit être un jour ouvré, NE PAS être fermé au calendrier, ET avoir du pointage réel
-            if (isSchoolDayOfWeek && !isClosedOnCalendar && hasActivity) {
+            if ([1, 2, 4, 5].includes(d.getDay()) && !closedDays.includes(dateStr) && daysWithRealActivity.includes(dateStr)) {
                 schoolDays.push(dateStr);
             }
         }
 
         let invoiceDrafts = {};
-
-        const initInvoice = (payeurNom) => {
-            if (!invoiceDrafts[payeurNom]) {
-                invoiceDrafts[payeurNom] = { payeur: payeurNom, items: {}, totalGlobal: 0 };
-            }
-        };
-
+        const initInvoice = (p) => { if (!invoiceDrafts[p]) invoiceDrafts[p] = { payeur: p, items: {}, totalGlobal: 0 }; };
+        
         const calculateUnitPrice = (rule, fratrieCount, qf) => {
             if (rule.pricingMode === 'FIXED') return rule.fixedPrice || 0;
             if (rule.pricingMode === 'QF_BRACKETS') {
-                const bracket = rule.qfBrackets.find(b => qf >= b.min && qf <= b.max);
-                return bracket ? bracket.price : 0;
+                const b = rule.qfBrackets.find(x => qf >= x.min && qf <= x.max); return b ? b.price : 0;
             }
             if (rule.pricingMode === 'TAUX_EFFORT') {
-                const effortRule = rule.effortRates.find(r => r.childrenCount === fratrieCount) || rule.effortRates[0];
-                if (effortRule) {
-                    let calcul = qf * effortRule.rate;
-                    return Math.max(effortRule.min, Math.min(effortRule.max, calcul));
-                }
+                const rateRule = rule.effortRates.find(r => r.childrenCount === fratrieCount) || rule.effortRates[0];
+                if (rateRule) return Math.max(rateRule.min, Math.min(rateRule.max, qf * rateRule.rate));
             }
             return 0;
         };
 
-        // ===================================================================
-        // ÉTAPE A : CALCUL DU MIDI (CANTINE LOGIQUE INVERSÉE)
-        // ===================================================================
+        // Restauration scolaire (Midi)
         children.forEach(child => {
             if (!child.family) return;
             const family = families.find(f => f._id.toString() === child.family.toString());
             if (!family) return;
-
-            const familyId = family._id.toString();
-            const fratrieCount = childrenInFamily[familyId] || 1;
+            const fratrieCount = childrenInFamily[family._id.toString()] || 1;
             const qf = family.quotientFamilial || 0;
-
             const targetCode = child.regimeAlimentaire === 'PAI' ? 'CA1_PAI' : 'CA1';
             const label = child.regimeAlimentaire === 'PAI' ? 'Cantine (Tarif PAI)' : 'Cantine (Repas Enfant)';
-            const rule = tariffMap[targetCode];
-            if (!rule) return;
+            const rule = tariffMap[targetCode]; if (!rule) return;
 
             schoolDays.forEach(date => {
-                const isAbsentMidi = attendances.some(a => 
-                    a.child.toString() === child._id.toString() && 
-                    a.date === date && 
-                    a.sessionType === 'MIDI'
-                );
-
-                if (!isAbsentMidi) {
-                    let payeurNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
-                    const altRule = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(date));
-                    if (altRule) {
-                        payeurNom = `Garde Alternée : ${altRule.billTo} (Enfant: ${child.firstName})`;
-                    }
-
-                    initInvoice(payeurNom);
-                    const prixUnitaire = calculateUnitPrice(rule, fratrieCount, qf);
-
-                    if (!invoiceDrafts[payeurNom].items[targetCode]) {
-                        invoiceDrafts[payeurNom].items[targetCode] = { label, unitPrice: prixUnitaire, count: 0, total: 0 };
-                    }
-                    invoiceDrafts[payeurNom].items[targetCode].count += 1;
-                    invoiceDrafts[payeurNom].items[targetCode].total += prixUnitaire;
-                    invoiceDrafts[payeurNom].totalGlobal += prixUnitaire;
+                const isAbsent = attendances.some(a => a.child.toString() === child._id.toString() && a.date === date && a.sessionType === 'MIDI');
+                if (!isAbsent) {
+                    let pNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
+                    const alt = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(date));
+                    if (alt) pNom = `Garde Alternée : ${alt.billTo} (Enfant: ${child.firstName})`;
+                    
+                    initInvoice(pNom);
+                    const price = calculateUnitPrice(rule, fratrieCount, qf);
+                    if (!invoiceDrafts[pNom].items[targetCode]) invoiceDrafts[pNom].items[targetCode] = { label, unitPrice: price, count: 0, total: 0 };
+                    invoiceDrafts[pNom].items[targetCode].count += 1;
+                    invoiceDrafts[pNom].items[targetCode].total += price;
+                    invoiceDrafts[pNom].totalGlobal += price;
                 }
             });
         });
 
-        // ===================================================================
-        // ÉTAPE B : CALCUL MATIN & SOIR (PRÉSENCE CLASSIQUE)
-        // ===================================================================
+        // APS Matin et Soir
         attendances.forEach(att => {
-            if (att.sessionType === 'MIDI') return;
-
+            if (att.sessionType === 'MIDI' || closedDays.includes(att.date)) return;
             const child = children.find(c => c._id.toString() === att.child.toString());
             if (!child || !child.family) return;
-
-            const family = families.find(f => f._id.toString() === child.family.toString());
-            if (!family) return;
-
-            // Sécurité absolue calendrier
-            if (closedDays.includes(att.date)) return;
-
-            const familyId = family._id.toString();
-            const fratrieCount = childrenInFamily[familyId] || 1;
+            const family = families.find(f => f._id.toString() === child.family.toString()); if (!family) return;
+            const fratrieCount = childrenInFamily[family._id.toString()] || 1;
             const qf = family.quotientFamilial || 0;
 
-            let payeurNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
-            const altRule = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(att.date));
-            if (altRule) {
-                payeurNom = `Garde Alternée : ${altRule.billTo} (Enfant: ${child.firstName})`;
-            }
+            let pNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
+            const alt = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(att.date));
+            if (alt) pNom = `Garde Alternée : ${alt.billTo} (Enfant: ${child.firstName})`;
 
-            initInvoice(payeurNom);
+            initInvoice(pNom);
+            let targetCode = att.sessionType === 'MATIN' ? 'CA2_MATIN' : (att.isLate ? 'CA2_SUPP' : 'CA2_SOIR');
+            let label = att.sessionType === 'MATIN' ? 'APS Matin' : (att.isLate ? 'Supplément Fin de Soirée' : 'APS Soir (16h30-18h30)');
+            const rule = tariffMap[targetCode]; if (!rule) return;
 
-            let targetCode = '';
-            let label = '';
-            if (att.sessionType === 'MATIN') { targetCode = 'CA2_MATIN'; label = 'APS Matin'; }
-            else if (att.sessionType === 'SOIR') {
-                targetCode = att.isLate ? 'CA2_SUPP' : 'CA2_SOIR';
-                label = att.isLate ? 'Supplément Fin de Soirée (18h30-19h)' : 'APS Soir (16h30-18h30)';
-            }
-
-            const rule = tariffMap[targetCode];
-            if (!rule) return;
-
-            const prixUnitaire = calculateUnitPrice(rule, fratrieCount, qf);
-
-            if (!invoiceDrafts[payeurNom].items[targetCode]) {
-                invoiceDrafts[payeurNom].items[targetCode] = { label, unitPrice: prixUnitaire, count: 0, total: 0 };
-            }
-            
-            invoiceDrafts[payeurNom].items[targetCode].count += 1;
-            invoiceDrafts[payeurNom].items[targetCode].total += prixUnitaire;
-            invoiceDrafts[payeurNom].totalGlobal += prixUnitaire;
+            const price = calculateUnitPrice(rule, fratrieCount, qf);
+            if (!invoiceDrafts[pNom].items[targetCode]) invoiceDrafts[pNom].items[targetCode] = { label, unitPrice: price, count: 0, total: 0 };
+            invoiceDrafts[pNom].items[targetCode].count += 1;
+            invoiceDrafts[pNom].items[targetCode].total += price;
+            invoiceDrafts[pNom].totalGlobal += price;
         });
 
-        const result = Object.values(invoiceDrafts).map(draft => ({
-            ...draft,
-            items: Object.values(draft.items),
-            totalGlobal: Number(draft.totalGlobal.toFixed(2))
-        })).filter(draft => draft.totalGlobal > 0);
-
+        const result = Object.values(invoiceDrafts).map(d => ({ ...d, items: Object.values(d.items), totalGlobal: Number(d.totalGlobal.toFixed(2)) })).filter(d => d.totalGlobal > 0);
         res.json(result);
-    } catch (e) {
-        console.error("Erreur calcul factures:", e);
-        res.status(500).send("Erreur pendant le calcul.");
-    }
+    } catch (e) { res.status(500).send("Erreur calcul."); }
 });
 
-// --- ROUTES DE GESTION DES JOURS DE FERMETURE (CALENDRIER ADMIN) ---
-
+// --- CALENDRIER DE FERMETURE SETTINGS ---
 app.get('/api/settings/closed-days', auth(), async (req, res) => {
-    try {
-        const setting = await Settings.findOne({ key: 'closed_days' });
-        res.json(setting ? JSON.parse(setting.value) : []);
-    } catch (e) { res.status(500).send(e); }
+    const setting = await Settings.findOne({ key: 'closed_days' });
+    res.json(setting ? JSON.parse(setting.value) : []);
 });
 
 app.post('/api/settings/closed-days', auth(['admin']), async (req, res) => {
-    try {
-        const { dates } = req.body; // Doit recevoir un tableau de strings ['YYYY-MM-DD']
-        let setting = await Settings.findOne({ key: 'closed_days' });
-        
-        if (!setting) {
-            setting = new Settings({ key: 'closed_days', value: JSON.stringify(dates) });
-        } else {
-            setting.value = JSON.stringify(dates);
-        }
-        await setting.save();
-        res.json({ success: true, dates });
-    } catch (e) { res.status(500).send("Erreur enregistrement calendrier."); }
+    let setting = await Settings.findOne({ key: 'closed_days' });
+    if (!setting) setting = new Settings({ key: 'closed_days', value: JSON.stringify(req.body.dates) });
+    else setting.value = JSON.stringify(req.body.dates);
+    await setting.save(); res.json({ success: true });
 });
 
-// --- ROUTES AUTHENTIFICATION PORTAIL FAMILLE ---
-
-// 1. Générer et envoyer un lien d'activation (Appelé par le Staff en Admin, ou simulation automatique)
-app.post('/api/parent/invite', auth, async (req, res) => {
-    // Sécurité : Si l'utilisateur connecté n'est pas admin, on bloque direct
-    if (req.user && req.user.role !== 'admin') {
-        return res.status(403).send("Accès refusé : Droits insuffisants.");
-    }
+// --- WORKFLOW D'INVITATION PARENT AVEC ENVOI DE MAIL REEL ---
+app.post('/api/parent/invite', auth(['admin']), async (req, res) => {
     try {
         const { email, familyId } = req.body;
-        
-        // Génération d'un token d'activation unique
+        if (!email || !familyId) return res.status(400).send("Champs requis.");
+
         const activationToken = crypto.randomBytes(20).toString('hex');
-        
-        // On crée le compte parent temporaire (mot de passe provisoire complexe)
         const temporaryPassword = crypto.randomBytes(8).toString('hex');
         
         let parent = await Parent.findOne({ email });
-        if (parent) return res.status(400).send("Un compte parent existe déjà avec cet email.");
+        if (parent) return res.status(400).send("Un compte existe déjà avec cet e-mail.");
 
-        parent = new Parent({
-            email,
-            family: familyId,
-            password: temporaryPassword, // Sera écrasé à la première connexion
-            activationToken
-        });
+        parent = new Parent({ email, family: familyId, password: temporaryPassword, activationToken });
         await parent.save();
 
-        // SIMULATION OU ENVOI REEL DU MAIL D'INVITATION
-        const activationLink = `${req.headers.referer || 'http://localhost:3000'}/parent/portal?token=${activationToken}`;
-        console.log(`✉️ [Carillon Mailer] Lien d'activation généré pour ${email} : ${activationLink}`);
-        
-        // Ici tu pourras brancher ton transporteur Nodemailer pour envoyer le vrai mail
-        
+        const activationLink = `${req.headers.referer || 'https://carillon.demo-ksyv.com'}/parent/portal?token=${activationToken}`;
+
+        // --- ENVOI REEL VIA TON CONFIGURATEUR NODEMAILER GMAIL EXISTANT ---
+        const transporter = nodemailer.createTransport({ 
+            service: 'gmail', 
+            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } 
+        });
+
+        const mailHtml = `
+            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; rounded-2xl: 12px;">
+                <h2 style="color: #1e3a8a;">Bienvenue sur Carillon</h2>
+                <p>Le service périscolaire de la Ville de Carignan-de-Bordeaux vient de configurer vos accès personnels.</p>
+                <p>Veuillez cliquer sur le lien ci-dessous pour configurer votre mot de passe et activer votre espace famille :</p>
+                <div style="margin: 25px 0; text-align: center;">
+                    <a href="${activationLink}" style="background-color: #1e3a8a; color: white; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 8px; display: inline-block;">ACTIVER MON COMPTE PARENT</a>
+                </div>
+                <p style="font-size: 11px; color: #666;">Si le bouton ne fonctionne pas, copiez-collez ce lien : <br/> ${activationLink}</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 10px; color: #888;"><i>Ceci est un envoi officiel automatisé de la Mairie. Ne pas répondre.</i></p>
+            </div>
+        `;
+
+        await transporter.sendMail({
+            from: `"Portail Carillon" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: "Configuration de votre compte Portail Famille Carillon",
+            html: mailHtml
+        });
+
         res.json({ success: true, link: activationLink });
-    } catch (e) { res.status(500).send(e.message); }
+    } catch (e) { res.status(500).send(`Erreur invitation mail : ${e.message}`); }
 });
 
-// 2. Activer le compte (Définition du premier mot de passe par le parent)
+// --- WORKFLOW PORTAIL PARENT CORE ---
 app.post('/api/parent/activate', async (req, res) => {
     try {
         const { token, password } = req.body;
         const parent = await Parent.findOne({ activationToken: token });
-        if (!parent) return res.status(404).send("Lien d'activation invalide ou expiré.");
-
-        parent.password = password;
-        parent.isFirstConnection = false;
-        parent.activationToken = null; // Le token est consommé
-        await parent.save();
-
-        res.json({ success: true });
-    } catch (e) { res.status(500).send("Erreur lors de l'activation."); }
+        if (!parent) return res.status(404).send("Lien invalide.");
+        parent.password = password; parent.isFirstConnection = false; parent.activationToken = null;
+        await parent.save(); res.json({ success: true });
+    } catch (e) { res.status(500).send("Erreur."); }
 });
 
-// 3. Connexion au Portail Famille (ID + MDP)
 app.post('/api/parent/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const parent = await Parent.findOne({ email }).populate('family');
-        if (!parent) return res.status(401).send("Identifiants incorrects.");
+        if (!parent || !(await parent.comparePassword(password))) return res.status(401).send("Erreurs identifiants.");
 
-        const isMatch = await parent.comparePassword(password);
-        if (!isMatch) return res.status(401).send("Identifiants incorrects.");
-
-        // Génération d'un JWT étiqueté 'parent' pour la sécurité
-        const token = jwt.sign(
-            { id: parent._id, familyId: parent.family._id, role: 'parent' },
-            process.env.JWT_SECRET || 'SECRET_CARILLON',
-            { expiresIn: '24h' }
-        );
-
-        res.json({
-            token,
-            family: parent.family,
-            email: parent.email
-        });
-    } catch (e) { res.status(500).send("Erreur serveur."); }
+        const token = jwt.sign({ id: parent._id, familyId: parent.family._id, role: 'parent' }, process.env.JWT_SECRET || 'SECRET', { expiresIn: '24h' });
+        res.json({ token, family: parent.family, email: parent.email });
+    } catch (e) { res.status(500).send("Erreur."); }
 });
 
-// --- ROUTES DU WORKFLOW DE VALIDATION (PORTAIL <=> STAFF) ---
-// 1. Soumettre une demande (Côté Parent)
+// --- MANAGEMENT ROUTE SYSTEM VALIDATION (PORTAIL <=> STAFF) ---
 app.post('/api/requests', auth(), async (req, res) => {
     try {
         const { familyId, portalCode, newData } = req.body;
-        // On rejette poliment les anciennes demandes en attente de cette famille
-        await ModificationRequest.updateMany({ familyId, status: 'PENDING' }, { status: 'REJECTED', refusalMessage: 'Remplacée par une nouvelle demande.' });
-        
+        await ModificationRequest.updateMany({ familyId, status: 'PENDING' }, { status: 'REJECTED', refusalMessage: 'Remplacée.' });
         const request = new ModificationRequest({ familyId, portalCode, newData, status: 'PENDING' });
-        await request.save();
-        res.status(201).json(request);
-    } catch (e) { res.status(500).send("Erreur soumission demande"); }
+        await request.save(); res.status(201).json(request);
+    } catch (e) { res.status(500).send("Erreur."); }
 });
 
-// 2. Récupérer la dernière demande d'une famille (Côté Parent & Côté Staff)
 app.get('/api/requests/family/:familyId', auth(), async (req, res) => {
-    try {
-        const request = await ModificationRequest.findOne({ familyId: req.params.familyId }).sort({ createdAt: -1 });
-        res.json(request);
-    } catch (e) { res.status(500).send(e); }
+    const request = await ModificationRequest.findOne({ familyId: req.params.familyId }).sort({ createdAt: -1 });
+    res.json(request);
 });
 
-// 3. Traiter une demande : Approbation (Côté Staff)
 app.post('/api/requests/:id/approve', auth(['admin']), async (req, res) => {
     try {
         const request = await ModificationRequest.findById(req.params.id);
-        if (!request) return res.status(404).send("Demande introuvable");
-
-        // On écrase les vraies données de la famille avec les nouvelles validées
-        const updatedFamily = await Family.findByIdAndUpdate(request.familyId, request.newData, { new: true });
-        
-        request.status = 'APPROVED';
-        await request.save();
-        
-        res.json({ success: true, family: updatedFamily });
-    } catch (e) { res.status(500).send("Erreur approbation"); }
+        const updated = await Family.findByIdAndUpdate(request.familyId, request.newData, { new: true });
+        request.status = 'APPROVED'; await request.save();
+        res.json({ success: true, family: updated });
+    } catch (e) { res.status(500).send("Erreur."); }
 });
 
-// 4. Traiter une demande : Refus (Côté Staff)
 app.post('/api/requests/:id/reject', auth(['admin']), async (req, res) => {
     try {
-        const { message } = req.body;
-        const request = await ModificationRequest.findById(req.params.id);
-        if (!request) return res.status(404).send("Demande introuvable");
-
-        request.status = 'REJECTED';
-        request.refusalMessage = message;
-        await request.save();
-
+        await ModificationRequest.findByIdAndUpdate(req.params.id, { status: 'REJECTED', refusalMessage: req.body.message });
         res.json({ success: true });
-    } catch (e) { res.status(500).send("Erreur refus"); }
+    } catch (e) { res.status(500).send("Erreur."); }
 });
 
+// --- MODULE CENTRAL MAILING ---
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
     const { subject, message, recipients, attachments } = req.body;
     try {
         const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
-        let finalHtml = message;
-        let inlineAttachments = [...(attachments || [])];
+        let finalHtml = message; let inlineAttachments = [...(attachments || [])];
         const imageRegex = /<img src="data:(image\/[a-zA-Z]*);base64,([^"]*)"/g;
         let match; let imageCount = 0;
         while ((match = imageRegex.exec(message)) !== null) {
@@ -870,31 +721,21 @@ app.post('/api/mail/send', auth(['admin', 'responsable']), async (req, res) => {
 });
 
 app.get('/api/mail/templates', auth(['admin', 'responsable']), async (req, res) => {
-    const templates = await EmailTemplate.find();
-    res.json(templates);
+    res.json(await EmailTemplate.find());
 });
 
 app.post('/api/mail/templates', auth(['admin', 'responsable']), async (req, res) => {
-    const newTemplate = new EmailTemplate(req.body);
-    await newTemplate.save();
-    res.json(newTemplate);
+    const newTemplate = new EmailTemplate(req.body); await newTemplate.save(); res.json(newTemplate);
 });
 
 app.get('/api/settings/signature', auth(), async (req, res) => {
-    try {
-        const user = await User.findById(req.user._id);
-        res.json({ signature: user ? user.signature : '' });
-    } catch (e) { res.status(500).send(e); }
+    const user = await User.findById(req.user._id); res.json({ signature: user ? user.signature : '' });
 });
 
 app.post('/api/settings/signature', auth(), async (req, res) => {
-    try {
-        await User.findByIdAndUpdate(req.user._id, { signature: req.body.signature });
-        res.send("Signature personnelle enregistrée");
-    } catch (e) { res.status(500).send(e); }
+    await User.findByIdAndUpdate(req.user._id, { signature: req.body.signature }); res.send("Signature personnelle enregistrée");
 });
 
-const path = require('path');
 if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../client/dist')));
     app.get(/.*/, (req, res) => res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html')));
