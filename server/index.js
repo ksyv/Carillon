@@ -596,6 +596,9 @@ app.post('/api/settings/closed-days', auth(['admin']), async (req, res) => {
 
 // --- WORKFLOW D'INVITATION PARENT AVEC ENVOI DE MAIL REEL ---
 app.post('/api/parent/invite', async (req, res) => {
+    if (req.user && req.user.role !== 'admin') {
+        return res.status(403).send("Accès refusé : Droits insuffisants.");
+    }
     try {
         // 1. SÉCURITÉ ET VÉRIFICATION DU TOKEN À LA MAIN
         const authHeader = req.headers.authorization?.split(' ')[1];
