@@ -595,8 +595,25 @@ app.post('/api/settings/closed-days', auth(['admin']), async (req, res) => {
 });
 
 // --- WORKFLOW D'INVITATION PARENT AVEC ENVOI DE MAIL REEL ---
-app.post('/api/parent/invite', auth(['admin']), async (req, res) => {
+app.post('/api/parent/invite', async (req, res) => {
     try {
+        // 1. SÉCURITÉ ET VÉRIFICATION DU TOKEN À LA MAIN
+        const authHeader = req.headers.authorization?.split(' ')[1];
+        if (!authHeader) return res.status(401).send('Accès refusé : Aucun token fourni.');
+
+        try {
+            const verified = jwt.verify(authHeader, process.env.JWT_SECRET);
+            req.user = verified;
+            
+            // On vérifie que c'est bien un administrateur qui clique
+            if (req.user.role !== 'admin') {
+                return res.status(403).send('Interdit : Réservé aux administrateurs.');
+            }
+        } catch (err) {
+            return res.status(400).send('Token invalide ou expiré.');
+        }
+
+        // 2. LOGIQUE MÉTIER D'INVITATION
         const { email, familyId } = req.body;
         if (!email || !familyId) return res.status(400).send("Champs requis.");
 
@@ -611,7 +628,7 @@ app.post('/api/parent/invite', auth(['admin']), async (req, res) => {
 
         const activationLink = `${req.headers.referer || 'https://carillon.demo-ksyv.com'}/parent/portal?token=${activationToken}`;
 
-        // --- ENVOI REEL VIA TON CONFIGURATEUR NODEMAILER GMAIL EXISTANT ---
+        // 3. ENVOI RÉEL VIA TON SERVICE DE MAILING GMAIL
         const transporter = nodemailer.createTransport({ 
             service: 'gmail', 
             auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } 
@@ -639,7 +656,10 @@ app.post('/api/parent/invite', auth(['admin']), async (req, res) => {
         });
 
         res.json({ success: true, link: activationLink });
-    } catch (e) { res.status(500).send(`Erreur invitation mail : ${e.message}`); }
+    } catch (e) { 
+        console.error("Erreur d'envoi d'invitation parent :", e);
+        res.status(500).send(`Erreur invitation mail : ${e.message}`); 
+    }
 });
 
 // --- WORKFLOW PORTAIL PARENT CORE ---
