@@ -506,21 +506,20 @@ app.delete('/api/tariffs/:id', auth(['admin']), async (req, res) => {
 
 // --- FIN DES ROUTES TARIFAIRES ---
 
-// --- MOTEUR DE CALCUL DE FACTURATION MENSUELLE ---
+// --- MOTEUR DE CALCUL DE FACTURATION MENSUELLE (CORRIGÉ AVEC POINTAGE INVERSÉ CANTINE) ---
 
 app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).send("Dates manquantes");
 
     try {
-        // 1. Charger la matière première : Tarifs, Familles, Enfants, Présences, Alternances
+        // 1. Charger les données
         const tariffs = await Tariff.find();
         const families = await Family.find();
         const children = await Child.find({ active: true });
         const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } });
         const alternateBillings = await Billing.find({ dates: { $elemMatch: { $gte: startDate, $lte: endDate } } });
 
-        // Dictionnaires pour accélérer les recherches dans la boucle
         const tariffMap = tariffs.reduce((acc, t) => ({ ...acc, [t.activityCode]: t }), {});
         const childrenInFamily = children.reduce((acc, c) => {
             if (!c.family) return acc;
@@ -529,10 +528,92 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
             return acc;
         }, {});
 
+        // Extraire la liste unique de TOUS les jours ouvrés où il y a eu de l'activité (école) ce mois-ci
+        // Cela nous donne automatiquement les jours d'école réels sans devoir gérer un calendrier des vacances
+        const schoolDays = [...new Set(attendances.map(a => a.date))].sort();
+
         let invoiceDrafts = {};
 
-        // 2. Parcourir chaque pointage du mois
+        // Fonction utilitaire pour initialiser une facture
+        const initInvoice = (payeurNom) => {
+            if (!invoiceDrafts[payeurNom]) {
+                invoiceDrafts[payeurNom] = { payeur: payeurNom, items: {}, totalGlobal: 0 };
+            }
+        };
+
+        // Fonction utilitaire pour appliquer les tarifs (Taux d'effort / Tranches QF / Fixe)
+        const calculateUnitPrice = (rule, fratrieCount, qf) => {
+            if (rule.pricingMode === 'FIXED') return rule.fixedPrice || 0;
+            if (rule.pricingMode === 'QF_BRACKETS') {
+                const bracket = rule.qfBrackets.find(b => qf >= b.min && qf <= b.max);
+                return bracket ? bracket.price : 0;
+            }
+            if (rule.pricingMode === 'TAUX_EFFORT') {
+                const effortRule = rule.effortRates.find(r => r.childrenCount === fratrieCount) || rule.effortRates[0];
+                if (effortRule) {
+                    let calcul = qf * effortRule.rate;
+                    return Math.max(effortRule.min, Math.min(effortRule.max, calcul));
+                }
+            }
+            return 0;
+        };
+
+        // ===================================================================
+        // ÉTAPE A : CALCUL DU MIDI (CANTINE) -> LOGIQUE INVERSÉE (PAR ABSENCE)
+        // ===================================================================
+        children.forEach(child => {
+            if (!child.family) return;
+            const family = families.find(f => f._id.toString() === child.family.toString());
+            if (!family) return;
+
+            const familyId = family._id.toString();
+            const fratrieCount = childrenInFamily[familyId] || 1;
+            const qf = family.quotientFamilial || 0;
+
+            // Déterminer le code tarifaire (Standard vs PAI)
+            const targetCode = child.regimeAlimentaire === 'PAI' ? 'CA1_PAI' : 'CA1';
+            const label = child.regimeAlimentaire === 'PAI' ? 'Cantine (Tarif PAI)' : 'Cantine (Repas Enfant)';
+            const rule = tariffMap[targetCode];
+            if (!rule) return;
+
+            // Pour chaque jour d'école du mois, on vérifie si l'enfant était PRÉSENT (c'est-à-dire pas pointé ABSENT)
+            schoolDays.forEach(date => {
+                // On cherche si un pointage d'absence MIDI existe pour cet enfant ce jour-là
+                const isAbsentMidi = attendances.some(a => 
+                    a.child.toString() === child._id.toString() && 
+                    a.date === date && 
+                    a.sessionType === 'MIDI'
+                );
+
+                // Si l'enfant n'est PAS absent, alors il a mangé ! On le facture
+                if (!isAbsentMidi) {
+                    // Gestion garde alternée / exception payeur
+                    let payeurNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
+                    const altRule = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(date));
+                    if (altRule) {
+                        payeurNom = `Garde Alternée : ${altRule.billTo} (Enfant: ${child.firstName})`;
+                    }
+
+                    initInvoice(payeurNom);
+                    const prixUnitaire = calculateUnitPrice(rule, fratrieCount, qf);
+
+                    if (!invoiceDrafts[payeurNom].items[targetCode]) {
+                        invoiceDrafts[payeurNom].items[targetCode] = { label, unitPrice: prixUnitaire, count: 0, total: 0 };
+                    }
+                    invoiceDrafts[payeurNom].items[targetCode].count += 1;
+                    invoiceDrafts[payeurNom].items[targetCode].total += prixUnitaire;
+                    invoiceDrafts[payeurNom].totalGlobal += prixUnitaire;
+                }
+            });
+        });
+
+        // ===================================================================
+        // ÉTAPE B : CALCUL MATIN & SOIR -> LOGIQUE CLASSIQUE (PAR PRÉSENCE)
+        // ===================================================================
         attendances.forEach(att => {
+            // On ignore le midi ici puisqu'on vient de le traiter au-dessus
+            if (att.sessionType === 'MIDI') return;
+
             const child = children.find(c => c._id.toString() === att.child.toString());
             if (!child || !child.family) return;
 
@@ -543,56 +624,27 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
             const fratrieCount = childrenInFamily[familyId] || 1;
             const qf = family.quotientFamilial || 0;
 
-            // Déterminer le payeur par défaut (La Famille) ou l'exception (Garde alternée)
             let payeurNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
             const altRule = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(att.date));
             if (altRule) {
                 payeurNom = `Garde Alternée : ${altRule.billTo} (Enfant: ${child.firstName})`;
             }
 
-            // Initialiser la facture du payeur si elle n'existe pas
-            if (!invoiceDrafts[payeurNom]) {
-                invoiceDrafts[payeurNom] = { payeur: payeurNom, items: {}, totalGlobal: 0 };
-            }
+            initInvoice(payeurNom);
 
-            // Identifier la bonne activité tarifaire selon le type de pointage
             let targetCode = '';
             let label = '';
             if (att.sessionType === 'MATIN') { targetCode = 'CA2_MATIN'; label = 'APS Matin'; }
-            else if (att.sessionType === 'MIDI') {
-                targetCode = child.regimeAlimentaire === 'PAI' ? 'CA1_PAI' : 'CA1';
-                label = child.regimeAlimentaire === 'PAI' ? 'Cantine (Tarif PAI)' : 'Cantine (Repas Enfant)';
-            }
             else if (att.sessionType === 'SOIR') {
                 targetCode = att.isLate ? 'CA2_SUPP' : 'CA2_SOIR';
                 label = att.isLate ? 'Supplément Fin de Soirée (18h30-19h)' : 'APS Soir (16h30-18h30)';
             }
 
             const rule = tariffMap[targetCode];
-            if (!rule) return; // Activité non configurée en admin
+            if (!rule) return;
 
-            // 3. Calcul du prix unitaire selon la règle stricte enregistrée
-            let prixUnitaire = 0;
+            const prixUnitaire = calculateUnitPrice(rule, fratrieCount, qf);
 
-            if (rule.pricingMode === 'FIXED') {
-                prixUnitaire = rule.fixedPrice || 0;
-            } 
-            else if (rule.pricingMode === 'QF_BRACKETS') {
-                const bracket = rule.qfBrackets.find(b => qf >= b.min && qf <= b.max);
-                prixUnitaire = bracket ? bracket.price : 0;
-            } 
-            else if (rule.pricingMode === 'TAUX_EFFORT') {
-                // Trouver le taux correspondant au nombre d'enfants de la famille
-                const effortRule = rule.effortRates.find(r => r.childrenCount === fratrieCount) 
-                                   || rule.effortRates[0]; // Fallback enfant 1 si non trouvé
-
-                if (effortRule) {
-                    let calcul = qf * effortRule.rate;
-                    prixUnitaire = Math.max(effortRule.min, Math.min(effortRule.max, calcul));
-                }
-            }
-
-            // Accumuler dans la ligne de facture
             if (!invoiceDrafts[payeurNom].items[targetCode]) {
                 invoiceDrafts[payeurNom].items[targetCode] = { label, unitPrice: prixUnitaire, count: 0, total: 0 };
             }
@@ -602,12 +654,12 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
             invoiceDrafts[payeurNom].totalGlobal += prixUnitaire;
         });
 
-        // Convertir l'objet en tableau propre pour le front-end
+        // 3. Nettoyer et renvoyer le résultat
         const result = Object.values(invoiceDrafts).map(draft => ({
             ...draft,
             items: Object.values(draft.items),
             totalGlobal: Number(draft.totalGlobal.toFixed(2))
-        })).filter(draft => draft.totalGlobal > 0); // On masque les factures à 0€
+        })).filter(draft => draft.totalGlobal > 0);
 
         res.json(result);
     } catch (e) {
