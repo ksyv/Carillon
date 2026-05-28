@@ -710,20 +710,22 @@ app.post('/api/requests', auth(), async (req, res) => {
         const { familyId, portalCode, newData } = req.body;
         const oldFamily = await Family.findById(familyId).lean();
         
+        // Liste dynamique des changements
         let changes = [];
         
-        // Comparaison des revenus et parts
+        // Comparaison simple des champs importants
         if (oldFamily.revenuReference !== newData.revenuReference) changes.push(`Revenu : ${oldFamily.revenuReference}€ → ${newData.revenuReference}€`);
         if (oldFamily.nombreParts !== newData.nombreParts) changes.push(`Parts : ${oldFamily.nombreParts} → ${newData.nombreParts}`);
         
-        // Comparaison des responsables (on regarde les 2)
-        newData.responsables.forEach((resp, i) => {
-            const old = oldFamily.responsables[i] || {};
-            if (resp.phoneMobile !== old.phoneMobile) changes.push(`Resp ${i+1} Tel : ${old.phoneMobile} → ${resp.phoneMobile}`);
-            if (resp.email !== old.email) changes.push(`Resp ${i+1} Email : ${old.email} → ${resp.email}`);
-        });
+        // Vérification des responsables (s'ils existent)
+        if (newData.responsables && oldFamily.responsables) {
+            newData.responsables.forEach((resp, i) => {
+                const old = oldFamily.responsables[i] || {};
+                if (resp.phoneMobile !== old.phoneMobile) changes.push(`Resp ${i+1} Tel : ${old.phoneMobile || 'vide'} → ${resp.phoneMobile || 'vide'}`);
+                if (resp.email !== old.email) changes.push(`Resp ${i+1} Email : ${old.email || 'vide'} → ${resp.email || 'vide'}`);
+            });
+        }
 
-        // On annule les anciennes demandes en attente
         await ModificationRequest.updateMany({ familyId, status: 'PENDING' }, { status: 'REJECTED', refusalMessage: 'Nouvelle demande soumise' });
         
         const request = new ModificationRequest({ 
@@ -731,12 +733,15 @@ app.post('/api/requests', auth(), async (req, res) => {
             portalCode, 
             newData, 
             oldData: oldFamily, 
-            changeSummary: changes.join(' | ') || "Modifications sur le dossier",
+            changeSummary: changes.length > 0 ? changes.join(' | ') : "Modifications générales",
             status: 'PENDING' 
         });
         await request.save();
         res.status(201).json(request);
-    } catch (e) { res.status(500).send("Erreur serveur"); }
+    } catch (e) { 
+        console.error(e);
+        res.status(500).send("Erreur serveur"); 
+    }
 });
 
 app.get('/api/requests/family/:familyId', auth(), async (req, res) => {

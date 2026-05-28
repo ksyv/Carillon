@@ -15,17 +15,20 @@ const Dashboard = () => {
 
   // Vérification périodique des demandes en attente
   useEffect(() => {
-    const fetchPendingCount = async () => {
-      try {
-        const { data } = await api.get('/requests/pending-count');
-        setPendingRequests(data.count);
-      } catch (e) { console.error("Erreur récup. demandes:", e); }
-    };
-
-    fetchPendingCount();
-    const interval = setInterval(fetchPendingCount, 30000); // Rafraîchissement toutes les 30 secondes
-    return () => clearInterval(interval);
-  }, []);
+    // Vérifie que le rôle est admin/responsable
+    if (role === 'admin' || role === 'responsable') {
+        const fetchPendingCount = async () => {
+            try {
+                // IMPORTANT : Vérifie que ton instance 'api' pointe bien vers /api
+                const { data } = await api.get('/requests/pending-count');
+                setPendingRequests(data.count);
+            } catch (e) { console.error("Erreur récup. demandes:", e); }
+        };
+        fetchPendingCount();
+        const interval = setInterval(fetchPendingCount, 30000);
+        return () => clearInterval(interval);
+    }
+  }, [role]);
 
   const getSessionStatus = (session) => {
       if (role === 'admin') return { locked: false, text: 'Admin' };

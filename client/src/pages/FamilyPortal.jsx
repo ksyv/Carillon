@@ -81,23 +81,25 @@ const FamilyPortal = () => {
         const storedToken = localStorage.getItem('parent_token');
         const storedFamilyId = localStorage.getItem('parent_family_id');
 
-        if (storedToken && storedFamilyId) {
-            // Injection IMMÉDIATE du header
+        // On ne charge que si on a les infos et PAS en mode activation
+        if (storedToken && storedFamilyId && !activationToken) {
             api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
             
-            loadParentDossier(storedFamilyId)
-                .then(() => {
-                    setIsAuthenticated(true);
-                    setIsLoading(false);
+            // Appel direct
+            api.get(`/families`)
+                .then(res => {
+                    const fam = res.data.find(f => f._id === storedFamilyId);
+                    if (fam) {
+                        setSelectedFamily(fam);
+                        loadParentDossier(fam._id);
+                        setIsAuthenticated(true);
+                    } else {
+                        handleLogout();
+                    }
                 })
-                .catch(() => {
-                    handleLogout();
-                    setIsLoading(false);
-                });
-        } else {
-            setIsLoading(false);
+                .catch(() => handleLogout());
         }
-    }, []);
+    }, [activationToken]);
 
     if (isLoading) return <div>Chargement...</div>;
 
