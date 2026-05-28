@@ -148,48 +148,7 @@ app.delete('/api/children/:id', auth(['admin']), async (req, res) => {
 app.put('/api/parent/children/:id', auth(), async (req, res) => {
     try {
         if (req.user.role !== 'parent') return res.status(403).send('Interdit');
-
-        const parent = await Parent.findById(req.user.id);
-        if (!parent) return res.status(404).send('Parent introuvable');
-
-        const child = await Child.findById(req.params.id);
-        if (!child) return res.status(404).send('Enfant introuvable');
-        if (!child.family || child.family.toString() !== parent.family.toString()) {
-            return res.status(403).send('Cet enfant ne dépend pas de votre famille.');
-        }
-
-        const allowedKeys = [
-            'firstName',
-            'lastName',
-            'category',
-            'sexe',
-            'birthDate',
-            'droitImage',
-            'autorisationSortieSeul',
-            'persistentNote',
-            'regimeAlimentaire',
-            'hasPAI',
-            'paiDetails',
-            'isPAIAlimentaire',
-            'paiDocument'
-        ];
-
-        allowedKeys.forEach((key) => {
-            if (Object.prototype.hasOwnProperty.call(req.body, key)) {
-                child[key] = req.body[key];
-            }
-        });
-
-        if (req.body.medical && typeof req.body.medical === 'object') {
-            child.medical = {
-                ...(child.medical || {}),
-                autresInfos: typeof req.body.medical.autresInfos === 'string' ? req.body.medical.autresInfos : (child.medical?.autresInfos || '')
-            };
-        }
-
-        await child.save();
-        await child.populate('family');
-        res.json(child);
+        return res.status(403).send('Les modifications enfant passent par une demande de validation.');
     } catch (e) {
         res.status(500).send('Erreur modification enfant');
     }
@@ -768,34 +727,76 @@ app.get('/api/parent/me', auth(), async (req, res) => {
 // --- MANAGEMENT ROUTE SYSTEM VALIDATION (PORTAIL <=> STAFF) ---
 app.post('/api/requests', auth(), async (req, res) => {
     try {
-        const { familyId, portalCode, newData } = req.body;
-        const oldFamily = await Family.findById(familyId).lean();
-        
-        // Liste dynamique des changements
-        let changes = [];
-        
-        // Comparaison simple des champs importants
-        if (oldFamily.revenuReference !== newData.revenuReference) changes.push(`Revenu : ${oldFamily.revenuReference}€ → ${newData.revenuReference}€`);
-        if (oldFamily.nombreParts !== newData.nombreParts) changes.push(`Parts : ${oldFamily.nombreParts} → ${newData.nombreParts}`);
-        
-        // Vérification des responsables (s'ils existent)
-        if (newData.responsables && oldFamily.responsables) {
-            newData.responsables.forEach((resp, i) => {
-                const old = oldFamily.responsables[i] || {};
-                if (resp.phoneMobile !== old.phoneMobile) changes.push(`Resp ${i+1} Tel : ${old.phoneMobile || 'vide'} → ${resp.phoneMobile || 'vide'}`);
-                if (resp.email !== old.email) changes.push(`Resp ${i+1} Email : ${old.email || 'vide'} → ${resp.email || 'vide'}`);
-            });
+        const { familyId, childId, portalCode, newData } = req.body;
+        const parent = req.user.role === 'parent' ? await Parent.findById(req.user.id) : null;
+        const effectiveFamilyId = familyId || parent?.family?.toString?.() || parent?.family;
+
+        if (!effectiveFamilyId) return res.status(400).send('Famille manquante');
+        if (req.user.role === 'parent' && parent && parent.family && parent.family.toString() !== effectiveFamilyId.toString()) {
+            return res.status(403).send('Interdit');
         }
 
-        await ModificationRequest.updateMany({ familyId, status: 'PENDING' }, { status: 'REJECTED', refusalMessage: 'Nouvelle demande soumise' });
+        let oldData = null;
+        let requestType = 'FAMILY_UPDATE';
+        let changes = [];
+
+        if (childId) {
+            requestType = 'CHILD_UPDATE';
+            const child = await Child.findById(childId).lean();
+            if (!child) return res.status(404).send('Enfant introuvable');
+            if (child.family && child.family.toString() !== effectiveFamilyId.toString()) {
+                return res.status(403).send('Cet enfant ne dépend pas de votre famille.');
+            }
+            oldData = child;
+
+            const compare = (label, key) => {
+                if (oldData?.[key] !== newData?.[key]) {
+                    changes.push(`${label} : ${oldData?.[key] ?? 'vide'} → ${newData?.[key] ?? 'vide'}`);
+                }
+            };
+
+            compare('Prénom', 'firstName');
+            compare('Nom', 'lastName');
+            compare('Date de naissance', 'birthDate');
+            compare('Catégorie', 'category');
+            compare('Sexe', 'sexe');
+            compare('Régime alimentaire', 'regimeAlimentaire');
+            compare('Note permanente', 'persistentNote');
+            if ((oldData.medical?.autresInfos || '') !== (newData.medical?.autresInfos || '')) {
+                changes.push(`Autres infos médicales : ${oldData.medical?.autresInfos || 'vide'} → ${newData.medical?.autresInfos || 'vide'}`);
+            }
+        } else {
+            oldData = await Family.findById(effectiveFamilyId).lean();
+            if (!oldData) return res.status(404).send('Famille introuvable');
+            const compare = (label, key) => {
+                if (oldData?.[key] !== newData?.[key]) {
+                    changes.push(`${label} : ${oldData?.[key] ?? 'vide'} → ${newData?.[key] ?? 'vide'}`);
+                }
+            };
+
+            compare('Revenu', 'revenuReference');
+            compare('Parts', 'nombreParts');
+            compare('Payeur', 'payeur');
+
+            if (newData.responsables && oldData.responsables) {
+                newData.responsables.forEach((resp, i) => {
+                    const old = oldData.responsables[i] || {};
+                    if (resp.phoneMobile !== old.phoneMobile) changes.push(`Resp ${i+1} Tel : ${old.phoneMobile || 'vide'} → ${resp.phoneMobile || 'vide'}`);
+                    if (resp.email !== old.email) changes.push(`Resp ${i+1} Email : ${old.email || 'vide'} → ${resp.email || 'vide'}`);
+                });
+            }
+        }
+        await ModificationRequest.updateMany({ familyId: effectiveFamilyId, status: 'PENDING' }, { status: 'REJECTED', refusalMessage: 'Nouvelle demande soumise' });
         
         const request = new ModificationRequest({ 
-            familyId, 
+            familyId: effectiveFamilyId, 
+            childId: childId || null,
             portalCode, 
             newData, 
-            originalData: oldFamily,
-            oldData: oldFamily, 
+            originalData: oldData,
+            oldData: oldData, 
             changeSummary: changes.length > 0 ? changes.join(' | ') : "Modifications générales",
+            type: requestType,
             status: 'PENDING' 
         });
         await request.save();
@@ -814,9 +815,18 @@ app.get('/api/requests/family/:familyId', auth(), async (req, res) => {
 app.post('/api/requests/:id/approve', auth(['admin']), async (req, res) => {
     try {
         const request = await ModificationRequest.findById(req.params.id);
-        const updated = await Family.findByIdAndUpdate(request.familyId, request.newData, { new: true });
-        request.status = 'APPROVED'; await request.save();
-        res.json({ success: true, family: updated });
+        let updated = null;
+        if (request.type === 'CHILD_UPDATE' && request.childId) {
+            updated = await Child.findByIdAndUpdate(request.childId, request.newData, { new: true }).populate('family');
+            request.status = 'APPROVED';
+            await request.save();
+            return res.json({ success: true, child: updated });
+        } else {
+            updated = await Family.findByIdAndUpdate(request.familyId, request.newData, { new: true });
+            request.status = 'APPROVED';
+            await request.save();
+            return res.json({ success: true, family: updated });
+        }
     } catch (e) { res.status(500).send("Erreur."); }
 });
 

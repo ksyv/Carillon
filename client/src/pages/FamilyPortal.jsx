@@ -147,10 +147,15 @@ const FamilyPortal = () => {
                 persistentNote: editingChild.persistentNote,
                 medical: { autresInfos: editingChild.medical?.autresInfos || '' }
             };
-            await api.put(`/parent/children/${editingChild._id}`, payload);
+            const { data } = await api.post('/requests', {
+                familyId: selectedFamily._id,
+                childId: editingChild._id,
+                portalCode: 'PORTAIL',
+                newData: payload
+            });
+            setServerRequest(data);
             setEditingChild(null);
-            await loadParentDossier(selectedFamily._id);
-            alert('✓ Fiche enfant enregistrée.');
+            alert('✓ Votre demande de modification enfant a été envoyée au staff pour validation.');
         } catch (e) {
             alert("Erreur lors de la sauvegarde de la fiche enfant.");
         }

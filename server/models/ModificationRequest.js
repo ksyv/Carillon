@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const ModificationRequestSchema = new mongoose.Schema({
     familyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Family', required: true },
+    childId: { type: mongoose.Schema.Types.ObjectId, ref: 'Child', default: null },
     portalCode: { type: String, required: true },
     type: { type: String, default: 'FAMILY_UPDATE' },
     status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },

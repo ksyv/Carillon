@@ -83,7 +83,8 @@ const FamilyManager = () => {
             const { data } = await api.post(`/requests/${activeRequest._id}/approve`);
             if (data.success) {
                 alert("✓ Modifications acceptées et appliquées sur le dossier de production !");
-                setSelectedFamily(data.family);
+                if (data.family) setSelectedFamily(data.family);
+                if (data.child?.family) setSelectedFamily(data.child.family);
                 setActiveRequest(null);
                 loadData();
             }
