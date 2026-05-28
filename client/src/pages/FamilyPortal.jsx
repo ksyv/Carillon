@@ -101,7 +101,6 @@ const FamilyPortal = () => {
         }
     }, [activationToken]);
 
-    if (isLoading) return <div>Chargement...</div>;
 
     const handleLogout = () => {
         localStorage.removeItem('parent_token');
