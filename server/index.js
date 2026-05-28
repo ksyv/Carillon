@@ -629,7 +629,7 @@ app.post('/api/parent/invite', async (req, res) => {
             await parent.save();
         }
 
-        const activationLink = `${req.headers.referer || 'https://carillon.demo-ksyv.com'}/parent/portal?token=${activationToken}`;
+        const activationLink = `https://carillon.demo-ksyv.com/parent/portal?token=${activationToken}`;
 
         // --- ENVOI REEL VIA NODEMAILER ---
         const transporter = nodemailer.createTransport({ 
