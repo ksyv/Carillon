@@ -370,7 +370,16 @@ const SessionView = () => {
                         <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-slate-50 opacity-70' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)]'}`}>
                             <div className="w-full sm:w-auto">
                                 <div className={`font-black text-xl flex items-center gap-2 ${isGone ? 'text-slate-400 line-through decoration-slate-300' : 'text-car-dark'}`}>
-                                    <button onClick={() => setChildInfoToView(record.child)} className="text-slate-300 hover:text-car-blue mr-2 transition-colors"><Info size={20}/></button>
+                                    <button 
+                                        onClick={() => {
+                                            // On cherche la fiche complète de l'enfant dans allChildren pour avoir les infos famille
+                                            const fullChild = allChildren.find(c => c._id === record.child._id) || record.child;
+                                            setChildInfoToView(fullChild);
+                                        }} 
+                                        className="text-slate-300 hover:text-car-blue mr-2 transition-colors"
+                                    >
+                                        <Info size={20}/>
+                                    </button>
                                     {record.child.lastName} <span className="font-medium">{record.child.firstName}</span>
                                     {record.child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
                                     {hasAnyNote && !isGone && !isMidi && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
