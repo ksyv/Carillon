@@ -83,6 +83,10 @@ export default function App() {
           path="/admin/calendar-exception" 
           element={auth.token ? <CalendarExceptionManager /> : <Navigate to="/" />} 
         />
+        <Route 
+          path="/admin/cantine" 
+          element={auth.token ? <CantineStats /> : <Navigate to="/" />} 
+        />
 
         {/* Filet de sécurité global */}
         <Route path="*" element={<Navigate to="/" />} />

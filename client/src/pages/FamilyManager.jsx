@@ -191,6 +191,18 @@ const FamilyManager = () => {
         return accumulator;
     }, {});
 
+    const renderPendingRequest = (request) => (
+        <div key={request._id} className="mt-2 bg-orange-500/10 border border-orange-200 rounded-2xl p-3 flex flex-col gap-2">
+            <div className="text-xs font-mono text-slate-600">{summarizeRequest(request)}</div>
+            <div className="flex flex-wrap gap-2 justify-end text-[10px] font-black uppercase tracking-wider">
+                <button type="button" onClick={() => handleRejectRequest(request._id)} className="bg-car-pink text-white px-3 py-1.5 rounded-xl hover:bg-pink-600 transition-all">Rejeter</button>
+                <button type="button" onClick={() => handleApproveRequest(request._id)} className="bg-car-green text-white px-3 py-1.5 rounded-xl hover:bg-green-600 transition-all shadow-md">Valider</button>
+            </div>
+        </div>
+    );
+
+    const familyRequestsOnly = pendingRequests.filter(request => !request.childId);
+
     const startAddChild = () => {
         setEditingChild({
             _id: null, active: true, firstName: '', lastName: selectedFamily.name, category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
@@ -451,92 +463,7 @@ const FamilyManager = () => {
                                     </div>
                                 </div>
 
-                                {familyRequests.length > 0 && (
-                                    <div className="bg-orange-500/10 border-2 border-dashed border-orange-500/30 p-5 rounded-2xl flex flex-col gap-3 animate-in fade-in duration-300">
-                                        <div className="flex items-start gap-3 text-orange-600">
-                                            <AlertTriangle className="shrink-0 mt-0.5" size={20}/>
-                                            <div>
-                                                <h4 className="font-black text-sm uppercase tracking-wide">Modifications famille en attente</h4>
-                                                <p className="text-xs text-slate-600 font-medium mt-0.5">Chaque demande est validable séparément, directement ici.</p>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {familyRequests.map(request => (
-                                                <div key={request._id} className="bg-white p-4 rounded-2xl border border-orange-200 shadow-sm flex flex-col gap-3">
-                                                    <div className="text-xs font-mono text-slate-600">{summarizeRequest(request)}</div>
-                                                    <div className="flex flex-wrap gap-2 justify-end text-[10px] font-black uppercase tracking-wider">
-                                                        <button type="button" onClick={() => handleRejectRequest(request._id)} className="bg-car-pink text-white px-4 py-2 rounded-xl hover:bg-pink-600 transition-all">Rejeter</button>
-                                                        <button type="button" onClick={() => handleApproveRequest(request._id)} className="bg-car-green text-white px-4 py-2 rounded-xl hover:bg-green-600 transition-all shadow-md">✓ Valider</button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col">
-                                        <h3 className="font-black mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
-                                        {attachedChildren.length > 0 ? (
-                                            <div className="space-y-2 mb-6">
-                                                {attachedChildren.map(c => {
-                                                    const childRequests = childRequestsById[c._id?.toString?.() || c._id] || [];
-                                                    return (
-                                                        <div key={c._id} className="space-y-2">
-                                                            <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
-                                                                <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
-                                                                    <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={18}/></div>
-                                                                    <span className="font-bold text-car-dark uppercase group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
-                                                                </div>
-                                                                <div className="flex items-center gap-1">
-                                                                    <button type="button" onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier"><Pencil size={18}/></button>
-                                                                    <button type="button" onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher"><X size={18}/></button>
-                                                                </div>
-                                                            </div>
-                                                            {childRequests.length > 0 && (
-                                                                <div className="pl-3 space-y-2">
-                                                                    {childRequests.map(request => (
-                                                                        <div key={request._id} className="bg-orange-500/10 border border-orange-200 rounded-2xl p-3 flex flex-col gap-2">
-                                                                            <div className="text-[11px] font-black uppercase tracking-widest text-orange-700">Modification enfant en attente</div>
-                                                                            <div className="text-xs font-mono text-slate-600">{summarizeRequest(request)}</div>
-                                                                            <div className="flex flex-wrap gap-2 justify-end text-[10px] font-black uppercase tracking-wider">
-                                                                                <button type="button" onClick={() => handleRejectRequest(request._id)} className="bg-car-pink text-white px-3 py-1.5 rounded-xl hover:bg-pink-600 transition-all">Rejeter</button>
-                                                                                <button type="button" onClick={() => handleApproveRequest(request._id)} className="bg-car-green text-white px-3 py-1.5 rounded-xl hover:bg-green-600 transition-all shadow-md">Valider</button>
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : ( <p className="text-slate-400 font-medium mb-6 italic text-sm">Aucun enfant rattaché.</p> )}
-                                        <div className="mt-auto pt-4 border-t border-slate-200">
-                                            <div className="relative mb-3">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Search className="text-slate-400" size={16}/>
-                                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rattacher un enfant existant :</label>
-                                                </div>
-                                                <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:border-car-yellow outline-none font-bold text-car-dark text-sm" placeholder="Rechercher par prénom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
-                                                {searchOrphan.length >= 2 && (
-                                                    <div className="absolute w-full mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
-                                                        {filteredOrphans.map(c => (
-                                                            <div key={c._id} className="p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                                <span className="font-bold text-car-dark uppercase">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
-                                                                <button type="button" onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">+ Lier</button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <button type="button" onClick={startAddChild} className="w-full bg-car-yellow/10 text-car-yellow font-bold p-3 rounded-xl hover:bg-car-yellow hover:text-white transition-colors text-sm flex justify-center items-center gap-2">
-                                                <Plus size={18}/> Créer et ajouter un enfant complet
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                                         <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
                                             <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation &amp; QF</h3>
                                             <select className="bg-white border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-xs" value={editFamily.payeur} onChange={e => setEditFamily({...editFamily, payeur: e.target.value})}>
@@ -619,6 +546,8 @@ const FamilyManager = () => {
                                                 <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[1].phoneMobile} onChange={e => handleRespChange(1, 'phoneMobile', e.target.value)}/>
                                                 <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Email" value={editFamily.responsables[1].email} onChange={e => handleRespChange(1, 'email', e.target.value)}/>
                                             </div>
+                                            {familyRequestsOnly.filter(request => request.changeSummary.includes('Resp 2 Tel')).map(renderPendingRequest)}
+                                            {familyRequestsOnly.filter(request => request.changeSummary.includes('Resp 2 Email')).map(renderPendingRequest)}
                                             <div className="flex gap-2">
                                                 <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Profession" value={editFamily.responsables[1].profession} onChange={e => handleRespChange(1, 'profession', e.target.value)}/>
                                                 <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Employeur" value={editFamily.responsables[1].employeur} onChange={e => handleRespChange(1, 'employeur', e.target.value)}/>

@@ -603,6 +603,79 @@ app.post('/api/settings/closed-days', auth(['admin']), async (req, res) => {
     await setting.save(); res.json({ success: true });
 });
 
+// --- STATISTIQUES CANTINE 1€ (TRANCHE 1 & 2) ---
+app.get('/api/stats/cantine-1-euro', auth(['admin']), async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        
+        // 1. Récupérer tous les pointages MIDI de la période (présents uniquement)
+        const attendances = await Attendance.find({
+            date: { $gte: startDate, $lte: endDate },
+            sessionType: 'MIDI',
+            checkOut: { $ne: null } // Si checkOut est null, l'enfant a été noté "Absent Cantine" (selon ta logique)
+        }).populate({
+            path: 'child',
+            populate: { path: 'family' } // On va chercher la famille pour avoir le revenu et les parts
+        });
+
+        const eligibleChildrenMap = new Map();
+        const dailyMap = new Map();
+        let totalMeals = 0;
+
+        attendances.forEach(record => {
+            if (!record.child || !record.child.family) return;
+
+            const family = record.child.family;
+            
+            // Calcul du QF (Formule standard : (Revenu Annuel / 12) / Nombre de parts)
+            // Adapte cette formule si ta mairie calcule le QF différemment
+            const qf = Math.round((family.revenuReference / 12) / family.nombreParts);
+
+            // Filtrer Tranche 1 et 2 (QF <= 1000)
+            if (qf >= 0 && qf <= 1000) {
+                totalMeals++;
+
+                // Agréger par enfant
+                const childId = record.child._id.toString();
+                if (!eligibleChildrenMap.has(childId)) {
+                    eligibleChildrenMap.set(childId, {
+                        _id: childId,
+                        firstName: record.child.firstName,
+                        lastName: record.child.lastName,
+                        qf: qf,
+                        mealsCount: 0
+                    });
+                }
+                eligibleChildrenMap.get(childId).mealsCount++;
+
+                // Agréger par jour
+                const dateKey = record.date.split('T')[0];
+                if (!dailyMap.has(dateKey)) {
+                    dailyMap.set(dateKey, 0);
+                }
+                dailyMap.set(dateKey, dailyMap.get(dateKey) + 1);
+            }
+        });
+
+        // Formater les données pour le Frontend
+        const childrenArray = Array.from(eligibleChildrenMap.values()).sort((a, b) => a.lastName.localeCompare(b.lastName));
+        const dailyArray = Array.from(dailyMap.entries()).map(([date, meals]) => ({ date, meals })).sort((a, b) => a.date.localeCompare(b.date));
+
+        res.json({
+            global: {
+                totalMeals: totalMeals,
+                uniqueChildrenCount: childrenArray.length
+            },
+            children: childrenArray,
+            daily: dailyArray
+        });
+
+    } catch (e) {
+        console.error("Erreur Stats Cantine 1€:", e);
+        res.status(500).send("Erreur lors de la génération des statistiques.");
+    }
+});
+
 // --- WORKFLOW D'INVITATION PARENT AVEC ENVOI DE MAIL REEL ---
 app.post('/api/parent/invite', async (req, res) => {
     // Vérification manuelle de l'admin
@@ -725,7 +798,7 @@ app.get('/api/parent/me', auth(), async (req, res) => {
 });
 
 // --- MANAGEMENT ROUTE SYSTEM VALIDATION (PORTAIL <=> STAFF) ---
-const createModificationRequest = async ({ familyId, childId = null, portalCode, newData }) => {
+const createModificationRequest = async ({ familyId, childId = null, portalCode, newData, changeSummary = '' }) => {
     const effectiveFamilyId = familyId?.toString?.() || familyId;
     if (!effectiveFamilyId) throw new Error('Famille manquante');
 
@@ -780,6 +853,10 @@ const createModificationRequest = async ({ familyId, childId = null, portalCode,
         }
     }
 
+    const finalSummary = changeSummary && changeSummary.trim()
+        ? changeSummary.trim()
+        : (changes.length > 0 ? changes.join(' | ') : 'Modifications générales');
+
     const request = new ModificationRequest({
         familyId: effectiveFamilyId,
         childId,
@@ -787,7 +864,7 @@ const createModificationRequest = async ({ familyId, childId = null, portalCode,
         newData,
         originalData: oldData,
         oldData,
-        changeSummary: changes.length > 0 ? changes.join(' | ') : 'Modifications générales',
+        changeSummary: finalSummary,
         type: requestType,
         status: 'PENDING'
     });
@@ -798,7 +875,7 @@ const createModificationRequest = async ({ familyId, childId = null, portalCode,
 
 app.post('/api/requests', auth(), async (req, res) => {
     try {
-        const { familyId, childId, portalCode, newData } = req.body;
+        const { familyId, childId, portalCode, newData, changeSummary } = req.body;
         const parent = req.user.role === 'parent' ? await Parent.findById(req.user.id) : null;
         const effectiveFamilyId = familyId || parent?.family?.toString?.() || parent?.family;
 
@@ -807,7 +884,7 @@ app.post('/api/requests', auth(), async (req, res) => {
             return res.status(403).send('Interdit');
         }
 
-        const request = await createModificationRequest({ familyId: effectiveFamilyId, childId, portalCode, newData });
+        const request = await createModificationRequest({ familyId: effectiveFamilyId, childId, portalCode, newData, changeSummary });
         res.status(201).json(request);
     } catch (e) {
         console.error(e);
@@ -821,7 +898,8 @@ app.post('/api/parent/requests/family', auth(), async (req, res) => {
         const request = await createModificationRequest({
             familyId: req.user.familyId,
             portalCode: req.body.portalCode,
-            newData: req.body.newData || {}
+            newData: req.body.newData || {},
+            changeSummary: req.body.changeSummary || ''
         });
         res.status(201).json(request);
     } catch (e) {
@@ -837,7 +915,8 @@ app.post('/api/parent/requests/children/:id', auth(), async (req, res) => {
             familyId: req.user.familyId,
             childId: req.params.id,
             portalCode: req.body.portalCode,
-            newData: req.body.newData || {}
+            newData: req.body.newData || {},
+            changeSummary: req.body.changeSummary || ''
         });
         res.status(201).json(request);
     } catch (e) {

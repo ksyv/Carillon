@@ -166,6 +166,16 @@ const Dashboard = () => {
                             <div className="bg-slate-800 p-4 rounded-2xl w-fit group-hover:bg-car-dark group-hover:text-white text-slate-600 transition-colors"><Calculator size={24} strokeWidth={2.5}/></div>
                             <div><h3 className="font-black text-car-dark text-lg">Déclaration CAF</h3><p className="text-xs text-slate-500 font-medium mt-1">Actes & Heures PSO</p></div>
                         </button>
+                        {/* BOUTON : CANTINE À 1€ */}
+                        <button onClick={() => navigate('/admin/cantine')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                            <div className="bg-car-teal/10 p-4 rounded-2xl w-fit group-hover:bg-car-teal group-hover:text-white text-car-teal transition-colors">
+                                <Utensils size={24} strokeWidth={2.5}/>
+                            </div>
+                            <div>
+                                <h3 className="font-black text-car-dark text-lg">Cantine à 1€</h3>
+                                <p className="text-xs text-slate-500 font-medium mt-1">Export repas T1 & T2</p>
+                            </div>
+                        </button>
                     </>
                 )}
             </div>
