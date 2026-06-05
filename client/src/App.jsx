@@ -17,6 +17,8 @@ import AdminTariffs from './pages/AdminTariffs';
 import CalendarExceptionManager from './pages/CalendarExceptionManager';
 // Ton nouveau portail famille connecté
 import FamilyPortal from './pages/FamilyPortal';
+import CantineStats from './pages/CantineStats';
+
 
 export default function App() {
   const [auth, setAuth] = useState({ 
