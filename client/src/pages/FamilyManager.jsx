@@ -506,59 +506,127 @@ const FamilyManager = () => {
                                             </div>
                                         </div>
                                     </div>
+
+                                    <div className="flex flex-col gap-8">
+                                        <div className="bg-white border border-slate-200 p-6 rounded-3xl">
+                                            <h3 className="font-black text-car-blue mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 1</h3>
+                                            <div className="space-y-3">
+                                                <div className="flex gap-2">
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-bold uppercase" placeholder="NOM" value={editFamily.responsables[0].lastName} onChange={e => handleRespChange(0, 'lastName', e.target.value.toUpperCase())}/>
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-bold capitalize" placeholder="Prénom" value={editFamily.responsables[0].firstName} onChange={e => handleRespChange(0, 'firstName', e.target.value)}/>
+                                                </div>
+                                                <input type="text" className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[0].qualite} onChange={e => handleRespChange(0, 'qualite', e.target.value)}/>
+                                                <div className="flex gap-2">
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[0].phoneMobile} onChange={e => handleRespChange(0, 'phoneMobile', e.target.value)}/>
+                                                    <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Email" value={editFamily.responsables[0].email} onChange={e => handleRespChange(0, 'email', e.target.value)}/>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Profession" value={editFamily.responsables[0].profession} onChange={e => handleRespChange(0, 'profession', e.target.value)}/>
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Employeur" value={editFamily.responsables[0].employeur} onChange={e => handleRespChange(0, 'employeur', e.target.value)}/>
+                                                </div>
+                                                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                                                    <select className="w-1/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold text-slate-500" value={editFamily.responsables[0].couvertureSociale} onChange={e => handleRespChange(0, 'couvertureSociale', e.target.value)}>
+                                                        <option value="CPAM">CPAM</option><option value="MSA">MSA</option><option value="AUTRE">Autre</option>
+                                                    </select>
+                                                    <input type="text" className="w-2/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="N° Allocataire" value={editFamily.responsables[0].numAllocataireCAF} onChange={e => handleRespChange(0, 'numAllocataireCAF', e.target.value)}/>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white border border-slate-200 p-6 rounded-3xl">
+                                            <h3 className="font-black text-car-teal mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 2</h3>
+                                            <div className="space-y-3">
+                                                <div className="flex gap-2">
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-bold uppercase" placeholder="NOM" value={editFamily.responsables[1].lastName} onChange={e => handleRespChange(1, 'lastName', e.target.value.toUpperCase())}/>
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-bold capitalize" placeholder="Prénom" value={editFamily.responsables[1].firstName} onChange={e => handleRespChange(1, 'firstName', e.target.value)}/>
+                                                </div>
+                                                <input type="text" className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[1].qualite} onChange={e => handleRespChange(1, 'qualite', e.target.value)}/>
+                                                <div className="flex gap-2">
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[1].phoneMobile} onChange={e => handleRespChange(1, 'phoneMobile', e.target.value)}/>
+                                                    <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Email" value={editFamily.responsables[1].email} onChange={e => handleRespChange(1, 'email', e.target.value)}/>
+                                                </div>
+                                                {familyRequestsOnly.filter(request => request.changeSummary.includes('Resp 2 Tel')).map(renderPendingRequest)}
+                                                {familyRequestsOnly.filter(request => request.changeSummary.includes('Resp 2 Email')).map(renderPendingRequest)}
+                                                <div className="flex gap-2">
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Profession" value={editFamily.responsables[1].profession} onChange={e => handleRespChange(1, 'profession', e.target.value)}/>
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Employeur" value={editFamily.responsables[1].employeur} onChange={e => handleRespChange(1, 'employeur', e.target.value)}/>
+                                                </div>
+                                                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                                                    <select className="w-1/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold text-slate-500" value={editFamily.responsables[1].couvertureSociale} onChange={e => handleRespChange(1, 'couvertureSociale', e.target.value)}>
+                                                        <option value="CPAM">CPAM</option><option value="MSA">MSA</option><option value="AUTRE">Autre</option>
+                                                    </select>
+                                                    <input type="text" className="w-2/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="N° Allocataire" value={editFamily.responsables[1].numAllocataireCAF} onChange={e => handleRespChange(1, 'numAllocataireCAF', e.target.value)}/>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="bg-white border border-slate-200 p-6 rounded-3xl">
-                                        <h3 className="font-black text-car-blue mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 1</h3>
-                                        <div className="space-y-3">
-                                            <div className="flex gap-2">
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-bold uppercase" placeholder="NOM" value={editFamily.responsables[0].lastName} onChange={e => handleRespChange(0, 'lastName', e.target.value.toUpperCase())}/>
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-bold capitalize" placeholder="Prénom" value={editFamily.responsables[0].firstName} onChange={e => handleRespChange(0, 'firstName', e.target.value)}/>
-                                            </div>
-                                            <input type="text" className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[0].qualite} onChange={e => handleRespChange(0, 'qualite', e.target.value)}/>
-                                            <div className="flex gap-2">
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[0].phoneMobile} onChange={e => handleRespChange(0, 'phoneMobile', e.target.value)}/>
-                                                <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Email" value={editFamily.responsables[0].email} onChange={e => handleRespChange(0, 'email', e.target.value)}/>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Profession" value={editFamily.responsables[0].profession} onChange={e => handleRespChange(0, 'profession', e.target.value)}/>
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Employeur" value={editFamily.responsables[0].employeur} onChange={e => handleRespChange(0, 'employeur', e.target.value)}/>
-                                            </div>
-                                            <div className="flex gap-2 pt-2 border-t border-slate-100">
-                                                <select className="w-1/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold text-slate-500" value={editFamily.responsables[0].couvertureSociale} onChange={e => handleRespChange(0, 'couvertureSociale', e.target.value)}>
-                                                    <option value="CPAM">CPAM</option><option value="MSA">MSA</option><option value="AUTRE">Autre</option>
-                                                </select>
-                                                <input type="text" className="w-2/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="N° Allocataire" value={editFamily.responsables[0].numAllocataireCAF} onChange={e => handleRespChange(0, 'numAllocataireCAF', e.target.value)}/>
-                                            </div>
+                                {/* SECTION ENFANTS DU FOYER RECONSTRUITE ICI */}
+                                <div className="mt-8 border-t border-slate-100 pt-8">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                                        <h3 className="text-xl font-black text-car-dark uppercase flex items-center gap-2">
+                                            <Users size={24} className="text-car-purple"/> Enfants du Foyer ({attachedChildren.length})
+                                        </h3>
+                                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                            {orphans.length > 0 && (
+                                                <div className="relative flex-1 sm:w-64">
+                                                    <select
+                                                        className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none font-bold text-sm text-car-dark appearance-none"
+                                                        value={searchOrphan}
+                                                        onChange={e => {
+                                                            if(e.target.value) handleAttachChild(e.target.value, selectedFamily._id);
+                                                        }}
+                                                    >
+                                                        <option value="">Rattacher un enfant sans dossier...</option>
+                                                        {orphans.map(o => (
+                                                            <option key={o._id} value={o._id}>{o.lastName} {o.firstName}</option>
+                                                        ))}
+                                                    </select>
+                                                    <CornerDownRight size={16} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"/>
+                                                </div>
+                                            )}
+                                            <button type="button" onClick={startAddChild} className="bg-car-purple text-white px-4 py-3 rounded-xl font-black tracking-widest hover:bg-purple-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-car-purple/20 text-xs">
+                                                <Plus size={18}/> NOUVEL ENFANT
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="bg-white border border-slate-200 p-6 rounded-3xl">
-                                        <h3 className="font-black text-car-teal mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 2</h3>
-                                        <div className="space-y-3">
-                                            <div className="flex gap-2">
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-bold uppercase" placeholder="NOM" value={editFamily.responsables[1].lastName} onChange={e => handleRespChange(1, 'lastName', e.target.value.toUpperCase())}/>
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-bold capitalize" placeholder="Prénom" value={editFamily.responsables[1].firstName} onChange={e => handleRespChange(1, 'firstName', e.target.value)}/>
-                                            </div>
-                                            <input type="text" className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[1].qualite} onChange={e => handleRespChange(1, 'qualite', e.target.value)}/>
-                                            <div className="flex gap-2">
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[1].phoneMobile} onChange={e => handleRespChange(1, 'phoneMobile', e.target.value)}/>
-                                                <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Email" value={editFamily.responsables[1].email} onChange={e => handleRespChange(1, 'email', e.target.value)}/>
-                                            </div>
-                                            {familyRequestsOnly.filter(request => request.changeSummary.includes('Resp 2 Tel')).map(renderPendingRequest)}
-                                            {familyRequestsOnly.filter(request => request.changeSummary.includes('Resp 2 Email')).map(renderPendingRequest)}
-                                            <div className="flex gap-2">
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Profession" value={editFamily.responsables[1].profession} onChange={e => handleRespChange(1, 'profession', e.target.value)}/>
-                                                <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Employeur" value={editFamily.responsables[1].employeur} onChange={e => handleRespChange(1, 'employeur', e.target.value)}/>
-                                            </div>
-                                            <div className="flex gap-2 pt-2 border-t border-slate-100">
-                                                <select className="w-1/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold text-slate-500" value={editFamily.responsables[1].couvertureSociale} onChange={e => handleRespChange(1, 'couvertureSociale', e.target.value)}>
-                                                    <option value="CPAM">CPAM</option><option value="MSA">MSA</option><option value="AUTRE">Autre</option>
-                                                </select>
-                                                <input type="text" className="w-2/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="N° Allocataire" value={editFamily.responsables[1].numAllocataireCAF} onChange={e => handleRespChange(1, 'numAllocataireCAF', e.target.value)}/>
-                                            </div>
+
+                                    {attachedChildren.length === 0 ? (
+                                        <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 text-center">
+                                            <p className="text-slate-400 font-bold italic">Aucun enfant n'est rattaché à ce dossier.</p>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {attachedChildren.map(child => (
+                                                <div key={child._id} className={`bg-white p-5 rounded-2xl border transition-all ${child.active === false ? 'border-dashed border-slate-300 opacity-70' : 'border-slate-200 shadow-sm'}`}>
+                                                    <div className="flex justify-between items-start gap-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <button type="button" onClick={() => setChildInfoToView(child)} className="text-slate-300 hover:text-car-blue bg-slate-50 p-3 rounded-full transition-colors shrink-0">
+                                                                <Info size={20}/>
+                                                            </button>
+                                                            <div>
+                                                                <span className="font-black text-car-dark text-lg leading-tight block">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
+                                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                                    {child.active === false && <span className="text-[10px] font-black px-2 py-0.5 rounded-md tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
+                                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md tracking-widest ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
+                                                                        {child.category || 'Maternelle'}
+                                                                    </span>
+                                                                    {child.hasPAI && <span className="text-[10px] font-black px-2 py-0.5 rounded-md tracking-widest bg-car-pink/10 text-car-pink flex items-center gap-1"><AlertTriangle size={10}/> PAI</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <button type="button" onClick={() => startEditChild(child)} className="text-slate-400 hover:text-car-blue p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier la fiche"><Pencil size={18}/></button>
+                                                            <button type="button" onClick={() => handleDetachChild(child._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher du dossier"><X size={18}/></button>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {childRequestsById && childRequestsById[child._id] && childRequestsById[child._id].map(renderPendingRequest)}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ) : (
