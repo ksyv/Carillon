@@ -403,6 +403,7 @@ const FamilyManager = () => {
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+                    {/* COLONNE DE GAUCHE : RECHERCHE FAMILLES + ENFANTS */}
                     <div className="xl:col-span-1 space-y-4">
                         <form onSubmit={handleSearchOrCreateFamily} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex gap-2 items-center">
                             <Search className="text-slate-400 ml-2" size={20} />
@@ -410,7 +411,7 @@ const FamilyManager = () => {
                             <button type="submit" title="Créer un nouveau dossier" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors shrink-0"><Plus size={20}/></button>
                         </form>
 
-                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-200">
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[400px]">
                             <div className="p-4 bg-slate-50 border-b border-slate-100 font-black text-slate-400 text-xs tracking-widest uppercase flex justify-between">
                                 <span>{filteredFamilies.length} Dossiers</span>
                                 {searchFamilyText && <span className="text-car-yellow">Filtré</span>}
@@ -430,11 +431,60 @@ const FamilyManager = () => {
                                 })}
                             </div>
                         </div>
+
+                        {/* LISTE DES ENFANTS DU FOYER SÉLECTIONNÉ DANS LA COLONNE DE GAUCHE */}
+                        {selectedFamily && (
+                            <div className="bg-slate-50 rounded-3xl border border-slate-200 overflow-hidden flex flex-col max-h-[500px]">
+                                <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center">
+                                    <h3 className="font-black text-car-dark text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={16}/> Enfants</h3>
+                                </div>
+                                <div className="overflow-y-auto flex-1 p-3 space-y-2">
+                                    {attachedChildren.length > 0 ? attachedChildren.map(c => (
+                                        <div key={c._id} className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
+                                            <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
+                                                <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={16}/></div>
+                                                <span className="font-bold text-car-dark uppercase text-sm group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 rounded-lg transition-colors" title="Modifier"><Pencil size={16}/></button>
+                                                <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 rounded-lg transition-colors" title="Détacher"><X size={16}/></button>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <p className="text-slate-400 font-medium italic text-xs text-center mt-4">Aucun enfant rattaché.</p>
+                                    )}
+                                </div>
+                                <div className="p-3 bg-white border-t border-slate-200">
+                                    {orphans.length > 0 && (
+                                        <div className="relative mb-2">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Search className="text-slate-400" size={14}/>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rattacher enfant :</label>
+                                            </div>
+                                            <input type="text" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-car-yellow outline-none font-bold text-car-dark text-xs" placeholder="Chercher par prénom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
+                                            {searchOrphan.length >= 2 && (
+                                                <div className="absolute w-full mt-1 bg-white shadow-xl rounded-xl border border-slate-100 max-h-40 overflow-y-auto z-20">
+                                                    {filteredOrphans.map(c => (
+                                                        <div key={c._id} className="p-3 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                            <span className="font-bold text-car-dark uppercase text-xs">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
+                                                            <button onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-sm">+ Lier</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    <button onClick={startAddChild} className="w-full bg-car-purple/10 text-car-purple font-bold p-2.5 rounded-xl hover:bg-car-purple hover:text-white transition-colors text-xs flex justify-center items-center gap-2">
+                                        <Plus size={16}/> Créer un enfant complet
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="xl:col-span-3">
                         {selectedFamily && editFamily ? (
-                            <div className="bg-white rounded-4xl p-6 sm:p-8 shadow-sm border border-slate-100 min-h-200 flex flex-col gap-6">
+                            <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-100 min-h-[800px] flex flex-col">
                                 
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6 w-full">
                                     <div className="space-y-1">
@@ -461,10 +511,10 @@ const FamilyManager = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6 mb-8">
                                     <div className="flex flex-col">
                                         <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
-                                            <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation &amp; QF</h3>
+                                            <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation & QF</h3>
                                             <select className="bg-white border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-xs" value={editFamily.payeur} onChange={e => setEditFamily({...editFamily, payeur: e.target.value})}>
                                                 <option value="Responsable 1">Facture à Resp. 1</option>
                                                 <option value="Responsable 2">Facture à Resp. 2</option>
@@ -506,7 +556,7 @@ const FamilyManager = () => {
                                             </div>
                                         </div>
                                     </div>
-
+                                    
                                     <div className="flex flex-col gap-8">
                                         <div className="bg-white border border-slate-200 p-6 rounded-3xl">
                                             <h3 className="font-black text-car-blue mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 1</h3>
@@ -560,73 +610,6 @@ const FamilyManager = () => {
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-
-                                {/* SECTION ENFANTS DU FOYER RECONSTRUITE ICI */}
-                                <div className="mt-8 border-t border-slate-100 pt-8">
-                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                                        <h3 className="text-xl font-black text-car-dark uppercase flex items-center gap-2">
-                                            <Users size={24} className="text-car-purple"/> Enfants du Foyer ({attachedChildren.length})
-                                        </h3>
-                                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                                            {orphans.length > 0 && (
-                                                <div className="relative flex-1 sm:w-64">
-                                                    <select
-                                                        className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none font-bold text-sm text-car-dark appearance-none"
-                                                        value={searchOrphan}
-                                                        onChange={e => {
-                                                            if(e.target.value) handleAttachChild(e.target.value, selectedFamily._id);
-                                                        }}
-                                                    >
-                                                        <option value="">Rattacher un enfant sans dossier...</option>
-                                                        {orphans.map(o => (
-                                                            <option key={o._id} value={o._id}>{o.lastName} {o.firstName}</option>
-                                                        ))}
-                                                    </select>
-                                                    <CornerDownRight size={16} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"/>
-                                                </div>
-                                            )}
-                                            <button type="button" onClick={startAddChild} className="bg-car-purple text-white px-4 py-3 rounded-xl font-black tracking-widest hover:bg-purple-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-car-purple/20 text-xs">
-                                                <Plus size={18}/> NOUVEL ENFANT
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {attachedChildren.length === 0 ? (
-                                        <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 text-center">
-                                            <p className="text-slate-400 font-bold italic">Aucun enfant n'est rattaché à ce dossier.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {attachedChildren.map(child => (
-                                                <div key={child._id} className={`bg-white p-5 rounded-2xl border transition-all ${child.active === false ? 'border-dashed border-slate-300 opacity-70' : 'border-slate-200 shadow-sm'}`}>
-                                                    <div className="flex justify-between items-start gap-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <button type="button" onClick={() => setChildInfoToView(child)} className="text-slate-300 hover:text-car-blue bg-slate-50 p-3 rounded-full transition-colors shrink-0">
-                                                                <Info size={20}/>
-                                                            </button>
-                                                            <div>
-                                                                <span className="font-black text-car-dark text-lg leading-tight block">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                                    {child.active === false && <span className="text-[10px] font-black px-2 py-0.5 rounded-md tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
-                                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md tracking-widest ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
-                                                                        {child.category || 'Maternelle'}
-                                                                    </span>
-                                                                    {child.hasPAI && <span className="text-[10px] font-black px-2 py-0.5 rounded-md tracking-widest bg-car-pink/10 text-car-pink flex items-center gap-1"><AlertTriangle size={10}/> PAI</span>}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-1">
-                                                            <button type="button" onClick={() => startEditChild(child)} className="text-slate-400 hover:text-car-blue p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier la fiche"><Pencil size={18}/></button>
-                                                            <button type="button" onClick={() => handleDetachChild(child._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher du dossier"><X size={18}/></button>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    {childRequestsById && childRequestsById[child._id] && childRequestsById[child._id].map(renderPendingRequest)}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         ) : (
