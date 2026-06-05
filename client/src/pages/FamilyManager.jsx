@@ -436,7 +436,6 @@ const FamilyManager = () => {
                         {selectedFamily && editFamily ? (
                             <div className="bg-white rounded-4xl p-6 sm:p-8 shadow-sm border border-slate-100 min-h-200 flex flex-col gap-6">
                                 
-                                {/* HEADER ACTIONS DU DOSSIER RE-PAQUETÉ CORRECTEMENT AVEC FLEX-WRAP */}
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6 w-full">
                                     <div className="space-y-1">
                                         <h2 className="text-3xl font-black text-car-dark uppercase">Famille <span className="text-car-yellow">{selectedFamily.name}</span></h2>
@@ -454,7 +453,6 @@ const FamilyManager = () => {
                                         </div>
                                     </div>
                                     
-                                    {/* CONTENEUR FIXE DES BOUTONS D'ACTIONS ACTIONS */}
                                     <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-start md:justify-end">
                                         <button type="button" onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille"><Trash2 size={24}/></button>
                                         <button type="button" onClick={exportFamilyPDF} className="text-slate-400 hover:text-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet"><Download size={24}/></button>
@@ -464,6 +462,7 @@ const FamilyManager = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    <div className="flex flex-col">
                                         <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
                                             <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation &amp; QF</h3>
                                             <select className="bg-white border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-xs" value={editFamily.payeur} onChange={e => setEditFamily({...editFamily, payeur: e.target.value})}>
@@ -575,7 +574,7 @@ const FamilyManager = () => {
             <ChildInfoModal child={childInfoToView} onClose={() => setChildInfoToView(null)} />
 
             {editingChild && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-100 flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="bg-white rounded-4xl p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
                         <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                             <div className="flex items-center gap-4">
