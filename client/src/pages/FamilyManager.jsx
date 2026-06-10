@@ -457,9 +457,24 @@ const FamilyManager = () => {
                             <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-100 min-h-[800px] flex flex-col">
                                 
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6 w-full mb-8">
-                                    <div className="space-y-1">
-                                        <h2 className="text-3xl font-black text-car-dark uppercase">Famille <span className="text-car-yellow">{selectedFamily.name}</span></h2>
-                                        <div className="flex flex-wrap items-center gap-3 pt-2">
+                                    <div className="space-y-2 w-full md:w-auto">
+                                        
+                                        {/* TITRE MODIFIABLE ICI */}
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                            <h2 className="text-3xl font-black text-car-dark uppercase">Famille</h2>
+                                            <div className="relative">
+                                                <input 
+                                                    type="text" 
+                                                    className="text-2xl font-black text-car-yellow uppercase bg-slate-50 hover:bg-slate-100 border border-slate-200 focus:bg-white focus:border-car-yellow outline-none rounded-xl px-4 py-1.5 w-full sm:w-64 transition-all pr-10"
+                                                    value={editFamily.name} 
+                                                    onChange={e => setEditFamily({...editFamily, name: e.target.value.toUpperCase()})}
+                                                    title="Modifier le nom du dossier"
+                                                />
+                                                <Pencil size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none"/>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-3 pt-1">
                                             <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
                                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">🔑 Code :</span>
                                                 <input type="text" className="bg-transparent border-none outline-none font-black text-car-dark text-sm w-24 uppercase placeholder:text-slate-300" value={editFamily.portalCode || ''} onChange={e => setEditFamily({...editFamily, portalCode: e.target.value.toUpperCase()})} placeholder="EX: 1234A" />
