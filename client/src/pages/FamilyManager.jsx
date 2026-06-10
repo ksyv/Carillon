@@ -380,7 +380,25 @@ const FamilyManager = () => {
     const orphans = children.filter(c => !c.family);
     const filteredOrphans = searchOrphan.length >= 2 ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase())) : [];
     const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id || c.family?._id === selectedFamily._id) : [];
-    const filteredFamilies = searchFamilyText.trim() === '' ? families : families.filter(f => f.name.toLowerCase().includes(searchFamilyText.toLowerCase()));
+    
+    // --- NOUVEAU FILTRE INTELLIGENT ---
+    const filteredFamilies = searchFamilyText.trim() === '' 
+        ? families 
+        : families.filter(f => {
+            const query = searchFamilyText.trim().toLowerCase();
+            
+            // 1. Recherche par nom de famille (nom du dossier)
+            if (f.name?.toLowerCase().includes(query)) return true;
+            
+            // 2. Recherche par nom d'un des responsables
+            if (f.responsables?.some(r => r.lastName?.toLowerCase().includes(query))) return true;
+            
+            // 3. Recherche par nom d'un enfant rattaché à ce dossier
+            const famChildren = children.filter(c => c.family === f._id || c.family?._id === f._id);
+            if (famChildren.some(c => c.lastName?.toLowerCase().includes(query))) return true;
+            
+            return false;
+        });
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
@@ -407,7 +425,7 @@ const FamilyManager = () => {
                     <div className="xl:col-span-1 space-y-4">
                         <form onSubmit={handleSearchOrCreateFamily} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex gap-2 items-center">
                             <Search className="text-slate-400 ml-2" size={20} />
-                            <input className="bg-transparent border-none p-2 outline-none font-black text-car-dark placeholder:text-slate-300 flex-1 uppercase text-sm" placeholder="CHERCHER OU CRÉER..." value={searchFamilyText} onChange={e => setSearchFamilyText(e.target.value)} />
+                            <input className="bg-transparent border-none p-2 outline-none font-black text-car-dark placeholder:text-slate-300 flex-1 uppercase text-[10px]" placeholder="CHERCHER (FAMILLE, RESP, ENFANT)..." value={searchFamilyText} onChange={e => setSearchFamilyText(e.target.value)} />
                             <button type="submit" title="Créer un nouveau dossier" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors shrink-0"><Plus size={20}/></button>
                         </form>
 
@@ -463,7 +481,6 @@ const FamilyManager = () => {
                                     </div>
                                 </div>
 
-                                {/* LE FAMEUX BLOC 2 COLONNES : [Facturation + Enfants] | [Resp1 + Resp2] */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     
                                     {/* SOUS-COLONNE GAUCHE : Facturation et Enfants */}
@@ -515,7 +532,7 @@ const FamilyManager = () => {
                                             </div>
                                         </div>
 
-                                        {/* BLOC ENFANTS DU FOYER REPLACÉ ICI */}
+                                        {/* BLOC ENFANTS DU FOYER */}
                                         <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col h-full">
                                             <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
                                             
