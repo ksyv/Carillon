@@ -62,7 +62,9 @@ const FamilyManager = () => {
     useEffect(() => {
         if (selectedFamily) {
             const resps = [...(selectedFamily.responsables || [])];
-            while (resps.length < 2) resps.push({ firstName: '', lastName: '', qualite: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' });
+            while (resps.length < 2) resps.push({ 
+                firstName: '', lastName: '', qualite: '', birthDate: '', adressePostale: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' 
+            });
             const docs = selectedFamily.documents || { assuranceRC: {}, vaccins: {}, avisImposition: {}, attestationCAF: {} };
             setEditFamily({ ...selectedFamily, responsables: resps, documents: docs });
             
@@ -312,6 +314,8 @@ const FamilyManager = () => {
             if(r.lastName || r.firstName) {
                 respBody.push([{ content: `Responsable ${i+1} : ${r.qualite || ''}`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }]);
                 respBody.push(['Identité', `${r.lastName?.toUpperCase()} ${r.firstName}`]);
+                respBody.push(['Date de naissance', r.birthDate ? new Date(r.birthDate).toLocaleDateString('fr-FR') : '-']);
+                respBody.push(['Adresse Postale', r.adressePostale || '-']);
                 respBody.push(['Téléphone', r.phoneMobile || '-']);
                 respBody.push(['Email', r.email || '-']);
                 respBody.push(['Profession', `${r.profession || '-'} chez ${r.employeur || '-'}`]);
@@ -381,22 +385,15 @@ const FamilyManager = () => {
     const filteredOrphans = searchOrphan.length >= 2 ? orphans.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase())) : [];
     const attachedChildren = selectedFamily ? children.filter(c => c.family === selectedFamily._id || c.family?._id === selectedFamily._id) : [];
     
-    // --- NOUVEAU FILTRE INTELLIGENT ---
+    // --- FILTRE INTELLIGENT ---
     const filteredFamilies = searchFamilyText.trim() === '' 
         ? families 
         : families.filter(f => {
             const query = searchFamilyText.trim().toLowerCase();
-            
-            // 1. Recherche par nom de famille (nom du dossier)
             if (f.name?.toLowerCase().includes(query)) return true;
-            
-            // 2. Recherche par nom d'un des responsables
             if (f.responsables?.some(r => r.lastName?.toLowerCase().includes(query))) return true;
-            
-            // 3. Recherche par nom d'un enfant rattaché à ce dossier
             const famChildren = children.filter(c => c.family === f._id || c.family?._id === f._id);
             if (famChildren.some(c => c.lastName?.toLowerCase().includes(query))) return true;
-            
             return false;
         });
 
@@ -429,7 +426,7 @@ const FamilyManager = () => {
                             <button type="submit" title="Créer un nouveau dossier" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors shrink-0"><Plus size={20}/></button>
                         </form>
 
-                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[800px]">
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[400px]">
                             <div className="p-4 bg-slate-50 border-b border-slate-100 font-black text-slate-400 text-xs tracking-widest uppercase flex justify-between">
                                 <span>{filteredFamilies.length} Dossiers</span>
                                 {searchFamilyText && <span className="text-car-yellow">Filtré</span>}
@@ -449,6 +446,55 @@ const FamilyManager = () => {
                                 })}
                             </div>
                         </div>
+
+                        {/* LISTE DES ENFANTS DU FOYER SÉLECTIONNÉ DANS LA COLONNE DE GAUCHE */}
+                        {selectedFamily && (
+                            <div className="bg-slate-50 rounded-3xl border border-slate-200 overflow-hidden flex flex-col max-h-[500px]">
+                                <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center">
+                                    <h3 className="font-black text-car-dark text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={16}/> Enfants</h3>
+                                </div>
+                                <div className="overflow-y-auto flex-1 p-3 space-y-2">
+                                    {attachedChildren.length > 0 ? attachedChildren.map(c => (
+                                        <div key={c._id} className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
+                                            <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
+                                                <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={16}/></div>
+                                                <span className="font-bold text-car-dark uppercase text-sm group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 rounded-lg transition-colors" title="Modifier"><Pencil size={16}/></button>
+                                                <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 rounded-lg transition-colors" title="Détacher"><X size={16}/></button>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <p className="text-slate-400 font-medium italic text-xs text-center mt-4">Aucun enfant rattaché.</p>
+                                    )}
+                                </div>
+                                <div className="p-3 bg-white border-t border-slate-200">
+                                    {orphans.length > 0 && (
+                                        <div className="relative mb-2">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Search className="text-slate-400" size={14}/>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rattacher enfant :</label>
+                                            </div>
+                                            <input type="text" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-car-yellow outline-none font-bold text-car-dark text-xs" placeholder="Chercher par prénom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
+                                            {searchOrphan.length >= 2 && (
+                                                <div className="absolute w-full mt-1 bg-white shadow-xl rounded-xl border border-slate-100 max-h-40 overflow-y-auto z-20">
+                                                    {filteredOrphans.map(c => (
+                                                        <div key={c._id} className="p-3 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                            <span className="font-bold text-car-dark uppercase text-xs">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
+                                                            <button onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-sm">+ Lier</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    <button onClick={startAddChild} className="w-full bg-car-purple/10 text-car-purple font-bold p-2.5 rounded-xl hover:bg-car-purple hover:text-white transition-colors text-xs flex justify-center items-center gap-2">
+                                        <Plus size={16}/> Créer un enfant complet
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* COLONNE DE DROITE : DOSSIER SÉLECTIONNÉ */}
@@ -459,7 +505,7 @@ const FamilyManager = () => {
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6 w-full mb-8">
                                     <div className="space-y-2 w-full md:w-auto">
                                         
-                                        {/* TITRE MODIFIABLE ICI */}
+                                        {/* TITRE MODIFIABLE */}
                                         <div className="flex items-center gap-3 flex-wrap">
                                             <h2 className="text-3xl font-black text-car-dark uppercase">Famille</h2>
                                             <div className="relative">
@@ -498,7 +544,7 @@ const FamilyManager = () => {
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     
-                                    {/* SOUS-COLONNE GAUCHE : Facturation et Enfants */}
+                                    {/* SOUS-COLONNE GAUCHE : Facturation */}
                                     <div className="flex flex-col gap-8">
                                         
                                         {/* BLOC FACTURATION */}
@@ -546,60 +592,10 @@ const FamilyManager = () => {
                                                 </div>
                                             </div>
                                         </div>
-
-                                        {/* BLOC ENFANTS DU FOYER */}
-                                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col h-full">
-                                            <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
-                                            
-                                            {attachedChildren.length > 0 ? (
-                                                <div className="space-y-2 mb-6">
-                                                    {attachedChildren.map(c => (
-                                                        <div key={c._id} className="flex flex-col gap-2 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
-                                                            <div className="flex justify-between items-center">
-                                                                <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
-                                                                    <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={18}/></div>
-                                                                    <span className="font-bold text-car-dark uppercase group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
-                                                                </div>
-                                                                <div className="flex items-center gap-1">
-                                                                    <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier"><Pencil size={18}/></button>
-                                                                    <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher"><X size={18}/></button>
-                                                                </div>
-                                                            </div>
-                                                            {childRequestsById && childRequestsById[c._id] && childRequestsById[c._id].map(renderPendingRequest)}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : ( <p className="text-slate-400 font-medium mb-6 italic text-sm">Aucun enfant rattaché.</p> )}
-                                            
-                                            <div className="mt-auto pt-4 border-t border-slate-200">
-                                                {orphans.length > 0 && (
-                                                    <div className="relative mb-3">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <Search className="text-slate-400" size={16}/>
-                                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rattacher un enfant :</label>
-                                                        </div>
-                                                        <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:border-car-yellow outline-none font-bold text-car-dark text-sm" placeholder="Rechercher par prénom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
-                                                        {searchOrphan.length >= 2 && (
-                                                            <div className="absolute w-full mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
-                                                                {filteredOrphans.map(c => (
-                                                                    <div key={c._id} className="p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                                        <span className="font-bold text-car-dark uppercase">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
-                                                                        <button onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">+ Lier</button>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                                <button onClick={startAddChild} className="w-full bg-car-yellow/10 text-car-yellow font-bold p-3 rounded-xl hover:bg-car-yellow hover:text-white transition-colors text-sm flex justify-center items-center gap-2">
-                                                    <Plus size={18}/> Créer une nouvelle fiche enfant
-                                                </button>
-                                            </div>
-                                        </div>
                                     </div>
                                     
                                     {/* SOUS-COLONNE DROITE : Responsables */}
-                                    <div className="flex flex-col gap-8">
+                                    <div className="flex flex-col gap-6">
                                         <div className="bg-white border border-slate-200 p-6 rounded-3xl">
                                             <h3 className="font-black text-car-blue mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 1</h3>
                                             <div className="space-y-3">
@@ -607,7 +603,11 @@ const FamilyManager = () => {
                                                     <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-bold uppercase" placeholder="NOM" value={editFamily.responsables[0].lastName} onChange={e => handleRespChange(0, 'lastName', e.target.value.toUpperCase())}/>
                                                     <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-bold capitalize" placeholder="Prénom" value={editFamily.responsables[0].firstName} onChange={e => handleRespChange(0, 'firstName', e.target.value)}/>
                                                 </div>
-                                                <input type="text" className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[0].qualite} onChange={e => handleRespChange(0, 'qualite', e.target.value)}/>
+                                                <div className="flex gap-2">
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[0].qualite} onChange={e => handleRespChange(0, 'qualite', e.target.value)}/>
+                                                    <input type="date" title="Date de naissance" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium text-slate-600" value={editFamily.responsables[0].birthDate ? editFamily.responsables[0].birthDate.split('T')[0] : ''} onChange={e => handleRespChange(0, 'birthDate', e.target.value)}/>
+                                                </div>
+                                                <textarea className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium resize-none" rows="2" placeholder="Adresse postale complète..." value={editFamily.responsables[0].adressePostale || ''} onChange={e => handleRespChange(0, 'adressePostale', e.target.value)}></textarea>
                                                 <div className="flex gap-2">
                                                     <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[0].phoneMobile} onChange={e => handleRespChange(0, 'phoneMobile', e.target.value)}/>
                                                     <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Email" value={editFamily.responsables[0].email} onChange={e => handleRespChange(0, 'email', e.target.value)}/>
@@ -632,7 +632,11 @@ const FamilyManager = () => {
                                                     <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-bold uppercase" placeholder="NOM" value={editFamily.responsables[1].lastName} onChange={e => handleRespChange(1, 'lastName', e.target.value.toUpperCase())}/>
                                                     <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-bold capitalize" placeholder="Prénom" value={editFamily.responsables[1].firstName} onChange={e => handleRespChange(1, 'firstName', e.target.value)}/>
                                                 </div>
-                                                <input type="text" className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[1].qualite} onChange={e => handleRespChange(1, 'qualite', e.target.value)}/>
+                                                <div className="flex gap-2">
+                                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[1].qualite} onChange={e => handleRespChange(1, 'qualite', e.target.value)}/>
+                                                    <input type="date" title="Date de naissance" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium text-slate-600" value={editFamily.responsables[1].birthDate ? editFamily.responsables[1].birthDate.split('T')[0] : ''} onChange={e => handleRespChange(1, 'birthDate', e.target.value)}/>
+                                                </div>
+                                                <textarea className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium resize-none" rows="2" placeholder="Adresse postale complète..." value={editFamily.responsables[1].adressePostale || ''} onChange={e => handleRespChange(1, 'adressePostale', e.target.value)}></textarea>
                                                 <div className="flex gap-2">
                                                     <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[1].phoneMobile} onChange={e => handleRespChange(1, 'phoneMobile', e.target.value)}/>
                                                     <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Email" value={editFamily.responsables[1].email} onChange={e => handleRespChange(1, 'email', e.target.value)}/>
