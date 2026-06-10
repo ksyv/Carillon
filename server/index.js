@@ -124,7 +124,6 @@ app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
 
 // --- ROUTES BASE ENFANTS ---
 app.get('/api/children', auth(), async (req, res) => {
-    // Changement : on peuple families au lieu de family
     const children = await Child.find().sort({ lastName: 1, firstName: 1 }).populate('families'); 
     res.json(children);
 });
@@ -150,7 +149,6 @@ app.put('/api/children/:id', auth(), async (req, res) => {
     } catch (e) { res.status(400).send('Erreur modification enfant'); }
 });
 
-// NOUVELLES ROUTES POUR LA GARDE ALTERNÉE (Rattacher/Détacher)
 app.post('/api/children/:id/attach', auth(['admin']), async (req, res) => {
     try {
         const updated = await Child.findByIdAndUpdate(req.params.id, { $addToSet: { families: req.body.familyId } }, { new: true }).populate('families');
@@ -210,7 +208,6 @@ app.put('/api/families/:id', auth(['admin']), async (req, res) => {
 app.delete('/api/families/:id', auth(['admin']), async (req, res) => {
     try {
         await Family.findByIdAndDelete(req.params.id);
-        // On retire cette famille des tableaux families des enfants
         await Child.updateMany({ families: req.params.id }, { $pull: { families: req.params.id } });
         res.json({ success: true });
     } catch (e) { res.status(400).send('Erreur suppression famille'); }
@@ -328,14 +325,14 @@ app.delete('/api/planned-notes/:id', auth(['admin']), async (req, res) => {
 
 // --- COMPOSANTS DE FACTURATION EXCEPTION ---
 app.get('/api/billing/child/:childId', auth(['admin']), async (req, res) => {
-    const rules = await Billing.find({ child: req.params.childId });
+    const rules = await Billing.find({ child: req.params.childId }).populate('billToFamily');
     res.json(rules);
 });
 
 app.post('/api/billing', auth(['admin']), async (req, res) => {
     try {
-        const { childId, billTo, dates } = req.body;
-        const rule = new Billing({ child: childId, billTo, dates });
+        const { childId, billToFamily, dates } = req.body;
+        const rule = new Billing({ child: childId, billToFamily, dates });
         await rule.save();
         res.json(rule);
     } catch (e) { res.status(500).send("Erreur enregistrement règle."); }
@@ -569,11 +566,7 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
         // Restauration scolaire (Midi)
         children.forEach(child => {
             if (!child.families || child.families.length === 0) return;
-            // On se base sur le dossier par défaut s'il y a plusieurs familles, le module Garde Alternée (Billing) fera le reste
-            const family = families.find(f => f._id.toString() === child.families[0].toString());
-            if (!family) return;
-            const fratrieCount = childrenInFamily[family._id.toString()] || 1;
-            const qf = family.quotientFamilial || 0;
+            
             const targetCode = child.regimeAlimentaire === 'PAI' ? 'CA1_PAI' : 'CA1';
             const label = child.regimeAlimentaire === 'PAI' ? 'Cantine (Tarif PAI)' : 'Cantine (Repas Enfant)';
             const rule = tariffMap[targetCode]; if (!rule) return;
@@ -581,9 +574,22 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
             schoolDays.forEach(date => {
                 const isAbsent = attendances.some(a => a.child.toString() === child._id.toString() && a.date === date && a.sessionType === 'MIDI');
                 if (!isAbsent) {
-                    let pNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
                     const alt = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(date));
-                    if (alt) pNom = `Garde Alternée : ${alt.billTo} (Enfant: ${child.firstName})`;
+                    
+                    // DÉTERMINATION MULTI-FAMILLES DU DOSSIER REEL FACTURÉ
+                    let billedFamilyId = child.families[0].toString();
+                    if (alt && alt.billToFamily) {
+                        billedFamilyId = alt.billToFamily.toString();
+                    }
+                    
+                    const targetFamily = families.find(f => f._id.toString() === billedFamilyId);
+                    if (!targetFamily) return;
+
+                    const fratrieCount = childrenInFamily[targetFamily._id.toString()] || 1;
+                    const qf = targetFamily.quotientFamilial || 0;
+                    
+                    let pNom = `${targetFamily.name} (Dossier n°${targetFamily.cafNumber || 'Sans'})`;
+                    if (alt) pNom = `Garde Alternée : ${targetFamily.name} (Enfant: ${child.firstName})`;
                     
                     initInvoice(pNom);
                     const price = calculateUnitPrice(rule, fratrieCount, qf);
@@ -600,13 +606,23 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
             if (att.sessionType === 'MIDI' || closedDays.includes(att.date)) return;
             const child = children.find(c => c._id.toString() === att.child.toString());
             if (!child || !child.families || child.families.length === 0) return;
-            const family = families.find(f => f._id.toString() === child.families[0].toString()); if (!family) return;
-            const fratrieCount = childrenInFamily[family._id.toString()] || 1;
-            const qf = family.quotientFamilial || 0;
 
-            let pNom = `${family.name} (Dossier n°${family.cafNumber || 'Sans'})`;
             const alt = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(att.date));
-            if (alt) pNom = `Garde Alternée : ${alt.billTo} (Enfant: ${child.firstName})`;
+            
+            // DÉTERMINATION MULTI-FAMILLES DU DOSSIER REEL FACTURÉ
+            let billedFamilyId = child.families[0].toString();
+            if (alt && alt.billToFamily) {
+                billedFamilyId = alt.billToFamily.toString();
+            }
+
+            const targetFamily = families.find(f => f._id.toString() === billedFamilyId);
+            if (!targetFamily) return;
+
+            const fratrieCount = childrenInFamily[targetFamily._id.toString()] || 1;
+            const qf = targetFamily.quotientFamilial || 0;
+
+            let pNom = `${targetFamily.name} (Dossier n°${targetFamily.cafNumber || 'Sans'})`;
+            if (alt) pNom = `Garde Alternée : ${targetFamily.name} (Enfant: ${child.firstName})`;
 
             initInvoice(pNom);
             let targetCode = att.sessionType === 'MATIN' ? 'CA2_MATIN' : (att.isLate ? 'CA2_SUPP' : 'CA2_SOIR');
@@ -706,7 +722,6 @@ app.get('/api/stats/cantine-1-euro', auth(['admin']), async (req, res) => {
 
 // --- WORKFLOW D'INVITATION PARENT AVEC ENVOI DE MAIL REEL ---
 app.post('/api/parent/invite', async (req, res) => {
-    // Vérification manuelle de l'admin
     if (req.user && req.user.role !== 'admin') {
         return res.status(403).send("Accès refusé : Droits insuffisants.");
     }
@@ -718,18 +733,15 @@ app.post('/api/parent/invite', async (req, res) => {
         const activationToken = crypto.randomBytes(20).toString('hex');
         const temporaryPassword = crypto.randomBytes(8).toString('hex');
         
-        // Hachage du mot de passe ici pour éviter les erreurs de hook Mongoose
         const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
         
         let parent = await Parent.findOne({ email });
 
         if (parent) {
-            // Si le parent existe déjà, on rafraîchit son token
             parent.activationToken = activationToken;
-            parent.password = hashedPassword; // On met à jour le mot de passe temporaire
+            parent.password = hashedPassword; 
             await parent.save();
         } else {
-            // Sinon, création du nouveau compte
             parent = new Parent({ 
                 email, 
                 family: familyId, 
@@ -741,7 +753,6 @@ app.post('/api/parent/invite', async (req, res) => {
 
         const activationLink = `https://carillon.demo-ksyv.com/parent/portal?token=${activationToken}`;
 
-        // --- ENVOI REEL VIA NODEMAILER ---
         const transporter = nodemailer.createTransport({ 
             service: 'gmail', 
             auth: { 
@@ -785,15 +796,12 @@ app.post('/api/parent/activate', async (req, res) => {
         const parent = await Parent.findOne({ activationToken: token });
         if (!parent) return res.status(404).send("Lien invalide.");
 
-        // 1. Hacher le mot de passe ici manuellement
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        // 2. Mettre à jour le parent
-        parent.password = hashedPassword; // On injecte le hash directement
+        parent.password = hashedPassword; 
         parent.isFirstConnection = false;
         parent.activationToken = null;
         
-        // 3. Sauvegarder sans passer par un hook complexe
         await parent.save(); 
         
         res.json({ success: true });

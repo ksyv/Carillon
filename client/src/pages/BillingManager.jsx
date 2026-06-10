@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { Banknote, Search, Users, Trash2, Check, Calculator, FileSpreadsheet, Layers, ShieldCheck } from 'lucide-react';
+import { Banknote, Search, Users, Trash2, Check, Calculator, FileSpreadsheet, Layers, ShieldCheck, FolderHeart } from 'lucide-react';
 import InteractiveCalendar from '../components/InteractiveCalendar';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -11,12 +11,14 @@ const BillingManager = () => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('calc'); // 'calc' ou 'alternance'
 
-    // States Onglet Alternance (Ton Code)
+    // States Onglet Alternance
     const [children, setChildren] = useState([]);
     const [search, setSearch] = useState('');
     const [selectedChild, setSelectedChild] = useState(null);
     const [billings, setBillings] = useState([]);
-    const [billTo, setBillTo] = useState('');
+    
+    // NOUVEAU : On stocke l'ID de la famille au lieu d'un texte libre
+    const [billToFamilyId, setBillToFamilyId] = useState('');
     const [selectedDates, setSelectedDates] = useState([]);
 
     // States Onglet Calcul Moteur
@@ -56,9 +58,13 @@ const BillingManager = () => {
     const handleAddBilling = async (e) => {
         e.preventDefault();
         if(selectedDates.length === 0) return alert("Veuillez sélectionner des dates.");
+        if(!billToFamilyId) return alert("Veuillez sélectionner le dossier à facturer.");
+        
         try {
-            await api.post(`/billing`, { childId: selectedChild._id, billTo, dates: selectedDates });
-            setBillTo(''); setSelectedDates([]); loadBillings(selectedChild._id);
+            await api.post(`/billing`, { childId: selectedChild._id, billToFamily: billToFamilyId, dates: selectedDates });
+            setBillToFamilyId(''); 
+            setSelectedDates([]); 
+            loadBillings(selectedChild._id);
         } catch (e) { alert("Erreur enregistrement."); }
     };
 
@@ -233,13 +239,12 @@ const BillingManager = () => {
                 2: { fontSize: 8 },
                 3: { halign: 'right', fontStyle: 'bold', width: 30 }
             },
-            // Style spécifique pour la ligne de total général (la dernière)
             didParseCell: (data) => {
                 if (data.row.index === tableBody.length - 1) {
                     data.cell.styles.fillColor = [241, 245, 249];
                     data.cell.styles.fontStyle = 'bold';
                     if (data.column.index === 3) {
-                        data.cell.styles.textColor = [30, 58, 138]; // car-blue
+                        data.cell.styles.textColor = [30, 58, 138];
                     }
                 }
             }
@@ -257,12 +262,8 @@ const BillingManager = () => {
         const endStr = new Date(endDate).toLocaleDateString('fr-FR');
 
         calculatedInvoices.forEach((invoice, index) => {
-            // À partir de la deuxième facture, on crée une nouvelle page blanche
-            if (index > 0) {
-                doc.addPage();
-            }
+            if (index > 0) doc.addPage();
 
-            // --- DESIGN DE LA FACTURE INDIVIDUELLE (Idem ton composant précédent) ---
             doc.setFont("helvetica", "bold");
             doc.setFontSize(20);
             doc.setTextColor(30, 41, 59);
@@ -356,7 +357,7 @@ const BillingManager = () => {
                     </div>
                 </div>
 
-                {/* SÉLECTEUR D'ONGLETS SQUELETTE CARILLON */}
+                {/* SÉLECTEUR D'ONGLETS */}
                 <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
                     <button onClick={() => setActiveTab('calc')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'calc' ? 'bg-white shadow-sm text-car-blue' : 'text-slate-400'}`}>
                         Calculer un mois
@@ -462,7 +463,7 @@ const BillingManager = () => {
                 </div>
             )}
 
-            {/* CONTENU ONGLET 2 : GARDE ALTERNÉE (TON CODE SÉCURISÉ) */}
+            {/* CONTENU ONGLET 2 : GARDE ALTERNÉE  */}
             {activeTab === 'alternance' && (
                 <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6 animate-in fade-in duration-300">
                     <div className="relative">
@@ -495,6 +496,7 @@ const BillingManager = () => {
                                 </div>
                             </div>
 
+                            {/* AFFICHAGE DES RÈGLES */}
                             {billings.length > 0 && (
                                 <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
                                     <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Règles actives</h3>
@@ -502,7 +504,9 @@ const BillingManager = () => {
                                         {billings.map(b => (
                                             <div key={b._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
                                                 <div>
-                                                    <div className="font-bold text-car-blue mb-1">À facturer à : {b.billTo}</div>
+                                                    <div className="font-bold text-car-purple flex items-center gap-2 mb-1">
+                                                        <FolderHeart size={16}/> À facturer à : {b.billToFamily?.name || b.billTo || "Dossier inconnu"}
+                                                    </div>
                                                     <div className="text-xs text-slate-500 font-medium">Appliqué sur {b.dates?.length || 0} date(s)</div>
                                                 </div>
                                                 <button onClick={() => handleDeleteBilling(b._id)} className="text-slate-300 hover:text-car-pink bg-white p-2 rounded-lg shadow-sm transition-colors"><Trash2 size={20}/></button>
@@ -515,9 +519,27 @@ const BillingManager = () => {
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 <form onSubmit={handleAddBilling} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
                                     <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Nouvelle Règle</h3>
-                                    <input type="text" className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-blue/20 outline-none font-bold text-car-dark mb-4" 
-                                        placeholder="Nom à facturer (Ex: Maman, Papa...)" value={billTo} onChange={e => setBillTo(e.target.value)} required />
-                                    <p className="text-xs text-slate-400 font-medium mb-4 flex-1">Sélectionnez les dates dans le calendrier à côté. Cette mention sera prise en compte lors du calcul global mensuel.</p>
+                                    
+                                    {/* MENU DÉROULANT AU LIEU DE L'INPUT TEXTE */}
+                                    <div className="mb-4">
+                                        <label className="text-xs font-bold text-slate-500 mb-2 block">Détourner la facturation sur :</label>
+                                        <select 
+                                            className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-blue/20 outline-none font-bold text-car-dark cursor-pointer"
+                                            value={billToFamilyId} 
+                                            onChange={e => setBillToFamilyId(e.target.value)} 
+                                            required
+                                        >
+                                            <option value="">Sélectionner un dossier...</option>
+                                            {selectedChild.families?.map(fam => (
+                                                <option key={fam._id} value={fam._id}>Dossier : {fam.name}</option>
+                                            ))}
+                                        </select>
+                                        {(!selectedChild.families || selectedChild.families.length <= 1) && (
+                                            <p className="text-[10px] text-car-pink font-bold mt-2">⚠️ Cet enfant n'est rattaché qu'à un seul dossier famille actuellement.</p>
+                                        )}
+                                    </div>
+                                    
+                                    <p className="text-xs text-slate-400 font-medium mb-4 flex-1">Sélectionnez les dates dans le calendrier à côté. Le prix sera calculé en fonction du QF du dossier sélectionné ci-dessus.</p>
                                     <button type="submit" className="w-full bg-car-dark text-white p-4 rounded-2xl font-black tracking-widest shadow-lg shadow-car-dark/20 hover:bg-black transition-all flex justify-center items-center gap-2"><Check size={20}/> APPLIQUER</button>
                                 </form>
                                 <InteractiveCalendar selectedDates={selectedDates} onChange={setSelectedDates} />
