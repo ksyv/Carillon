@@ -6,9 +6,12 @@ import autoTable from 'jspdf-autotable';
 const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
 
-    const responsables = child.family?.responsables?.length > 0 ? child.family.responsables : [];
+    // --- SUPPORT MULTI-FAMILLES ---
+    // On extrait et fusionne tous les responsables de TOUTES les familles auxquelles l'enfant est rattaché
+    const responsables = child.families?.reduce((acc, fam) => {
+        return fam.responsables ? [...acc, ...fam.responsables] : acc;
+    }, []) || [];
     
-    // Formatage de la date de naissance pour l'affichage
     const formattedBirthDate = child.birthDate 
         ? new Date(child.birthDate).toLocaleDateString('fr-FR') 
         : 'Non renseignée';
@@ -45,7 +48,7 @@ const ChildInfoModal = ({ child, onClose }) => {
         yPos += 10;
 
         const mainInfo = [
-            ['Code Portail Ecole', child.family?.portalCode || 'Non renseigné'],
+            ['Codes Portail Ecole', child.families?.map(f => f.portalCode).filter(Boolean).join(', ') || 'Non renseigné'],
             ['Catégorie', child.category || 'Maternelle'],
             ['Date de naissance', formattedBirthDate],
             ['Régime Alimentaire', child.regimeAlimentaire],
@@ -69,7 +72,7 @@ const ChildInfoModal = ({ child, onClose }) => {
         yPos = doc.lastAutoTable.finalY + 10;
 
         if (responsables.length > 0) {
-            const respData = responsables.map(r => [`${r.lastName?.toUpperCase()} ${r.firstName} (${r.qualite || 'Resp'})`, r.phoneMobile || r.phoneFixe || '-']);
+            const respData = responsables.map((r, i) => [`${r.lastName?.toUpperCase()} ${r.firstName} (${r.qualite || 'Resp'})`, r.phoneMobile || r.phoneFixe || '-']);
             autoTable(doc, { startY: yPos, head: [['Responsables Légaux', 'Téléphone']], body: respData, theme: 'grid' });
             yPos = doc.lastAutoTable.finalY + 10;
         }
@@ -107,16 +110,20 @@ const ChildInfoModal = ({ child, onClose }) => {
                             {child.category || 'Maternelle'}
                         </span>
                         {child.active === false && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
-                        {child.family && (
-                            <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest inline-flex items-center gap-1 bg-car-purple/10 text-car-purple">
-                                <FolderHeart size={14}/> DOSSIER LIÉ
-                            </span>
-                        )}
-                        {child.family?.portalCode && (
-                            <span className="text-xs font-black px-4 py-1 rounded-lg tracking-widest inline-flex items-center gap-2 bg-slate-800 text-white shadow-sm">
-                                🔑 CODE : <span className="text-car-yellow text-sm">{child.family.portalCode}</span>
-                            </span>
-                        )}
+                        
+                        {/* AFFICHER TOUTES LES FAMILLES LIÉES */}
+                        {child.families && child.families.length > 0 && child.families.map((fam, idx) => (
+                            <React.Fragment key={idx}>
+                                <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest inline-flex items-center gap-1 bg-car-purple/10 text-car-purple mt-2 sm:mt-0">
+                                    <FolderHeart size={14}/> DOSSIER : {fam.name?.toUpperCase()}
+                                </span>
+                                {fam.portalCode && (
+                                    <span className="text-xs font-black px-4 py-1 rounded-lg tracking-widest inline-flex items-center gap-2 bg-slate-800 text-white shadow-sm mt-2 sm:mt-0">
+                                        🔑 CODE : <span className="text-car-yellow text-sm">{fam.portalCode}</span>
+                                    </span>
+                                )}
+                            </React.Fragment>
+                        ))}
                     </div>
                 </div>
 
@@ -128,7 +135,6 @@ const ChildInfoModal = ({ child, onClose }) => {
                         </div>
                         
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                            {/* NOUVEAU: Date de naissance aussi dans la grille technique */}
                             <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col border-l-4 border-car-blue">
                                 <span className="text-[10px] font-bold text-slate-400 uppercase">Date de Naissance</span>
                                 <span className="text-sm font-black text-car-dark">{formattedBirthDate}</span>
@@ -172,7 +178,7 @@ const ChildInfoModal = ({ child, onClose }) => {
                         )}
                     </div>
 
-                    {/* CONTACTS DES RESPONSABLES */}
+                    {/* CONTACTS DES RESPONSABLES (DE TOUTES LES FAMILLES LIEES) */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
                             <Phone size={18}/> RESPONSABLES LÉGAUX
@@ -197,7 +203,7 @@ const ChildInfoModal = ({ child, onClose }) => {
                                     </div>
                                 ))}
                             </div>
-                        ) : <p className="text-slate-400 italic text-sm mb-4">Aucun responsable renseigné dans le dossier Famille.</p>}
+                        ) : <p className="text-slate-400 italic text-sm mb-4">Aucun responsable renseigné dans les dossiers liés.</p>}
                         
                         <div className="w-full h-px bg-slate-200 my-4"></div>
                         

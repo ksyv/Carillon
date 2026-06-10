@@ -14,7 +14,10 @@ const ChildDocumentSchema = new mongoose.Schema({
 });
 
 const ChildSchema = new mongoose.Schema({
-  family: { type: mongoose.Schema.Types.ObjectId, ref: 'Family', default: null },
+  // --- PASSAGE AU MULTI-FAMILLES (Garde Alternée) ---
+  families: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Family' }],
+  family: { type: mongoose.Schema.Types.ObjectId, ref: 'Family' }, // Conservé temporairement pour la migration auto
+
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
   category: { type: String, enum: ['Maternelle', 'Élémentaire'], default: 'Maternelle' },
@@ -50,7 +53,6 @@ const ChildSchema = new mongoose.Schema({
 
   personnesAutorisees: [ContactSchema],
 
-  // NOUVEAU : Documents spécifiques à l'enfant
   documents: {
       vaccins: { type: ChildDocumentSchema, default: () => ({}) },
       assurance: { type: ChildDocumentSchema, default: () => ({}) }

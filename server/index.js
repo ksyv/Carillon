@@ -34,7 +34,7 @@ const Evacuation = mongoose.model('Evacuation', EvacuationSchema);
 const app = express();
 
 app.use(helmet({
-    contentSecurityPolicy: false // Évite les blocages d'iFrames pour l'aperçu des PDF Justificatifs
+    contentSecurityPolicy: false
 }));
 app.set('trust proxy', 1);
 
@@ -56,7 +56,21 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors());
 
 mongoose.connect(process.env.MONGO_URI)
-  .then(async () => { console.log('MongoDB Connected'); })
+  .then(async () => { 
+      console.log('MongoDB Connected'); 
+      // --- MIGRATION AUTO POUR LES GARDES ALTERNÉES ---
+      try {
+          const kidsToMigrate = await Child.find({ family: { $exists: true, $ne: null } });
+          for(let k of kidsToMigrate) {
+              if (!k.families.includes(k.family)) {
+                  k.families.push(k.family);
+              }
+              k.family = undefined; // On efface l'ancien système
+              await k.save();
+          }
+          if(kidsToMigrate.length > 0) console.log(`${kidsToMigrate.length} enfants migrés vers le système multi-familles.`);
+      } catch(e) { console.error("Erreur migration:", e); }
+  })
   .catch(err => console.log(err));
 
 // --- MIDDLEWARE D'AUTHENTIFICATION UNIFIÉ ---
@@ -110,7 +124,8 @@ app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
 
 // --- ROUTES BASE ENFANTS ---
 app.get('/api/children', auth(), async (req, res) => {
-    const children = await Child.find().sort({ lastName: 1, firstName: 1 }).populate('family'); 
+    // Changement : on peuple families au lieu de family
+    const children = await Child.find().sort({ lastName: 1, firstName: 1 }).populate('families'); 
     res.json(children);
 });
 
@@ -133,6 +148,21 @@ app.put('/api/children/:id', auth(), async (req, res) => {
         const updated = await Child.findByIdAndUpdate(req.params.id, req.body, { new: true });
         res.json(updated);
     } catch (e) { res.status(400).send('Erreur modification enfant'); }
+});
+
+// NOUVELLES ROUTES POUR LA GARDE ALTERNÉE (Rattacher/Détacher)
+app.post('/api/children/:id/attach', auth(['admin']), async (req, res) => {
+    try {
+        const updated = await Child.findByIdAndUpdate(req.params.id, { $addToSet: { families: req.body.familyId } }, { new: true }).populate('families');
+        res.json(updated);
+    } catch (e) { res.status(400).send('Erreur attachement'); }
+});
+
+app.post('/api/children/:id/detach', auth(['admin']), async (req, res) => {
+    try {
+        const updated = await Child.findByIdAndUpdate(req.params.id, { $pull: { families: req.body.familyId } }, { new: true }).populate('families');
+        res.json(updated);
+    } catch (e) { res.status(400).send('Erreur détachement'); }
 });
 
 app.delete('/api/children/:id', auth(['admin']), async (req, res) => {
@@ -180,7 +210,8 @@ app.put('/api/families/:id', auth(['admin']), async (req, res) => {
 app.delete('/api/families/:id', auth(['admin']), async (req, res) => {
     try {
         await Family.findByIdAndDelete(req.params.id);
-        await Child.updateMany({ family: req.params.id }, { $set: { family: null } });
+        // On retire cette famille des tableaux families des enfants
+        await Child.updateMany({ families: req.params.id }, { $pull: { families: req.params.id } });
         res.json({ success: true });
     } catch (e) { res.status(400).send('Erreur suppression famille'); }
 });
@@ -501,8 +532,11 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
 
         const tariffMap = tariffs.reduce((acc, t) => ({ ...acc, [t.activityCode]: t }), {});
         const childrenInFamily = children.reduce((acc, c) => {
-            if (!c.family) return acc;
-            acc[c.family.toString()] = (acc[c.family.toString()] || 0) + 1;
+            if (!c.families) return acc;
+            c.families.forEach(fId => {
+                const id = fId.toString();
+                acc[id] = (acc[id] || 0) + 1;
+            });
             return acc;
         }, {});
 
@@ -534,8 +568,9 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
 
         // Restauration scolaire (Midi)
         children.forEach(child => {
-            if (!child.family) return;
-            const family = families.find(f => f._id.toString() === child.family.toString());
+            if (!child.families || child.families.length === 0) return;
+            // On se base sur le dossier par défaut s'il y a plusieurs familles, le module Garde Alternée (Billing) fera le reste
+            const family = families.find(f => f._id.toString() === child.families[0].toString());
             if (!family) return;
             const fratrieCount = childrenInFamily[family._id.toString()] || 1;
             const qf = family.quotientFamilial || 0;
@@ -564,8 +599,8 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
         attendances.forEach(att => {
             if (att.sessionType === 'MIDI' || closedDays.includes(att.date)) return;
             const child = children.find(c => c._id.toString() === att.child.toString());
-            if (!child || !child.family) return;
-            const family = families.find(f => f._id.toString() === child.family.toString()); if (!family) return;
+            if (!child || !child.families || child.families.length === 0) return;
+            const family = families.find(f => f._id.toString() === child.families[0].toString()); if (!family) return;
             const fratrieCount = childrenInFamily[family._id.toString()] || 1;
             const qf = family.quotientFamilial || 0;
 
@@ -608,14 +643,13 @@ app.get('/api/stats/cantine-1-euro', auth(['admin']), async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
         
-        // 1. Récupérer tous les pointages MIDI de la période (présents uniquement)
         const attendances = await Attendance.find({
             date: { $gte: startDate, $lte: endDate },
             sessionType: 'MIDI',
-            checkOut: { $ne: null } // Si checkOut est null, l'enfant a été noté "Absent Cantine" (selon ta logique)
+            checkOut: { $ne: null } 
         }).populate({
             path: 'child',
-            populate: { path: 'family' } // On va chercher la famille pour avoir le revenu et les parts
+            populate: { path: 'families' } 
         });
 
         const eligibleChildrenMap = new Map();
@@ -623,19 +657,15 @@ app.get('/api/stats/cantine-1-euro', auth(['admin']), async (req, res) => {
         let totalMeals = 0;
 
         attendances.forEach(record => {
-            if (!record.child || !record.child.family) return;
+            if (!record.child || !record.child.families || record.child.families.length === 0) return;
 
-            const family = record.child.family;
+            const family = record.child.families[0]; // Dossier de référence pour le QF
             
-            // Calcul du QF (Formule standard : (Revenu Annuel / 12) / Nombre de parts)
-            // Adapte cette formule si ta mairie calcule le QF différemment
             const qf = Math.round((family.revenuReference / 12) / family.nombreParts);
 
-            // Filtrer Tranche 1 et 2 (QF <= 1000)
             if (qf >= 0 && qf <= 1000) {
                 totalMeals++;
 
-                // Agréger par enfant
                 const childId = record.child._id.toString();
                 if (!eligibleChildrenMap.has(childId)) {
                     eligibleChildrenMap.set(childId, {
@@ -648,7 +678,6 @@ app.get('/api/stats/cantine-1-euro', auth(['admin']), async (req, res) => {
                 }
                 eligibleChildrenMap.get(childId).mealsCount++;
 
-                // Agréger par jour
                 const dateKey = record.date.split('T')[0];
                 if (!dailyMap.has(dateKey)) {
                     dailyMap.set(dateKey, 0);
@@ -657,7 +686,6 @@ app.get('/api/stats/cantine-1-euro', auth(['admin']), async (req, res) => {
             }
         });
 
-        // Formater les données pour le Frontend
         const childrenArray = Array.from(eligibleChildrenMap.values()).sort((a, b) => a.lastName.localeCompare(b.lastName));
         const dailyArray = Array.from(dailyMap.entries()).map(([date, meals]) => ({ date, meals })).sort((a, b) => a.date.localeCompare(b.date));
 
@@ -809,7 +837,7 @@ const createModificationRequest = async ({ familyId, childId = null, portalCode,
     if (childId) {
         const child = await Child.findById(childId).lean();
         if (!child) throw new Error('Enfant introuvable');
-        if (child.family && child.family.toString() !== effectiveFamilyId.toString()) {
+        if (child.families && !child.families.some(f => f.toString() === effectiveFamilyId.toString())) {
             throw new Error('Cet enfant ne dépend pas de votre famille.');
         }
         oldData = child;
@@ -935,7 +963,7 @@ app.post('/api/requests/:id/approve', auth(['admin']), async (req, res) => {
         const request = await ModificationRequest.findById(req.params.id);
         let updated = null;
         if (request.type === 'CHILD_UPDATE' && request.childId) {
-            updated = await Child.findByIdAndUpdate(request.childId, request.newData, { new: true }).populate('family');
+            updated = await Child.findByIdAndUpdate(request.childId, request.newData, { new: true }).populate('families');
             request.status = 'APPROVED';
             await request.save();
             return res.json({ success: true, child: updated });
