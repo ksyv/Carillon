@@ -15,6 +15,7 @@ import CafStats from './pages/CafStats';
 import Mailing from './pages/Mailing';
 import AdminTariffs from './pages/AdminTariffs';
 import CalendarExceptionManager from './pages/CalendarExceptionManager';
+import AdvancedStats from './pages/AdvancedStats';
 // Ton nouveau portail famille connecté
 import FamilyPortal from './pages/FamilyPortal';
 import CantineStats from './pages/CantineStats';
@@ -88,6 +89,10 @@ export default function App() {
         <Route 
           path="/admin/cantine" 
           element={auth.token ? <CantineStats /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/admin/stats-advanced" 
+          element={<AdvancedStats />} 
         />
 
         {/* Filet de sécurité global */}

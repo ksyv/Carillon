@@ -1042,4 +1042,93 @@ app.get('/api/requests/pending-count', auth(['admin', 'responsable']), async (re
     res.json({ count });
 });
 
+// --- MODULE STATISTIQUES AVANCÉES (BI) ---
+app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
+    try {
+        const { startDate, endDate, filters } = req.body;
+        
+        // 1. Filtre primaire sur les présences (Dates et Types de session)
+        let attMatch = {};
+        if (startDate && endDate) {
+            attMatch.date = { $gte: startDate, $lte: endDate };
+        }
+        if (filters.sessions && filters.sessions.length > 0) {
+            attMatch.sessionType = { $in: filters.sessions };
+        }
+
+        const pipeline = [
+            { $match: attMatch },
+            
+            // 2. Jointure avec la fiche Enfant
+            { $lookup: { from: 'children', localField: 'child', foreignField: '_id', as: 'childDoc' } },
+            { $unwind: '$childDoc' },
+            
+            // 3. Jointure avec la famille (pour le QF)
+            { $lookup: { from: 'families', localField: 'childDoc.families', foreignField: '_id', as: 'familyDocs' } },
+            { $addFields: { primaryFamily: { $arrayElemAt: ['$familyDocs', 0] } } },
+            
+            // 4. Calcul du QF à la volée
+            { $addFields: {
+                calcQf: {
+                    $cond: {
+                        if: { $and: ['$primaryFamily.revenuReference', '$primaryFamily.nombreParts'] },
+                        then: { $round: [ { $divide: [ { $divide: ['$primaryFamily.revenuReference', 12] }, '$primaryFamily.nombreParts' ] }, 0 ] },
+                        else: 0
+                    }
+                }
+            }},
+        ];
+
+        // 5. Filtres dynamiques sur les attributs de l'enfant et de la famille
+        let childMatch = {};
+        if (filters.categories && filters.categories.length > 0) {
+            childMatch['childDoc.category'] = { $in: filters.categories };
+        }
+        if (filters.regimes && filters.regimes.length > 0) {
+            childMatch['childDoc.regimeAlimentaire'] = { $in: filters.regimes };
+        }
+        if (filters.hasPAI !== '') {
+            childMatch['childDoc.hasPAI'] = filters.hasPAI === 'true';
+        }
+        if (filters.minQf !== '' || filters.maxQf !== '') {
+            childMatch.calcQf = {};
+            if (filters.minQf !== '') childMatch.calcQf.$gte = Number(filters.minQf);
+            if (filters.maxQf !== '') childMatch.calcQf.$lte = Number(filters.maxQf);
+        }
+
+        if (Object.keys(childMatch).length > 0) {
+            pipeline.push({ $match: childMatch });
+        }
+
+        // 6. Facettes : Permet de renvoyer plusieurs groupements en une seule requête !
+        pipeline.push({
+            $facet: {
+                totals: [{ $count: "count" }],
+                byDay: [
+                    { $group: { _id: "$date", count: { $sum: 1 } } },
+                    { $sort: { _id: 1 } }
+                ],
+                bySession: [
+                    { $group: { _id: "$sessionType", count: { $sum: 1 } } },
+                    { $sort: { count: -1 } }
+                ],
+                byCategory: [
+                    { $group: { _id: "$childDoc.category", count: { $sum: 1 } } }
+                ],
+                byRegime: [
+                    { $match: { sessionType: 'MIDI' } },
+                    { $group: { _id: "$childDoc.regimeAlimentaire", count: { $sum: 1 } } }
+                ]
+            }
+        });
+
+        const result = await Attendance.aggregate(pipeline);
+        res.json(result[0]);
+
+    } catch (e) {
+        console.error("Erreur Advanced Stats:", e);
+        res.status(500).send("Erreur lors de la génération des statistiques.");
+    }
+});
+
 app.listen(process.env.PORT || 5000, () => console.log('Server running'));
