@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Filter, Download, Activity, Users, Utensils, Calendar } from 'lucide-react';
+import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Filter, Download, Activity, Users, Utensils, Calendar, Table, LayoutDashboard, FileSpreadsheet } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
@@ -16,8 +16,8 @@ const AdvancedStats = () => {
     const [filters, setFilters] = useState({
         sessions: ['MATIN', 'MIDI', 'SOIR'],
         categories: ['Maternelle', 'Élémentaire'],
-        hasPAI: '', // '' = Tous, 'true' = Oui, 'false' = Non
-        regimes: [], // Vide = Tous
+        hasPAI: '', 
+        regimes: [], 
         minQf: '',
         maxQf: ''
     });
@@ -25,6 +25,8 @@ const AdvancedStats = () => {
     // --- DONNÉES & UI ---
     const [data, setData] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    
+    const [viewMode, setViewMode] = useState('chart'); // 'chart' ou 'table'
     const [chartType, setChartType] = useState('bar'); // 'bar', 'line', 'pie'
     const [chartMetric, setChartMetric] = useState('byDay'); // 'byDay', 'bySession', 'byCategory', 'byRegime'
 
@@ -53,6 +55,32 @@ const AdvancedStats = () => {
             if (arr.includes(value)) return { ...prev, [key]: arr.filter(v => v !== value) };
             return { ...prev, [key]: [...arr, value] };
         });
+    };
+
+    // --- EXPORT CSV POUR EXCEL ---
+    const exportCSV = () => {
+        if (!data || !data.rawDetails || data.rawDetails.length === 0) return alert("Aucune donnée à exporter.");
+        
+        const headers = ["Date", "Session", "Enfant", "Classe", "Dossier", "QF", "Régime Alimentaire", "PAI"];
+        
+        const rows = data.rawDetails.map(row => [
+            new Date(row.date).toLocaleDateString('fr-FR'),
+            row.sessionType,
+            `${row.lastName} ${row.firstName}`,
+            row.category || 'N/A',
+            row.familyName || 'Sans dossier',
+            row.qf || 0,
+            row.regimeAlimentaire || 'Standard',
+            row.hasPAI ? 'OUI' : 'NON'
+        ]);
+
+        // "\uFEFF" force Excel à lire en UTF-8 (pour les accents)
+        const csvContent = "\uFEFF" + [headers, ...rows].map(e => e.join(";")).join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Export_Data_Carillon_${startDate}_au_${endDate}.csv`;
+        link.click();
     };
 
     // Formatage des données pour Recharts
@@ -110,14 +138,26 @@ const AdvancedStats = () => {
     const totalActs = data?.totals[0]?.count || 0;
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 md:p-8 flex flex-col">
+        <div className="min-h-screen bg-slate-50 p-4 md:p-8 flex flex-col pb-20">
             <button onClick={() => navigate('/')} className="mb-6 text-slate-400 font-bold hover:text-car-dark transition-colors self-start">← Retour Accueil</button>
             
-            <div className="flex items-center gap-4 mb-8">
-                <div className="bg-car-dark p-4 rounded-2xl text-white"><Activity size={28}/></div>
-                <div>
-                    <h1 className="text-3xl font-black text-car-dark uppercase tracking-wider">Business Intelligence</h1>
-                    <p className="text-slate-500 font-medium">Statistiques avancées & Tableaux de bord</p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 w-full">
+                <div className="flex items-center gap-4">
+                    <div className="bg-car-dark p-4 rounded-2xl text-white"><Activity size={28}/></div>
+                    <div>
+                        <h1 className="text-3xl font-black text-car-dark uppercase tracking-wider">Business Intelligence</h1>
+                        <p className="text-slate-500 font-medium">Extractions de données sur-mesure</p>
+                    </div>
+                </div>
+
+                {/* SÉLECTEUR DE VUES */}
+                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button onClick={() => setViewMode('chart')} className={`px-5 py-2.5 rounded-lg text-sm font-black uppercase tracking-wider transition-all flex items-center gap-2 ${viewMode === 'chart' ? 'bg-white shadow-sm text-car-blue' : 'text-slate-400'}`}>
+                        <LayoutDashboard size={18}/> Graphiques
+                    </button>
+                    <button onClick={() => setViewMode('table')} className={`px-5 py-2.5 rounded-lg text-sm font-black uppercase tracking-wider transition-all flex items-center gap-2 ${viewMode === 'table' ? 'bg-white shadow-sm text-car-green' : 'text-slate-400'}`}>
+                        <Table size={18}/> Tableur
+                    </button>
                 </div>
             </div>
 
@@ -125,9 +165,12 @@ const AdvancedStats = () => {
                 
                 {/* --- PANNEAU LATÉRAL DES FILTRES --- */}
                 <div className="w-full lg:w-80 bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 h-fit shrink-0 space-y-6">
-                    <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
-                        <Filter size={20} className="text-car-blue"/>
-                        <h3 className="font-black text-car-dark">Filtres</h3>
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                        <div className="flex items-center gap-2">
+                            <Filter size={20} className="text-car-blue"/>
+                            <h3 className="font-black text-car-dark">Filtres</h3>
+                        </div>
+                        {isLoading && <div className="w-4 h-4 border-2 border-slate-200 border-t-car-blue rounded-full animate-spin"></div>}
                     </div>
 
                     <div>
@@ -171,9 +214,20 @@ const AdvancedStats = () => {
                     </div>
 
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Particularités</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Régime Alimentaire</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {['Standard', 'Sans-porc', 'Végétarien', 'PAI'].map(r => (
+                                <button key={r} onClick={() => toggleArrayFilter('regimes', r)} className={`py-2 px-1 rounded-xl text-[10px] font-bold transition-colors ${filters.regimes.includes(r) ? 'bg-car-blue text-white' : 'bg-slate-50 text-slate-500'}`}>
+                                    {r}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Particularité Santé</label>
                         <select className="w-full bg-slate-50 p-2.5 rounded-xl outline-none text-xs font-bold text-car-dark mb-2" value={filters.hasPAI} onChange={e => handleFilterChange('hasPAI', e.target.value)}>
-                            <option value="">Santé : Tous les enfants</option>
+                            <option value="">Tous les enfants</option>
                             <option value="true">Uniquement avec PAI</option>
                             <option value="false">Sans PAI</option>
                         </select>
@@ -181,53 +235,102 @@ const AdvancedStats = () => {
                 </div>
 
                 {/* --- ZONE PRINCIPALE DE RESTITUTION --- */}
-                <div className="flex-1 flex flex-col gap-6">
+                <div className="flex-1 flex flex-col gap-6 w-full overflow-hidden">
                     
                     {/* KPI TOP BAR */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-car-blue text-white p-6 rounded-[2rem] shadow-md relative overflow-hidden">
+                        <div className="bg-car-dark text-white p-6 rounded-[2rem] shadow-md relative overflow-hidden flex flex-col justify-center">
                             <Activity className="absolute -right-4 -bottom-4 text-white/10 w-24 h-24" />
-                            <p className="text-xs font-black tracking-widest uppercase opacity-80 mb-1">Volume Total Actes</p>
+                            <p className="text-xs font-black tracking-widest uppercase opacity-80 mb-1">Actes sur la sélection</p>
                             <p className="text-4xl font-black relative z-10">{isLoading ? '...' : totalActs}</p>
                         </div>
-                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between">
-                            <div>
-                                <p className="text-xs font-black tracking-widest uppercase text-slate-400 mb-1">Période Analysée</p>
-                                <p className="text-lg font-black text-car-dark">{new Date(startDate).toLocaleDateString('fr-FR')} - {new Date(endDate).toLocaleDateString('fr-FR')}</p>
-                            </div>
-                            <Calendar size={32} className="text-slate-200" />
-                        </div>
-                    </div>
-
-                    {/* ZONE GRAPHIQUE */}
-                    <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 flex-1 flex flex-col min-h-[400px]">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                            
-                            {/* Sélecteur de Métrique */}
-                            <div className="flex bg-slate-50 p-1 rounded-xl">
-                                <button onClick={() => setChartMetric('byDay')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMetric === 'byDay' ? 'bg-white shadow-sm text-car-dark' : 'text-slate-400'}`}>Par Jour</button>
-                                <button onClick={() => setChartMetric('bySession')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMetric === 'bySession' ? 'bg-white shadow-sm text-car-dark' : 'text-slate-400'}`}>Par Activité</button>
-                                <button onClick={() => setChartMetric('byCategory')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMetric === 'byCategory' ? 'bg-white shadow-sm text-car-dark' : 'text-slate-400'}`}>Par Classe</button>
-                                <button onClick={() => setChartMetric('byRegime')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMetric === 'byRegime' ? 'bg-white shadow-sm text-car-dark' : 'text-slate-400'}`}>Régime (Midi)</button>
-                            </div>
-
-                            {/* Sélecteur de Type de Graphique */}
-                            <div className="flex gap-2">
-                                <button onClick={() => setChartType('bar')} className={`p-2 rounded-xl transition-colors ${chartType === 'bar' ? 'bg-car-blue/10 text-car-blue' : 'text-slate-400 hover:bg-slate-50'}`}><BarChartIcon size={20}/></button>
-                                <button onClick={() => setChartType('line')} className={`p-2 rounded-xl transition-colors ${chartType === 'line' ? 'bg-car-blue/10 text-car-blue' : 'text-slate-400 hover:bg-slate-50'}`}><LineChartIcon size={20}/></button>
-                                <button onClick={() => setChartType('pie')} className={`p-2 rounded-xl transition-colors ${chartType === 'pie' ? 'bg-car-blue/10 text-car-blue' : 'text-slate-400 hover:bg-slate-50'}`}><PieChartIcon size={20}/></button>
-                            </div>
-                        </div>
-
-                        {/* Le Graphique Recharts */}
-                        <div className="flex-1 w-full relative">
-                            {isLoading ? (
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-10 h-10 border-4 border-slate-200 border-t-car-blue rounded-full animate-spin"></div>
+                        {viewMode === 'table' && (
+                            <button onClick={exportCSV} className="sm:col-span-2 bg-car-green text-white p-6 rounded-[2rem] shadow-lg shadow-car-green/20 hover:bg-green-600 transition-all flex items-center justify-center gap-4 group">
+                                <FileSpreadsheet size={32} className="group-hover:scale-110 transition-transform" />
+                                <div className="text-left">
+                                    <h3 className="font-black text-xl uppercase tracking-widest">Exporter pour Excel</h3>
+                                    <p className="text-xs font-bold opacity-80">Télécharger la sélection en fichier .csv</p>
                                 </div>
-                            ) : renderChart()}
-                        </div>
+                            </button>
+                        )}
+                        {viewMode === 'chart' && (
+                            <div className="sm:col-span-2 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <p className="text-xs font-black tracking-widest uppercase text-slate-400 mb-1">Période Analysée</p>
+                                    <p className="text-xl font-black text-car-dark">{new Date(startDate).toLocaleDateString('fr-FR')} au {new Date(endDate).toLocaleDateString('fr-FR')}</p>
+                                </div>
+                                <Calendar size={40} className="text-slate-100" />
+                            </div>
+                        )}
                     </div>
+
+                    {/* VUE GRAPHIQUE */}
+                    {viewMode === 'chart' && (
+                        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 flex-1 flex flex-col min-h-[400px]">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                                
+                                <div className="flex flex-wrap bg-slate-50 p-1 rounded-xl">
+                                    <button onClick={() => setChartMetric('byDay')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMetric === 'byDay' ? 'bg-white shadow-sm text-car-dark' : 'text-slate-400'}`}>Par Jour</button>
+                                    <button onClick={() => setChartMetric('bySession')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMetric === 'bySession' ? 'bg-white shadow-sm text-car-dark' : 'text-slate-400'}`}>Par Activité</button>
+                                    <button onClick={() => setChartMetric('byCategory')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMetric === 'byCategory' ? 'bg-white shadow-sm text-car-dark' : 'text-slate-400'}`}>Par Classe</button>
+                                    <button onClick={() => setChartMetric('byRegime')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMetric === 'byRegime' ? 'bg-white shadow-sm text-car-dark' : 'text-slate-400'}`}>Régime (Midi)</button>
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <button onClick={() => setChartType('bar')} className={`p-2 rounded-xl transition-colors ${chartType === 'bar' ? 'bg-car-blue/10 text-car-blue' : 'text-slate-400 hover:bg-slate-50'}`}><BarChartIcon size={20}/></button>
+                                    <button onClick={() => setChartType('line')} className={`p-2 rounded-xl transition-colors ${chartType === 'line' ? 'bg-car-blue/10 text-car-blue' : 'text-slate-400 hover:bg-slate-50'}`}><LineChartIcon size={20}/></button>
+                                    <button onClick={() => setChartType('pie')} className={`p-2 rounded-xl transition-colors ${chartType === 'pie' ? 'bg-car-blue/10 text-car-blue' : 'text-slate-400 hover:bg-slate-50'}`}><PieChartIcon size={20}/></button>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 w-full relative">
+                                {renderChart()}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VUE TABLEUR DÉTAILLÉE */}
+                    {viewMode === 'table' && (
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 flex-1 overflow-hidden flex flex-col">
+                            <div className="p-6 border-b border-slate-100">
+                                <h3 className="font-black text-car-dark text-lg">Données brutes ({data?.rawDetails?.length || 0} lignes)</h3>
+                            </div>
+                            <div className="flex-1 overflow-auto w-full">
+                                <table className="w-full text-left border-collapse min-w-[800px]">
+                                    <thead className="sticky top-0 bg-slate-50 shadow-sm z-10">
+                                        <tr className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                                            <th className="p-4 border-b border-slate-200 whitespace-nowrap">Date</th>
+                                            <th className="p-4 border-b border-slate-200">Activité</th>
+                                            <th className="p-4 border-b border-slate-200">Enfant</th>
+                                            <th className="p-4 border-b border-slate-200">Dossier Famille</th>
+                                            <th className="p-4 border-b border-slate-200 text-center">QF</th>
+                                            <th className="p-4 border-b border-slate-200 text-center">Régime</th>
+                                            <th className="p-4 border-b border-slate-200 text-center">PAI</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {data?.rawDetails && data.rawDetails.length > 0 ? data.rawDetails.map((row) => (
+                                            <tr key={row._id} className="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+                                                <td className="p-4 font-bold text-car-dark text-xs whitespace-nowrap">{new Date(row.date).toLocaleDateString('fr-FR')}</td>
+                                                <td className="p-4 text-xs font-black text-car-blue">{row.sessionType}</td>
+                                                <td className="p-4 text-sm font-black text-car-dark uppercase">{row.lastName} <span className="capitalize font-medium text-slate-500">{row.firstName}</span></td>
+                                                <td className="p-4 text-xs font-bold text-slate-600">{row.familyName || '-'}</td>
+                                                <td className="p-4 text-center text-xs font-black text-car-dark">{row.qf || 0}</td>
+                                                <td className="p-4 text-center text-[10px] font-bold text-slate-500">{row.regimeAlimentaire}</td>
+                                                <td className="p-4 text-center">
+                                                    {row.hasPAI ? <span className="bg-car-pink/10 text-car-pink px-2 py-1 rounded-md text-[10px] font-black">OUI</span> : '-'}
+                                                </td>
+                                            </tr>
+                                        )) : (
+                                            <tr>
+                                                <td colSpan="7" className="p-8 text-center text-slate-400 font-bold italic">Aucune donnée correspondant aux filtres.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
 
                 </div>
             </div>

@@ -1042,12 +1042,11 @@ app.get('/api/requests/pending-count', auth(['admin', 'responsable']), async (re
     res.json({ count });
 });
 
-// --- MODULE STATISTIQUES AVANCÉES (BI) ---
+// --- MODULE STATISTIQUES AVANCÉES (BI & EXPORT) ---
 app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
     try {
         const { startDate, endDate, filters } = req.body;
         
-        // 1. Filtre primaire sur les présences (Dates et Types de session)
         let attMatch = {};
         if (startDate && endDate) {
             attMatch.date = { $gte: startDate, $lte: endDate };
@@ -1058,16 +1057,10 @@ app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
 
         const pipeline = [
             { $match: attMatch },
-            
-            // 2. Jointure avec la fiche Enfant
             { $lookup: { from: 'children', localField: 'child', foreignField: '_id', as: 'childDoc' } },
             { $unwind: '$childDoc' },
-            
-            // 3. Jointure avec la famille (pour le QF)
             { $lookup: { from: 'families', localField: 'childDoc.families', foreignField: '_id', as: 'familyDocs' } },
             { $addFields: { primaryFamily: { $arrayElemAt: ['$familyDocs', 0] } } },
-            
-            // 4. Calcul du QF à la volée
             { $addFields: {
                 calcQf: {
                     $cond: {
@@ -1079,7 +1072,6 @@ app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
             }},
         ];
 
-        // 5. Filtres dynamiques sur les attributs de l'enfant et de la famille
         let childMatch = {};
         if (filters.categories && filters.categories.length > 0) {
             childMatch['childDoc.category'] = { $in: filters.categories };
@@ -1100,7 +1092,6 @@ app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
             pipeline.push({ $match: childMatch });
         }
 
-        // 6. Facettes : Permet de renvoyer plusieurs groupements en une seule requête !
         pipeline.push({
             $facet: {
                 totals: [{ $count: "count" }],
@@ -1118,6 +1109,22 @@ app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
                 byRegime: [
                     { $match: { sessionType: 'MIDI' } },
                     { $group: { _id: "$childDoc.regimeAlimentaire", count: { $sum: 1 } } }
+                ],
+                // NOUVEAU : Récupération des données brutes pour l'export Excel !
+                rawDetails: [
+                    { $project: {
+                        _id: 1,
+                        date: 1,
+                        sessionType: 1,
+                        lastName: "$childDoc.lastName",
+                        firstName: "$childDoc.firstName",
+                        category: "$childDoc.category",
+                        regimeAlimentaire: "$childDoc.regimeAlimentaire",
+                        hasPAI: "$childDoc.hasPAI",
+                        qf: "$calcQf",
+                        familyName: "$primaryFamily.name"
+                    }},
+                    { $sort: { date: -1, lastName: 1 } }
                 ]
             }
         });
