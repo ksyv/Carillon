@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Filter, Download, Activity, Users, Utensils } from 'lucide-react';
+import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Filter, Download, Activity, Users, Utensils, Calendar } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
