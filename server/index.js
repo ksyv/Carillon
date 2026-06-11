@@ -1073,20 +1073,36 @@ app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
         ];
 
         let childMatch = {};
-        if (filters.categories && filters.categories.length > 0) {
-            childMatch['childDoc.category'] = { $in: filters.categories };
-        }
-        if (filters.regimes && filters.regimes.length > 0) {
-            childMatch['childDoc.regimeAlimentaire'] = { $in: filters.regimes };
-        }
-        if (filters.hasPAI !== '') {
-            childMatch['childDoc.hasPAI'] = filters.hasPAI === 'true';
-        }
+        
+        if (filters.categories && filters.categories.length > 0) childMatch['childDoc.category'] = { $in: filters.categories };
+        if (filters.regimes && filters.regimes.length > 0) childMatch['childDoc.regimeAlimentaire'] = { $in: filters.regimes };
+        if (filters.hasPAI !== '') childMatch['childDoc.hasPAI'] = filters.hasPAI === 'true';
+        
+        // Filtre QF
         if (filters.minQf !== '' || filters.maxQf !== '') {
             childMatch.calcQf = {};
             if (filters.minQf !== '') childMatch.calcQf.$gte = Number(filters.minQf);
             if (filters.maxQf !== '') childMatch.calcQf.$lte = Number(filters.maxQf);
         }
+
+        // Filtre Âge (Conversion mathématique de l'âge en date de naissance)
+        if (filters.minAge !== '' || filters.maxAge !== '') {
+            childMatch['childDoc.birthDate'] = {};
+            const today = new Date();
+            if (filters.minAge !== '') {
+                const maxDate = new Date(today.getFullYear() - Number(filters.minAge), today.getMonth(), today.getDate());
+                childMatch['childDoc.birthDate'].$lte = maxDate; // Né AVANT cette date pour avoir au moins cet âge
+            }
+            if (filters.maxAge !== '') {
+                const minDate = new Date(today.getFullYear() - Number(filters.maxAge) - 1, today.getMonth(), today.getDate() + 1);
+                childMatch['childDoc.birthDate'].$gte = minDate; // Né APRÈS cette date pour ne pas dépasser cet âge
+            }
+        }
+
+        // Filtres Autorisations & Médical
+        if (filters.droitImage !== '') childMatch['childDoc.droitImage'] = filters.droitImage === 'true';
+        if (filters.autorisationSortieSeul !== '') childMatch['childDoc.autorisationSortieSeul'] = filters.autorisationSortieSeul === 'true';
+        if (filters.lunettes !== '') childMatch['childDoc.medical.lunettes'] = filters.lunettes === 'true';
 
         if (Object.keys(childMatch).length > 0) {
             pipeline.push({ $match: childMatch });
@@ -1110,7 +1126,7 @@ app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
                     { $match: { sessionType: 'MIDI' } },
                     { $group: { _id: "$childDoc.regimeAlimentaire", count: { $sum: 1 } } }
                 ],
-                // NOUVEAU : Récupération des données brutes pour l'export Excel !
+                // EXPORT DATA : On récupère absolument TOUT ce qui est pertinent
                 rawDetails: [
                     { $project: {
                         _id: 1,
@@ -1119,8 +1135,12 @@ app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
                         lastName: "$childDoc.lastName",
                         firstName: "$childDoc.firstName",
                         category: "$childDoc.category",
+                        birthDate: "$childDoc.birthDate",
                         regimeAlimentaire: "$childDoc.regimeAlimentaire",
                         hasPAI: "$childDoc.hasPAI",
+                        droitImage: "$childDoc.droitImage",
+                        autorisationSortieSeul: "$childDoc.autorisationSortieSeul",
+                        medical: "$childDoc.medical",
                         qf: "$calcQf",
                         familyName: "$primaryFamily.name"
                     }},
