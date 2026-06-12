@@ -19,6 +19,7 @@ import AdvancedStats from './pages/AdvancedStats';
 // Ton nouveau portail famille connecté
 import FamilyPortal from './pages/FamilyPortal';
 import CantineStats from './pages/CantineStats';
+import ClassManager from './pages/ClassManager';
 
 
 export default function App() {
