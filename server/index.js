@@ -348,8 +348,11 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
     const start = startDate || req.query.date;
     const end = endDate || req.query.date;
+    const children = await Child.find()
+        .sort({ lastName: 1, firstName: 1 })
+        .populate('families')
+        .populate('classGroup'); 
 
-    const children = await Child.find().sort({ lastName: 1, firstName: 1 });
     const atts = await Attendance.find({ date: { $gte: start, $lte: end } });
     const billings = await Billing.find();
 
@@ -362,14 +365,24 @@ app.get('/api/report', auth(['admin']), async (req, res) => {
         if (!attendanceMap[key]) {
             attendanceMap[key] = {
                 type: 'ATTENDANCE', date: a.date, child: childObj,
-                matin: false, midiAbsent: false, soir: false, checkOut: null, isLate: false, pmId: null, billTo: ''
+                matin: false, midiAbsent: false, soir: false, checkOut: null, isLate: false, 
+                matinId: null, midiId: null, pmId: null, 
+                billTo: ''
             };
         }
-        if (a.sessionType === 'MATIN') attendanceMap[key].matin = true;
-        if (a.sessionType === 'MIDI') attendanceMap[key].midiAbsent = true;
+        if (a.sessionType === 'MATIN') {
+            attendanceMap[key].matin = true;
+            attendanceMap[key].matinId = a._id; 
+        }
+        if (a.sessionType === 'MIDI') {
+            attendanceMap[key].midiAbsent = true;
+            attendanceMap[key].midiId = a._id; 
+        }
         if (a.sessionType === 'SOIR') {
-            attendanceMap[key].soir = true; attendanceMap[key].checkOut = a.checkOut;
-            attendanceMap[key].isLate = a.isLate; attendanceMap[key].pmId = a._id;
+            attendanceMap[key].soir = true; 
+            attendanceMap[key].checkOut = a.checkOut;
+            attendanceMap[key].isLate = a.isLate; 
+            attendanceMap[key].pmId = a._id;
         }
     });
 
