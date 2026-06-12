@@ -20,6 +20,7 @@ const EmailTemplate = require('./models/EmailTemplate');
 const Tariff = require('./models/Tariff');
 const ModificationRequest = require('./models/ModificationRequest');
 const Parent = require('./models/Parent');
+const ClassGroup = require('./models/ClassGroup');
 
 const SettingsSchema = new mongoose.Schema({ key: String, value: String });
 const Settings = mongoose.model('Settings', SettingsSchema);
@@ -124,7 +125,7 @@ app.delete('/api/users/:id', auth(['admin']), async (req, res) => {
 
 // --- ROUTES BASE ENFANTS ---
 app.get('/api/children', auth(), async (req, res) => {
-    const children = await Child.find().sort({ lastName: 1, firstName: 1 }).populate('families'); 
+    const children = await Child.find().sort({ lastName: 1, firstName: 1 }).populate('families').populate('classGroup'); 
     res.json(children);
 });
 
@@ -475,6 +476,38 @@ app.post('/api/evacuation/clear', auth(['admin', 'responsable']), async (req, re
     const { date, sessionType } = req.body;
     await Evacuation.findOneAndDelete({ date, sessionType });
     res.json({ success: true });
+});
+
+// --- ROUTES CLASSES SCOLAIRES ---
+app.get('/api/classes', auth(), async (req, res) => {
+    try {
+        const classes = await ClassGroup.find().sort({ category: 1, name: 1 });
+        res.json(classes);
+    } catch (e) { res.status(500).send('Erreur récupération classes'); }
+});
+
+app.post('/api/classes', auth(['admin']), async (req, res) => {
+    try {
+        const newClass = new ClassGroup(req.body);
+        await newClass.save();
+        res.json(newClass);
+    } catch (e) { res.status(400).send('Erreur création classe'); }
+});
+
+app.put('/api/classes/:id', auth(['admin']), async (req, res) => {
+    try {
+        const updated = await ClassGroup.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(updated);
+    } catch (e) { res.status(400).send('Erreur modification classe'); }
+});
+
+app.delete('/api/classes/:id', auth(['admin']), async (req, res) => {
+    try {
+        await ClassGroup.findByIdAndDelete(req.params.id);
+        // Sécurité : On enlève cette classe de tous les enfants qui l'avaient
+        await Child.updateMany({ classGroup: req.params.id }, { $set: { classGroup: null } });
+        res.json({ success: true });
+    } catch (e) { res.status(400).send('Erreur suppression classe'); }
 });
 
 // --- ROUTES GRILLES TARIFAIRES ---
