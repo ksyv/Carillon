@@ -104,7 +104,8 @@ const Dashboard = () => {
             </div>
         )}
 
-        <section>
+        {/* SECTION PRINCIPALE : POINTAGES QUOTIDIENS */}
+        <section className="mb-10">
             <div className="flex items-center gap-3 mb-6 ml-2">
                 <div className="h-2 w-2 rounded-full bg-car-teal"></div>
                 <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Pointage en cours</h2>
@@ -115,15 +116,27 @@ const Dashboard = () => {
                 <SessionButton title="Midi (Cantine)" icon={Utensils} type="MIDI" colorClass="car-teal" />
                 <SessionButton title="Soir" icon={Moon} type="SOIR" colorClass="car-blue" />
             </div>
-            <button onClick={() => navigate('/pointage-listes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                <div className="bg-car-purple/10 p-4 rounded-2xl w-fit group-hover:bg-car-purple group-hover:text-white text-car-purple transition-colors">
-                    <ListChecks size={24} strokeWidth={2.5}/>
-                </div>
-                <div>
-                    <h3 className="font-black text-car-dark text-lg">Listes & Groupes</h3>
-                    <p className="text-xs text-slate-500 font-medium mt-1">Pointages informels pour les sorties</p>
-                </div>
-            </button>
+        </section>
+
+        {/* NOUVELLE SECTION : OUTILS & LISTES SPÉCIFIQUES */}
+        <section>
+            <div className="flex items-center gap-3 mb-6 ml-2">
+                <div className="h-2 w-2 rounded-full bg-car-purple"></div>
+                <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Outils & listes spécifiques</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                {/* BOUTON LISTES À LA VOLÉE */}
+                <button onClick={() => navigate('/pointage-listes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                    <div className="bg-car-purple/10 p-4 rounded-2xl w-fit group-hover:bg-car-purple group-hover:text-white text-car-purple transition-colors">
+                        <ListChecks size={24} strokeWidth={2.5}/>
+                    </div>
+                    <div>
+                        <h3 className="font-black text-car-dark text-lg">Listes & Groupes</h3>
+                        <p className="text-xs text-slate-500 font-medium mt-1">Pointages informels pour les sorties</p>
+                    </div>
+                </button>
+            </div>
         </section>
 
         {(role === 'admin' || role === 'responsable') && (
