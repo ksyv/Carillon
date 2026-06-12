@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { FileText, Download, CheckCircle, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
+import { FileText, Download, CheckCircle, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, Trash2, Plus, X } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -16,7 +16,6 @@ const Report = () => {
     const [reportData, setReportData] = useState({ children: [], attendances: [] });
     const [activeTab, setActiveTab] = useState('PERISCO');
     
-    // NOUVEAU : On stocke les classes pour le filtre
     const [classes, setClasses] = useState([]);
 
     // Filtres cumulatifs (Checkboxes & Select)
@@ -25,7 +24,6 @@ const Report = () => {
         Élémentaire: access === 'Tous' || access === 'Élémentaire'
     });
     
-    // NOUVEAU : Filtre par classe
     const [selectedClassId, setSelectedClassId] = useState('');
 
     const [regimes, setRegimes] = useState({
@@ -36,6 +34,10 @@ const Report = () => {
 
     // Tri dynamique
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+
+    // --- ÉTATS POUR L'AJOUT MANUEL ---
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [addForm, setAddForm] = useState({ childId: '', date: format(new Date(), 'yyyy-MM-dd'), sessionType: 'SOIR' });
 
     // --- CHARGEMENT ---
     useEffect(() => { 
@@ -54,6 +56,31 @@ const Report = () => {
         api.get('/classes').then(res => {
             setClasses(res.data);
         }).catch(err => console.error(err));
+    };
+
+    // --- AJOUT MANUEL D'UN POINTAGE OUBLIÉ ---
+    const handleManualAdd = async (e) => {
+        e.preventDefault();
+        try {
+            // 1. On crée le pointage
+            const res = await api.post('/attendance/checkin', {
+                childId: addForm.childId,
+                date: addForm.date,
+                sessionType: addForm.sessionType
+            });
+            
+            // 2. Si c'est le SOIR, on simule sa sortie immédiatement pour qu'il soit clôturé et facturable
+            if (addForm.sessionType === 'SOIR') {
+                await api.put(`/attendance/checkout/${res.data._id}`);
+            }
+
+            setShowAddModal(false);
+            setAddForm({ ...addForm, childId: '' }); // On reset juste l'enfant
+            loadReport();
+            alert("Pointage ajouté avec succès !");
+        } catch (e) {
+            alert("Erreur : Ce pointage a peut-être déjà été enregistré pour cet enfant à cette date.");
+        }
     };
 
     // --- SUPPRESSION DE POINTAGES ---
@@ -91,7 +118,7 @@ const Report = () => {
             return categories[cat];
         });
         
-        // NOUVEAU : Filtre par Classe
+        // 2. Filtre par Classe
         if (selectedClassId !== '') {
             list = list.filter(r => {
                 const childClassId = r.child.classGroup?._id || r.child.classGroup;
@@ -99,7 +126,7 @@ const Report = () => {
             });
         }
 
-        // 2. Filtres par onglet
+        // 3. Filtres par onglet
         if (activeTab === 'PERISCO') list = list.filter(r => r.matin || r.soir || r.checkOut);
         if (activeTab === 'CANTINE') list = list.filter(r => r.midiAbsent);
         if (activeTab === 'PAI') list = list.filter(r => r.child.hasPAI);
@@ -113,7 +140,7 @@ const Report = () => {
         if (activeTab === 'SORTIE_SEUL') list = list.filter(r => r.child.autorisationSortieSeul);
         if (activeTab === 'SANS_IMAGE') list = list.filter(r => !r.child.droitImage);
 
-        // 3. Application du Tri
+        // 4. Application du Tri
         return list.sort((a, b) => {
             const nameA = `${a.child.lastName} ${a.child.firstName}`;
             const nameB = `${b.child.lastName} ${b.child.firstName}`;
@@ -129,7 +156,6 @@ const Report = () => {
             } else if (sortConfig.key === 'category') {
                 valA = a.child.category || ''; valB = b.child.category || '';
             } else if (sortConfig.key === 'class') {
-                // Tri par classe
                 valA = a.child.classGroup?.name || ''; valB = b.child.classGroup?.name || '';
             } else if (sortConfig.key === 'regime') {
                 valA = a.child.regimeAlimentaire || ''; valB = b.child.regimeAlimentaire || '';
@@ -266,7 +292,17 @@ const Report = () => {
                         <div className="bg-car-blue/10 p-4 rounded-2xl"><FileText className="text-car-blue w-8 h-8"/></div>
                         <h1 className="text-4xl font-black text-car-dark">Rapports & Listes</h1>
                     </div>
-                    <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20"><Download size={20}/> PDF</button>
+                    
+                    <div className="flex flex-wrap gap-2">
+                        {(activeTab === 'PERISCO' || activeTab === 'CANTINE') && (
+                            <button onClick={() => setShowAddModal(true)} className="bg-car-blue/10 text-car-blue px-5 py-3 rounded-2xl font-black tracking-widest hover:bg-car-blue hover:text-white transition-all flex items-center gap-2 shadow-sm">
+                                <Plus size={20}/> POINTAGE
+                            </button>
+                        )}
+                        <button onClick={exportPDF} className="bg-car-dark text-white px-6 py-3 rounded-2xl font-black tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-car-dark/20">
+                            <Download size={20}/> PDF
+                        </button>
+                    </div>
                 </div>
 
                 {/* ONGLETS */}
@@ -307,7 +343,6 @@ const Report = () => {
                         </div>
                     </div>
 
-                    {/* NOUVEAU : FILTRE PAR CLASSE */}
                     <div className={`flex flex-col gap-2 ${activeTab === 'REGIMES' ? 'border-r border-slate-100 pr-6' : ''}`}>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">Filtrer par Classe :</span>
                         <select 
@@ -406,7 +441,6 @@ const Report = () => {
                                         <span className="font-black text-car-dark">{c.lastName}</span> <span className="font-medium text-slate-500">{c.firstName}</span>
                                     </td>
 
-                                    {/* NOUVEAU : Affichage de la Classe */}
                                     <td className="p-5 border-b border-slate-100">
                                         <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">
                                             {c.classGroup?.name || c.category}
@@ -529,6 +563,47 @@ const Report = () => {
                     </table>
                 </div>
             </div>
+
+            {/* MODALE D'AJOUT MANUEL D'UN POINTAGE */}
+            {showAddModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <form onSubmit={handleManualAdd} className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
+                        <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                            <h3 className="text-2xl font-black text-car-dark">Ajout Manuel</h3>
+                            <button type="button" onClick={() => setShowAddModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                        </div>
+                        
+                        <div className="space-y-4 mb-8">
+                            <div>
+                                <label className="text-xs font-black uppercase text-slate-400 block mb-1">Enfant</label>
+                                <select required className="w-full bg-slate-50 p-3 rounded-xl font-bold text-car-dark outline-none border border-slate-200" value={addForm.childId} onChange={e => setAddForm({...addForm, childId: e.target.value})}>
+                                    <option value="">-- Sélectionner un enfant --</option>
+                                    {reportData.children.filter(c => c.child.active !== false).map(c => (
+                                        <option key={c.child._id} value={c.child._id}>{c.child.lastName} {c.child.firstName} {c.child.classGroup ? `(${c.child.classGroup.name})` : ''}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-black uppercase text-slate-400 block mb-1">Date</label>
+                                <input type="date" required className="w-full bg-slate-50 p-3 rounded-xl font-bold text-car-dark outline-none border border-slate-200 focus:border-car-blue" value={addForm.date} onChange={e => setAddForm({...addForm, date: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-black uppercase text-slate-400 block mb-1">Activité</label>
+                                <select required className="w-full bg-slate-50 p-3 rounded-xl font-bold text-car-dark outline-none border border-slate-200" value={addForm.sessionType} onChange={e => setAddForm({...addForm, sessionType: e.target.value})}>
+                                    <option value="MATIN">Périscolaire MATIN</option>
+                                    <option value="SOIR">Périscolaire SOIR</option>
+                                    <option value="MIDI">Absence CANTINE (Midi)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button type="submit" className="w-full bg-car-blue text-white font-black p-4 rounded-2xl hover:bg-blue-600 transition-colors uppercase tracking-widest flex items-center justify-center gap-2">
+                            <CheckCircle size={20}/> Enregistrer le pointage
+                        </button>
+                    </form>
+                </div>
+            )}
+
         </div>
     );
 };
