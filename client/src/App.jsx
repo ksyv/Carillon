@@ -92,7 +92,11 @@ export default function App() {
         />
         <Route 
           path="/admin/stats-advanced" 
-          element={<AdvancedStats />} 
+          element={auth.token ? <AdvancedStats /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/admin/classes" 
+          element={auth.token ? <ClassManager /> : <Navigate to="/" />} 
         />
 
         {/* Filet de sécurité global */}

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Search, X, Info, AlertTriangle, Pencil, Trash2, Check, Copy } from 'lucide-react';
+import { Users, Plus, Search, X, Info, AlertTriangle, Pencil, Trash2, Check, Copy, GraduationCap } from 'lucide-react';
 import ChildInfoModal from '../components/ChildInfoModal';
 
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
+    const [classes, setClasses] = useState([]); // NOUVEAU
+    
     const role = localStorage.getItem('role');
     const access = localStorage.getItem('categoryAccess') || 'Tous';
     const isReadOnly = role !== 'admin'; 
@@ -21,10 +23,19 @@ const ChildrenManager = () => {
 
     const navigate = useNavigate();
 
-    useEffect(() => { loadChildren(); }, []);
-    const loadChildren = () => api.get(`/children`).then(res => setChildren(res.data));
+    useEffect(() => { loadData(); }, []);
+    
+    const loadData = async () => {
+        try {
+            const [childRes, classRes] = await Promise.all([
+                api.get('/children'),
+                api.get('/classes')
+            ]);
+            setChildren(childRes.data);
+            setClasses(classRes.data);
+        } catch(e) { console.error(e); }
+    };
 
-    // --- CALCUL DU TOTAL DES ENFANTS ACTIFS ---
     const activeChildrenCount = useMemo(() => {
         return children.filter(c => c.active !== false && (access === 'Tous' || c.category === access)).length;
     }, [children, access]);
@@ -37,7 +48,8 @@ const ChildrenManager = () => {
         if (searchTerm) {
             result = result.filter(c => 
                 c.lastName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                c.firstName.toLowerCase().includes(searchTerm.toLowerCase())
+                c.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (c.classGroup?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
         return result;
@@ -63,7 +75,7 @@ const ChildrenManager = () => {
         }
         setIsImporting(false);
         alert(`${count} enfant(s) importé(s) !`);
-        setBulkText(''); setIsBulkMode(false); loadChildren();
+        setBulkText(''); setIsBulkMode(false); loadData();
     };
 
     const handleDelete = async (id, nom) => {
@@ -73,7 +85,7 @@ const ChildrenManager = () => {
         if (confirmWord === "SUPPRIMER") {
             try {
                 await api.delete(`/children/${id}`);
-                loadChildren();
+                loadData();
             } catch (e) { alert("Erreur lors de la suppression."); }
         } else if (confirmWord !== null) {
             alert("Suppression annulée : le mot de sécurité est incorrect.");
@@ -85,7 +97,7 @@ const ChildrenManager = () => {
         setEditingChild({
             _id: null,
             active: true,
-            firstName: '', lastName: '', category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
+            firstName: '', lastName: '', category: 'Maternelle', classGroup: '', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
             medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
             hasPAI: false, paiDetails: '', isPAIAlimentaire: false, paiDocument: '', regimeAlimentaire: 'Standard',
             personnesAutorisees: [], documents: { vaccins: {}, assurance: {} }
@@ -97,7 +109,9 @@ const ChildrenManager = () => {
         setEditingChild({
             _id: child._id,
             active: child.active !== false,
-            firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', sexe: child.sexe || '',
+            firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', 
+            classGroup: child.classGroup?._id || child.classGroup || '', // NOUVEAU
+            sexe: child.sexe || '',
             birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
             droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
             medical: child.medical || { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
@@ -153,13 +167,16 @@ const ChildrenManager = () => {
             if(!window.confirm("Aucun document PAI n'a été joint. Voulez-vous quand même sauvegarder ?")) return;
         }
         try {
+            // Nettoyer la classe si vide
+            const payload = { ...editingChild, classGroup: editingChild.classGroup || null };
+
             if (editingChild._id) {
-                await api.put(`/children/${editingChild._id}`, editingChild);
+                await api.put(`/children/${editingChild._id}`, payload);
             } else {
-                await api.post(`/children`, editingChild);
+                await api.post(`/children`, payload);
             }
             setEditingChild(null);
-            loadChildren();
+            loadData();
         } catch (err) { alert("Erreur sauvegarde enfant."); }
     };
 
@@ -171,7 +188,6 @@ const ChildrenManager = () => {
                     <div className="flex items-center gap-4">
                         <div className="bg-car-green/10 p-4 rounded-2xl"><Users className="text-car-green w-8 h-8"/></div>
                         <div>
-                            {/* AJOUT DU COMPTEUR ICI */}
                             <div className="flex items-center gap-4 mb-1">
                                 <h1 className="text-4xl font-black text-car-dark">Base Enfants</h1>
                                 <span className="bg-car-green text-white text-sm font-black px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2">
@@ -214,7 +230,7 @@ const ChildrenManager = () => {
 
                 <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 mb-6 flex items-center gap-4 relative">
                     <Search className="text-slate-400 ml-2" size={24} />
-                    <input type="text" className="bg-transparent border-none outline-none font-bold text-car-dark placeholder:text-slate-400 w-full text-lg" placeholder="Rechercher un enfant pour voir ou modifier sa fiche..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                    <input type="text" className="bg-transparent border-none outline-none font-bold text-car-dark placeholder:text-slate-400 w-full text-lg" placeholder="Rechercher un enfant, une classe..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     {searchTerm && <button onClick={() => setSearchTerm('')} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-car-pink transition-colors"><X size={20}/></button>}
                 </div>
 
@@ -226,11 +242,17 @@ const ChildrenManager = () => {
                                     <button onClick={() => setChildInfoToView(child)} className="text-slate-300 hover:text-car-blue bg-slate-50 p-3 rounded-full transition-colors flex-shrink-0"><Info size={24}/></button>
                                     <div>
                                         <span className="font-black text-car-dark text-xl block leading-tight">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
-                                        <div className="flex flex-wrap gap-2 mt-2">
+                                        <div className="flex flex-wrap gap-2 mt-2 items-center">
                                             {child.active === false && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
                                             <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
                                                 {child.category || 'Maternelle'}
                                             </span>
+                                            {/* AFFICHAGE DE LA CLASSE ICI */}
+                                            {child.classGroup && (
+                                                <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-100 text-slate-600 flex items-center gap-1">
+                                                    <GraduationCap size={12}/> {child.classGroup.name}
+                                                </span>
+                                            )}
                                             {child.hasPAI && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-car-pink/10 text-car-pink flex items-center gap-1"><AlertTriangle size={12}/> PAI</span>}
                                         </div>
                                     </div>
@@ -271,7 +293,7 @@ const ChildrenManager = () => {
 
                         <form onSubmit={saveChild} className="space-y-8">
                             <div>
-                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Identité</h4>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Identité & Scolarité</h4>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                     <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-black uppercase text-car-dark" placeholder="NOM" value={editingChild.lastName} onChange={e => setEditingChild({...editingChild, lastName: e.target.value.toUpperCase()})} required/>
                                     <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-bold text-car-dark capitalize" placeholder="Prénom" value={editingChild.firstName} onChange={e => setEditingChild({...editingChild, firstName: e.target.value})} required/>
@@ -279,8 +301,19 @@ const ChildrenManager = () => {
                                         <option value="">Sexe...</option><option value="Féminin">Féminin</option><option value="Masculin">Masculin</option>
                                     </select>
                                     <input type="date" className="col-span-2 sm:col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-medium text-car-dark" value={editingChild.birthDate} onChange={e => setEditingChild({...editingChild, birthDate: e.target.value})} required/>
-                                    <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.category} onChange={e => setEditingChild({...editingChild, category: e.target.value})}>
+                                    
+                                    {/* SÉLECTEUR DE CATÉGORIE QUI RÉINITIALISE LA CLASSE SI CHANGÉ */}
+                                    <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.category} 
+                                        onChange={e => setEditingChild({...editingChild, category: e.target.value, classGroup: ''})}>
                                         <option value="Maternelle">Maternelle</option><option value="Élémentaire">Élémentaire</option>
+                                    </select>
+
+                                    {/* NOUVEAU : SÉLECTEUR DE CLASSE */}
+                                    <select className="col-span-2 sm:col-span-4 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.classGroup} onChange={e => setEditingChild({...editingChild, classGroup: e.target.value})}>
+                                        <option value="">-- Sans classe assignée --</option>
+                                        {classes.filter(c => c.category === editingChild.category).map(cls => (
+                                            <option key={cls._id} value={cls._id}>{cls.name} {cls.teacher ? `(${cls.teacher})` : ''}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>

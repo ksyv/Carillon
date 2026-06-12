@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { FolderHeart, AlertTriangle, CheckCircle, Search, Plus, Trash2, Download, Save, Users, Info, Pencil, X, Banknote, FileText, Phone, Check, Copy, CornerDownRight, Mail } from 'lucide-react';
+import { FolderHeart, AlertTriangle, CheckCircle, Search, Plus, Trash2, Download, Save, Users, Info, Pencil, X, Banknote, FileText, Phone, Check, Copy, CornerDownRight, Mail, GraduationCap } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ChildInfoModal from '../components/ChildInfoModal';
@@ -9,6 +9,7 @@ import ChildInfoModal from '../components/ChildInfoModal';
 const FamilyManager = () => {
     const [children, setChildren] = useState([]);
     const [families, setFamilies] = useState([]);
+    const [classes, setClasses] = useState([]); // NOUVEAU
     
     const [searchFamilyText, setSearchFamilyText] = useState('');
     const [selectedFamily, setSelectedFamily] = useState(null);
@@ -18,7 +19,6 @@ const FamilyManager = () => {
     const [childInfoToView, setChildInfoToView] = useState(null);
     const [editingChild, setEditingChild] = useState(null);
 
-    // --- STATES DU WORKFLOW DE VALIDATION REEL ---
     const [pendingRequests, setPendingRequests] = useState([]);
     const navigate = useNavigate();
 
@@ -46,17 +46,21 @@ const FamilyManager = () => {
     useEffect(() => { loadData(); }, []);
 
     const loadData = async () => {
-        const [kidsRes, famRes] = await Promise.all([
-            api.get(`/children`),
-            api.get(`/families`)
-        ]);
-        setChildren(kidsRes.data);
-        setFamilies(famRes.data);
-        
-        if (selectedFamily) {
-            const updatedFam = famRes.data.find(f => f._id === selectedFamily._id);
-            setSelectedFamily(updatedFam || null);
-        }
+        try {
+            const [kidsRes, famRes, classRes] = await Promise.all([
+                api.get(`/children`),
+                api.get(`/families`),
+                api.get('/classes')
+            ]);
+            setChildren(kidsRes.data);
+            setFamilies(famRes.data);
+            setClasses(classRes.data);
+            
+            if (selectedFamily) {
+                const updatedFam = famRes.data.find(f => f._id === selectedFamily._id);
+                setSelectedFamily(updatedFam || null);
+            }
+        } catch(e) { console.error(e); }
     };
 
     useEffect(() => {
@@ -132,7 +136,6 @@ const FamilyManager = () => {
         }
     };
 
-    // --- MISE À JOUR GARDE ALTERNÉE (Attachement au tableau families) ---
     const handleAttachChild = async (childId, familyId) => {
         try {
             await api.post(`/children/${childId}/attach`, { familyId });
@@ -216,7 +219,7 @@ const FamilyManager = () => {
 
     const startAddChild = () => {
         setEditingChild({
-            _id: null, active: true, firstName: '', lastName: selectedFamily.name, category: 'Maternelle', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
+            _id: null, active: true, firstName: '', lastName: selectedFamily.name, category: 'Maternelle', classGroup: '', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
             medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '', autresInfos: '' },
             hasPAI: false, paiDetails: '', isPAIAlimentaire: false, paiDocument: '', regimeAlimentaire: 'Standard', personnesAutorisees: [], documents: { vaccins: {}, assurance: {} }
         });
@@ -224,7 +227,9 @@ const FamilyManager = () => {
 
     const startEditChild = (child) => {
         setEditingChild({
-            _id: child._id, active: child.active !== false, firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', sexe: child.sexe || '',
+            _id: child._id, active: child.active !== false, firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', 
+            classGroup: child.classGroup?._id || child.classGroup || '', 
+            sexe: child.sexe || '',
             birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
             medical: child.medical || { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '', autresInfos: '' },
             hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false, paiDocument: child.paiDocument || '', regimeAlimentaire: child.regimeAlimentaire || 'Standard',
@@ -274,10 +279,11 @@ const FamilyManager = () => {
             if(!window.confirm("Aucun document PAI n'a été joint. Voulez-vous quand même sauvegarder ?")) return;
         }
         try {
+            const payload = { ...editingChild, classGroup: editingChild.classGroup || null };
             if (editingChild._id) {
-                await api.put(`/children/${editingChild._id}`, editingChild);
+                await api.put(`/children/${editingChild._id}`, payload);
             } else {
-                await api.post(`/children`, { ...editingChild, families: [selectedFamily._id] });
+                await api.post(`/children`, { ...payload, families: [selectedFamily._id] });
             }
             setEditingChild(null);
             loadData();
@@ -390,21 +396,15 @@ const FamilyManager = () => {
         }
     };
 
-    // --- RECHERCHE MULTI-FAMILLES INTELLIGENTE ---
-    // Les VRAIS orphelins (pour la petite alerte rouge en haut)
     const trueOrphans = children.filter(c => !c.families || c.families.length === 0);
-
-    // Les enfants qu'on peut RATTACHER à cette famille (ceux qui n'y sont pas DÉJÀ rattachés)
     const unattachedChildren = selectedFamily 
         ? children.filter(c => !c.families?.some(famId => famId === selectedFamily._id || famId._id === selectedFamily._id))
         : [];
     
-    // Le filtrage pour la barre de rattachement
     const filteredUnattached = searchOrphan.length >= 2 
         ? unattachedChildren.filter(c => c.lastName.toLowerCase().includes(searchOrphan.toLowerCase()) || c.firstName.toLowerCase().includes(searchOrphan.toLowerCase())) 
         : [];
     
-    // Les enfants actuels de la famille
     const attachedChildren = selectedFamily 
         ? children.filter(c => c.families?.some(famId => famId === selectedFamily._id || famId._id === selectedFamily._id)) 
         : [];
@@ -449,7 +449,7 @@ const FamilyManager = () => {
                             <button type="submit" title="Créer un nouveau dossier" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors shrink-0"><Plus size={20}/></button>
                         </form>
 
-                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[800px]">
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[400px]">
                             <div className="p-4 bg-slate-50 border-b border-slate-100 font-black text-slate-400 text-xs tracking-widest uppercase flex justify-between">
                                 <span>{filteredFamilies.length} Dossiers</span>
                                 {searchFamilyText && <span className="text-car-yellow">Filtré</span>}
@@ -469,6 +469,54 @@ const FamilyManager = () => {
                                 })}
                             </div>
                         </div>
+
+                        {selectedFamily && (
+                            <div className="bg-slate-50 rounded-3xl border border-slate-200 overflow-hidden flex flex-col max-h-[500px]">
+                                <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center">
+                                    <h3 className="font-black text-car-dark text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={16}/> Enfants</h3>
+                                </div>
+                                <div className="overflow-y-auto flex-1 p-3 space-y-2">
+                                    {attachedChildren.length > 0 ? attachedChildren.map(c => (
+                                        <div key={c._id} className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
+                                            <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
+                                                <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={16}/></div>
+                                                <span className="font-bold text-car-dark uppercase text-sm group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 rounded-lg transition-colors" title="Modifier"><Pencil size={16}/></button>
+                                                <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 rounded-lg transition-colors" title="Détacher"><X size={16}/></button>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <p className="text-slate-400 font-medium italic text-xs text-center mt-4">Aucun enfant rattaché.</p>
+                                    )}
+                                </div>
+                                <div className="p-3 bg-white border-t border-slate-200">
+                                    {unattachedChildren.length > 0 && (
+                                        <div className="relative mb-2">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Search className="text-slate-400" size={14}/>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rattacher enfant :</label>
+                                            </div>
+                                            <input type="text" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-car-yellow outline-none font-bold text-car-dark text-xs" placeholder="Chercher par prénom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
+                                            {searchOrphan.length >= 2 && (
+                                                <div className="absolute w-full mt-1 bg-white shadow-xl rounded-xl border border-slate-100 max-h-40 overflow-y-auto z-20">
+                                                    {filteredUnattached.map(c => (
+                                                        <div key={c._id} className="p-3 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                            <span className="font-bold text-car-dark uppercase text-xs">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
+                                                            <button onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-sm">+ Lier</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    <button onClick={startAddChild} className="w-full bg-car-purple/10 text-car-purple font-bold p-2.5 rounded-xl hover:bg-car-purple hover:text-white transition-colors text-xs flex justify-center items-center gap-2">
+                                        <Plus size={16}/> Créer un enfant complet
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* COLONNE DE DROITE : DOSSIER SÉLECTIONNÉ */}
@@ -479,7 +527,6 @@ const FamilyManager = () => {
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6 w-full mb-8">
                                     <div className="space-y-2 w-full md:w-auto">
                                         
-                                        {/* TITRE MODIFIABLE */}
                                         <div className="flex items-center gap-3 flex-wrap">
                                             <h2 className="text-3xl font-black text-car-dark uppercase">Famille</h2>
                                             <div className="relative">
@@ -516,10 +563,7 @@ const FamilyManager = () => {
                                     </div>
                                 </div>
 
-                                {/* RETOUR AU CLASSIQUE GRID 2x2: [Enfants | Facturation] en haut, puis [Resp 1 | Resp 2] en bas */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                                    
-                                    {/* BLOC 1 : ENFANTS DU FOYER (À GAUCHE) */}
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col h-full">
                                         <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
                                         
@@ -572,7 +616,6 @@ const FamilyManager = () => {
                                         </div>
                                     </div>
 
-                                    {/* BLOC 2 : FACTURATION (À DROITE) */}
                                     <div className="bg-white border border-slate-200 p-6 rounded-3xl flex flex-col">
                                         <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
                                             <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation & QF</h3>
@@ -619,7 +662,6 @@ const FamilyManager = () => {
                                     </div>
                                 </div>
 
-                                {/* BLOCS RESPONSABLES (EN DESSOUS) */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     <div className="bg-white border border-slate-200 p-6 rounded-3xl">
                                         <h3 className="font-black text-car-blue mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 1</h3>
@@ -716,7 +758,7 @@ const FamilyManager = () => {
 
                         <form onSubmit={saveChild} className="space-y-8">
                             <div>
-                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Identité</h4>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Identité & Scolarité</h4>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                     <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-black uppercase text-car-dark" placeholder="NOM" value={editingChild.lastName} onChange={e => setEditingChild({...editingChild, lastName: e.target.value.toUpperCase()})} required/>
                                     <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-bold text-car-dark capitalize" placeholder="Prénom" value={editingChild.firstName} onChange={e => setEditingChild({...editingChild, firstName: e.target.value})} required/>
@@ -724,8 +766,18 @@ const FamilyManager = () => {
                                         <option value="">Sexe...</option><option value="Féminin">Féminin</option><option value="Masculin">Masculin</option>
                                     </select>
                                     <input type="date" className="col-span-2 sm:col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-medium text-car-dark" value={editingChild.birthDate} onChange={e => setEditingChild({...editingChild, birthDate: e.target.value})} required/>
-                                    <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.category} onChange={e => setEditingChild({...editingChild, category: e.target.value})}>
+                                    
+                                    <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.category} 
+                                        onChange={e => setEditingChild({...editingChild, category: e.target.value, classGroup: ''})}>
                                         <option value="Maternelle">Maternelle</option><option value="Élémentaire">Élémentaire</option>
+                                    </select>
+
+                                    {/* NOUVEAU : SÉLECTEUR DE CLASSE */}
+                                    <select className="col-span-2 sm:col-span-4 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.classGroup} onChange={e => setEditingChild({...editingChild, classGroup: e.target.value})}>
+                                        <option value="">-- Sans classe assignée --</option>
+                                        {classes.filter(c => c.category === editingChild.category).map(cls => (
+                                            <option key={cls._id} value={cls._id}>{cls.name} {cls.teacher ? `(${cls.teacher})` : ''}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
@@ -751,6 +803,102 @@ const FamilyManager = () => {
                                             <input type="date" title="Expiration RC" className="w-1/2 p-2 rounded-lg text-sm border border-slate-200 outline-none" value={editingChild.documents?.assurance?.expiryDate ? editingChild.documents.assurance.expiryDate.split('T')[0] : ''} onChange={e => handleChildDocChange('assurance', 'expiryDate', e.target.value)}/>
                                         </div>
                                         <input type="file" accept=".pdf, image/*" onChange={e => handleChildDocUpload('assurance', e)} className="text-xs text-slate-500 file:rounded-lg file:border-0 file:bg-slate-200 file:px-2 file:py-1 cursor-pointer"/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-3">
+                                    <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase">Personnes Autorisées</h4>
+                                    <div className="flex gap-2">
+                                        {editingChild.family && (
+                                            <button type="button" onClick={handleCopyContacts} className="text-xs font-bold text-car-purple bg-car-purple/10 px-3 py-1.5 rounded-lg flex items-center gap-1"><Copy size={14}/> Copier (Fratrie)</button>
+                                        )}
+                                        <button type="button" onClick={() => setEditingChild({...editingChild, personnesAutorisees: [...editingChild.personnesAutorisees, {firstName:'', lastName:'', phone:'', isEmergency: false}]})} className="text-xs font-bold text-car-blue bg-car-blue/10 px-3 py-1.5 rounded-lg">+ AJOUTER</button>
+                                    </div>
+                                </div>
+                                <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    {editingChild.personnesAutorisees.map((c, i) => (
+                                        <div key={i} className="flex flex-wrap sm:flex-nowrap gap-2 items-center bg-white p-2 rounded-xl shadow-sm border border-slate-200">
+                                            <input className="flex-1 bg-slate-50 border-none p-2 rounded-lg text-sm font-bold uppercase outline-none" placeholder="NOM" value={c.lastName} onChange={e => handleChildContactChange(i, 'lastName', e.target.value.toUpperCase())}/>
+                                            <input className="flex-1 bg-slate-50 border-none p-2 rounded-lg text-sm font-bold capitalize outline-none" placeholder="Prénom" value={c.firstName} onChange={e => handleChildContactChange(i, 'firstName', e.target.value)}/>
+                                            <input className="flex-1 bg-slate-50 border-none p-2 rounded-lg text-sm font-bold outline-none" placeholder="Téléphone" value={c.phone} onChange={e => handleChildContactChange(i, 'phone', e.target.value)}/>
+                                            <label className="flex items-center gap-1 text-[10px] font-bold text-car-pink cursor-pointer px-2">
+                                                <input type="checkbox" className="accent-car-pink" checked={c.isEmergency} onChange={e => handleChildContactChange(i, 'isEmergency', e.target.checked)}/> Urgence
+                                            </label>
+                                            <button type="button" onClick={() => {
+                                                const newArr = editingChild.personnesAutorisees.filter((_, idx) => idx !== i);
+                                                setEditingChild({...editingChild, personnesAutorisees: newArr});
+                                            }} className="text-slate-400 hover:text-car-pink p-2"><X size={16}/></button>
+                                        </div>
+                                    ))}
+                                    {editingChild.personnesAutorisees.length === 0 && <p className="text-xs text-slate-400 italic text-center">Aucune personne autorisée renseignée.</p>}
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Autorisations Mairie</h4>
+                                <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editingChild.droitImage} onChange={e => setEditingChild({...editingChild, droitImage: e.target.checked})} />
+                                        <span className="font-bold text-car-dark">Droit à l'image accordé</span>
+                                    </label>
+                                    {editingChild.category === 'Élémentaire' && (
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <input type="checkbox" className="w-5 h-5 accent-car-blue" checked={editingChild.autorisationSortieSeul} onChange={e => setEditingChild({...editingChild, autorisationSortieSeul: e.target.checked})} />
+                                            <span className="font-bold text-car-blue">Autorisation de quitter l'APS seul (Élémentaire)</span>
+                                        </label>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Santé & Médical</h4>
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.lunettes} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, lunettes: e.target.checked}})} /> Lunettes</label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.appareilAuditif} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, appareilAuditif: e.target.checked}})} /> Appareil Auditif</label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-yellow" checked={editingChild.medical.appareilDentaire} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, appareilDentaire: e.target.checked}})} /> Appareil Dentaire</label>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-dark"><input type="checkbox" className="w-5 h-5 accent-car-green" checked={editingChild.medical.activitesPhysiques} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, activitesPhysiques: e.target.checked}})} /> Apte activités physiques</label>
+                                    </div>
+                                    <div className="flex gap-4 border-t border-slate-200 pt-4">
+                                        <input className="flex-1 bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow text-sm font-medium" placeholder="Nom du médecin traitant" value={editingChild.medical.medecinNom} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, medecinNom: e.target.value}})}/>
+                                        <input className="flex-1 bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-car-yellow text-sm font-medium" placeholder="Téléphone du médecin" value={editingChild.medical.medecinPhone} onChange={e => setEditingChild({...editingChild, medical: {...editingChild.medical, medecinPhone: e.target.value}})}/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">PAI & Cantine</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-car-pink/5 border border-car-pink/20 p-4 rounded-2xl flex flex-col gap-3">
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-pink"><input type="checkbox" className="w-5 h-5 accent-car-pink" checked={editingChild.hasPAI} onChange={e => setEditingChild({...editingChild, hasPAI: e.target.checked})} /> L'enfant a un PAI</label>
+                                        {editingChild.hasPAI && (
+                                            <>
+                                                <input className="bg-white border border-car-pink/30 p-3 rounded-xl outline-none focus:border-car-pink text-sm font-medium" placeholder="Motif du PAI" value={editingChild.paiDetails} onChange={e => setEditingChild({...editingChild, paiDetails: e.target.value})}/>
+                                                <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-pink"><input type="checkbox" className="w-5 h-5 accent-car-pink" checked={editingChild.isPAIAlimentaire} onChange={e => {
+                                                    const isAlim = e.target.checked;
+                                                    setEditingChild({...editingChild, isPAIAlimentaire: isAlim, regimeAlimentaire: isAlim ? 'PAI' : 'Standard'});
+                                                }} /> C'est un PAI Alimentaire</label>
+                                                <div className="mt-2 bg-white p-3 rounded-xl border border-car-pink/30 flex items-center justify-between">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-car-pink uppercase">Joindre le document PAI</span>
+                                                        {editingChild.paiDocument ? (
+                                                            <span className="text-xs font-bold text-car-green flex items-center gap-1 mt-1"><Check size={14}/> Fichier chargé</span>
+                                                        ) : (
+                                                            <span className="text-[10px] text-slate-400 mt-1">Aucun fichier (requis)</span>
+                                                        )}
+                                                    </div>
+                                                    <input type="file" accept=".pdf, image/*" onChange={handleChildFileUpload} className="text-xs w-28 text-slate-400 file:rounded-lg file:border-0 file:bg-slate-100 file:text-[10px] file:font-bold hover:file:bg-slate-200 cursor-pointer"/>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+                                        <label className="text-xs font-bold text-slate-500 block mb-2">Régime Alimentaire</label>
+                                        <select className="w-full bg-white border border-slate-200 p-3 rounded-xl outline-none font-bold text-car-dark" value={editingChild.regimeAlimentaire} onChange={e => setEditingChild({...editingChild, regimeAlimentaire: e.target.value})} disabled={editingChild.isPAIAlimentaire}>
+                                            <option value="Standard">Standard</option><option value="Sans-porc">Sans-porc</option><option value="Végétarien">Végétarien</option><option value="PAI">PAI</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
