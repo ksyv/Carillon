@@ -5,6 +5,7 @@ import { fr } from 'date-fns/locale';
 import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX, Bell, Activity, GraduationCap, Coffee } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
 import api from '../api';
+import { ListChecks } from 'phosphor-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -115,6 +116,15 @@ const Dashboard = () => {
                 <SessionButton title="Midi (Cantine)" icon={Utensils} type="MIDI" colorClass="car-teal" />
                 <SessionButton title="Soir" icon={Moon} type="SOIR" colorClass="car-blue" />
             </div>
+            <button onClick={() => navigate('/pointage-listes')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                <div className="bg-car-purple/10 p-4 rounded-2xl w-fit group-hover:bg-car-purple group-hover:text-white text-car-purple transition-colors">
+                    <ListChecks size={24} strokeWidth={2.5}/>
+                </div>
+                <div>
+                    <h3 className="font-black text-car-dark text-lg">Listes & Groupes</h3>
+                    <p className="text-xs text-slate-500 font-medium mt-1">Pointages informels pour les sorties</p>
+                </div>
+            </button>
         </section>
 
         {(role === 'admin' || role === 'responsable') && (

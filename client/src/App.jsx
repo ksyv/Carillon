@@ -21,6 +21,7 @@ import FamilyPortal from './pages/FamilyPortal';
 import CantineStats from './pages/CantineStats';
 import ClassManager from './pages/ClassManager';
 import AdultManager from './pages/AdultManager';
+import CustomListManager from './pages/CustomListManager';
 
 
 export default function App() {
@@ -51,6 +52,10 @@ export default function App() {
         <Route 
           path="/report" 
           element={auth.token ? <Report /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/pointage-listes" 
+          element={<CustomListManager />} 
         />
         <Route 
           path="/admin/children" 

@@ -21,6 +21,7 @@ const Tariff = require('./models/Tariff');
 const ModificationRequest = require('./models/ModificationRequest');
 const Parent = require('./models/Parent');
 const ClassGroup = require('./models/ClassGroup');
+const CustomList = require('./models/CustomList');
 
 const SettingsSchema = new mongoose.Schema({ key: String, value: String });
 const Settings = mongoose.model('Settings', SettingsSchema);
@@ -1215,6 +1216,63 @@ app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
         console.error("Erreur Advanced Stats:", e);
         res.status(500).send("Erreur lors de la génération des statistiques.");
     }
+});
+
+// --- ROUTES LISTES VOLANTES (SORTIES / GROUPES) ---
+app.get('/api/custom-lists', auth(), async (req, res) => {
+    try {
+        const lists = await CustomList.find().populate('items.child');
+        res.json(lists);
+    } catch (e) { res.status(500).send("Erreur"); }
+});
+
+app.post('/api/custom-lists', auth(['admin']), async (req, res) => {
+    try {
+        const list = new CustomList(req.body);
+        await list.save();
+        res.json(list);
+    } catch (e) { res.status(500).send("Erreur"); }
+});
+
+app.put('/api/custom-lists/:id', auth(['admin']), async (req, res) => {
+    try {
+        const updated = await CustomList.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('items.child');
+        res.json(updated);
+    } catch (e) { res.status(500).send("Erreur"); }
+});
+
+app.delete('/api/custom-lists/:id', auth(['admin']), async (req, res) => {
+    try {
+        await CustomList.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (e) { res.status(500).send("Erreur"); }
+});
+
+app.put('/api/custom-lists/:id/toggle/:childId', auth(), async (req, res) => {
+    try {
+        const list = await CustomList.findById(req.params.id);
+        if (!list) return res.status(404).send('Liste introuvable');
+        
+        const item = list.items.find(i => i.child.toString() === req.params.childId);
+        if (item) item.isChecked = !item.isChecked;
+        
+        await list.save();
+        await list.populate('items.child');
+        res.json(list);
+    } catch (e) { res.status(500).send("Erreur"); }
+});
+
+app.put('/api/custom-lists/:id/reset', auth(), async (req, res) => {
+    try {
+        const list = await CustomList.findById(req.params.id);
+        if (!list) return res.status(404).send('Liste introuvable');
+        
+        list.items.forEach(i => i.isChecked = false);
+        
+        await list.save();
+        await list.populate('items.child');
+        res.json(list);
+    } catch (e) { res.status(500).send("Erreur"); }
 });
 
 app.listen(process.env.PORT || 5000, () => console.log('Server running'));
