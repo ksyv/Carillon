@@ -20,6 +20,7 @@ import AdvancedStats from './pages/AdvancedStats';
 import FamilyPortal from './pages/FamilyPortal';
 import CantineStats from './pages/CantineStats';
 import ClassManager from './pages/ClassManager';
+import AdultManager from './pages/AdultManager';
 
 
 export default function App() {
@@ -98,6 +99,10 @@ export default function App() {
         <Route 
           path="/admin/classes" 
           element={auth.token ? <ClassManager /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/admin/adults" 
+          element={auth.token ? <AdultManager /> : <Navigate to="/" />} 
         />
 
         {/* Filet de sécurité global */}

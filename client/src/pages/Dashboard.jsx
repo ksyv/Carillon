@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX, Bell, Activity, GraduationCap } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX, Bell, Activity, GraduationCap, Coffee } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
 import api from '../api';
 
@@ -194,7 +194,16 @@ const Dashboard = () => {
                                 <p className="text-xs text-slate-500 font-medium mt-1">Gérer les noms de classes et enseignants</p>
                             </div>
                         </button>
-                    </>
+                        <button onClick={() => navigate('/admin/adults')} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                            <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-orange-500 transition-colors">
+                                <Coffee size={24} strokeWidth={2.5}/>
+                            </div>
+                            <div>
+                                <h3 className="font-black text-car-dark text-lg">Repas Adultes</h3>
+                                <p className="text-xs text-slate-500 font-medium mt-1">Pointage cantine facturable (Enseignants & Personnel)</p>
+                            </div>
+                        </button>
+                                            </>
                 )}
             </div>
           </section>

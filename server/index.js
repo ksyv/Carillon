@@ -416,7 +416,7 @@ app.get('/api/stats/caf', auth(['admin']), async (req, res) => {
         const uniqueSupplement = { all: new Set(), under6: new Set(), over6: new Set() };
 
         attendances.forEach(att => {
-            if (!att.child || !att.child.birthDate) return; 
+            if (!att.child || !att.child.birthDate || att.child.category === 'Adulte') return; 
             const sessionDate = new Date(att.date);
             const birthDate = new Date(att.child.birthDate);
             let age = sessionDate.getFullYear() - birthDate.getFullYear();
@@ -560,7 +560,7 @@ app.delete('/api/tariffs/:id', auth(['admin']), async (req, res) => {
     try { await Tariff.findByIdAndDelete(req.params.id); res.json({ success: true }); } catch (err) { res.status(500).send("Erreur"); }
 });
 
-// --- MOTEUR DE CALCUL AVEC DOUBLE SÉCURITÉ & LOGIQUE CANTINE INVERSÉE ---
+// --- MOTEUR DE CALCUL AVEC DOUBLE SÉCURITÉ & LOGIQUE CANTINE INVERSÉE (SAUF ADULTES)---
 app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).send("Dates manquantes");
@@ -613,20 +613,35 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
         children.forEach(child => {
             if (!child.families || child.families.length === 0) return;
             
-            const targetCode = child.regimeAlimentaire === 'PAI' ? 'CA1_PAI' : 'CA1';
-            const label = child.regimeAlimentaire === 'PAI' ? 'Cantine (Tarif PAI)' : 'Cantine (Repas Enfant)';
+            // LOGIQUE ADULTE VS ENFANT
+            let targetCode = child.regimeAlimentaire === 'PAI' ? 'CA1_PAI' : 'CA1';
+            let label = child.regimeAlimentaire === 'PAI' ? 'Cantine (Tarif PAI)' : 'Cantine (Repas Enfant)';
+            
+            if (child.category === 'Adulte') {
+                targetCode = 'REPAS_ADULTE'; // Le code tarif à créer dans ton interface !
+                label = 'Cantine (Repas Enseignant/Personnel)';
+            }
+
             const rule = tariffMap[targetCode]; if (!rule) return;
 
             schoolDays.forEach(date => {
-                const isAbsent = attendances.some(a => a.child.toString() === child._id.toString() && a.date === date && a.sessionType === 'MIDI');
-                if (!isAbsent) {
+                let shouldBill = false;
+
+                if (child.category === 'Adulte') {
+                    // Les adultes sont facturés UNIQUEMENT s'ils sont pointés présents (MIDI_ADULTE)
+                    const isPresent = attendances.some(a => a.child.toString() === child._id.toString() && a.date === date && a.sessionType === 'MIDI_ADULTE');
+                    shouldBill = isPresent;
+                } else {
+                    // Les enfants sont facturés SAUF s'ils sont pointés absents (MIDI)
+                    const isAbsent = attendances.some(a => a.child.toString() === child._id.toString() && a.date === date && a.sessionType === 'MIDI');
+                    shouldBill = !isAbsent;
+                }
+
+                if (shouldBill) {
                     const alt = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(date));
                     
-                    // DÉTERMINATION MULTI-FAMILLES DU DOSSIER REEL FACTURÉ
                     let billedFamilyId = child.families[0].toString();
-                    if (alt && alt.billToFamily) {
-                        billedFamilyId = alt.billToFamily.toString();
-                    }
+                    if (alt && alt.billToFamily) billedFamilyId = alt.billToFamily.toString();
                     
                     const targetFamily = families.find(f => f._id.toString() === billedFamilyId);
                     if (!targetFamily) return;
@@ -649,17 +664,15 @@ app.get('/api/billing/calculate', auth(['admin']), async (req, res) => {
 
         // APS Matin et Soir
         attendances.forEach(att => {
-            if (att.sessionType === 'MIDI' || closedDays.includes(att.date)) return;
+            // On ignore les pointages du midi
+            if (att.sessionType === 'MIDI' || att.sessionType === 'MIDI_ADULTE' || closedDays.includes(att.date)) return;
             const child = children.find(c => c._id.toString() === att.child.toString());
-            if (!child || !child.families || child.families.length === 0) return;
+            // Un adulte ne va pas à la garderie
+            if (!child || child.category === 'Adulte' || !child.families || child.families.length === 0) return;
 
             const alt = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(att.date));
-            
-            // DÉTERMINATION MULTI-FAMILLES DU DOSSIER REEL FACTURÉ
             let billedFamilyId = child.families[0].toString();
-            if (alt && alt.billToFamily) {
-                billedFamilyId = alt.billToFamily.toString();
-            }
+            if (alt && alt.billToFamily) billedFamilyId = alt.billToFamily.toString();
 
             const targetFamily = families.find(f => f._id.toString() === billedFamilyId);
             if (!targetFamily) return;
