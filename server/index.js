@@ -1092,15 +1092,7 @@ app.post('/api/settings/signature', auth(), async (req, res) => {
     await User.findByIdAndUpdate(req.user._id, { signature: req.body.signature }); res.send("Signature personnelle enregistrée");
 });
 
-if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(__dirname, '../client/dist')));
-    app.get(/.*/, (req, res) => res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html')));
-}
 
-app.get('/api/requests/pending-count', auth(['admin', 'responsable']), async (req, res) => {
-    const count = await ModificationRequest.countDocuments({ status: 'PENDING' });
-    res.json({ count });
-});
 
 // --- MODULE STATISTIQUES AVANCÉES (BI & EXPORT) ---
 app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
@@ -1273,6 +1265,16 @@ app.put('/api/custom-lists/:id/reset', auth(), async (req, res) => {
         await list.populate('items.child');
         res.json(list);
     } catch (e) { res.status(500).send("Erreur"); }
+});
+
+if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.join(__dirname, '../client/dist')));
+    app.get(/.*/, (req, res) => res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html')));
+}
+
+app.get('/api/requests/pending-count', auth(['admin', 'responsable']), async (req, res) => {
+    const count = await ModificationRequest.countDocuments({ status: 'PENDING' });
+    res.json({ count });
 });
 
 app.listen(process.env.PORT || 5000, () => console.log('Server running'));
