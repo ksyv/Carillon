@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Filter, Download, Activity, Users, Utensils, Calendar, Table, LayoutDashboard, FileSpreadsheet } from 'lucide-react';
+import { BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon, Filter, Activity, Calendar, Table, LayoutDashboard, FileSpreadsheet, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
@@ -34,6 +34,9 @@ const AdvancedStats = () => {
     const [chartType, setChartType] = useState('bar'); 
     const [chartMetric, setChartMetric] = useState('byDay'); 
 
+    // --- CONFIGURATION DU TRI DU TABLEAU ---
+    const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
+
     useEffect(() => {
         loadData();
     }, [startDate, endDate, filters]);
@@ -61,9 +64,9 @@ const AdvancedStats = () => {
         });
     };
 
-    // Fonction utilitaire pour calculer l'âge au moment de la session
-    const calculateAge = (birthDateStr, sessionDateStr) => {
-        if (!birthDateStr) return 'N/A';
+    // Calcul de l'âge mathématique (renvoie un nombre pour le tri)
+    const getAgeNum = (birthDateStr, sessionDateStr) => {
+        if (!birthDateStr) return -1;
         const birthDate = new Date(birthDateStr);
         const sessionDate = new Date(sessionDateStr);
         let age = sessionDate.getFullYear() - birthDate.getFullYear();
@@ -74,9 +77,57 @@ const AdvancedStats = () => {
         return age;
     };
 
-    // --- EXPORT CSV ULTRA COMPLET ---
+    // --- GESTION DU TRI DYNAMIQUE ---
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedRawDetails = useMemo(() => {
+        if (!data || !data.rawDetails) return [];
+        let sortableItems = [...data.rawDetails];
+        
+        sortableItems.sort((a, b) => {
+            let aValue = a[sortConfig.key];
+            let bValue = b[sortConfig.key];
+
+            // Attributs spéciaux pour le tri
+            if (sortConfig.key === 'childName') {
+                aValue = `${a.lastName} ${a.firstName}`;
+                bValue = `${b.lastName} ${b.firstName}`;
+            } else if (sortConfig.key === 'age') {
+                aValue = getAgeNum(a.birthDate, a.date);
+                bValue = getAgeNum(b.birthDate, b.date);
+            } else if (sortConfig.key === 'hasPAI') {
+                aValue = a.hasPAI ? 1 : 0;
+                bValue = b.hasPAI ? 1 : 0;
+            }
+
+            // Gestion des valeurs nulles/vides
+            if (aValue === undefined || aValue === null) aValue = '';
+            if (bValue === undefined || bValue === null) bValue = '';
+
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+        
+        return sortableItems;
+    }, [data, sortConfig]);
+
+    const SortIcon = ({ columnKey }) => {
+        if (sortConfig.key !== columnKey) return <ArrowUpDown size={14} className="inline ml-1 opacity-30 group-hover:opacity-100 transition-opacity" />;
+        return sortConfig.direction === 'asc' 
+            ? <ChevronUp size={14} className="inline ml-1 text-car-blue" /> 
+            : <ChevronDown size={14} className="inline ml-1 text-car-blue" />;
+    };
+
+    // --- EXPORT CSV (Basé sur le tableau TRIÉ) ---
     const exportCSV = () => {
-        if (!data || !data.rawDetails || data.rawDetails.length === 0) return alert("Aucune donnée à exporter.");
+        if (!sortedRawDetails || sortedRawDetails.length === 0) return alert("Aucune donnée à exporter.");
         
         const headers = [
             "Date de Présence", "Activité", "Enfant", "Âge (révolu)", "Classe", "Dossier Famille", 
@@ -84,11 +135,11 @@ const AdvancedStats = () => {
             "Autorisation Sortie Seul", "Porte des lunettes"
         ];
         
-        const rows = data.rawDetails.map(row => [
+        const rows = sortedRawDetails.map(row => [
             new Date(row.date).toLocaleDateString('fr-FR'),
             row.sessionType,
             `${row.lastName} ${row.firstName}`,
-            calculateAge(row.birthDate, row.date),
+            getAgeNum(row.birthDate, row.date) !== -1 ? `${getAgeNum(row.birthDate, row.date)} ans` : 'N/A',
             row.category || 'N/A',
             row.familyName || 'Sans dossier',
             row.qf || 0,
@@ -103,10 +154,11 @@ const AdvancedStats = () => {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `Export_Complet_Carillon_${startDate}_au_${endDate}.csv`;
+        link.download = `Export_Trié_Carillon_${startDate}_au_${endDate}.csv`;
         link.click();
     };
 
+    // Formatage des données pour Recharts
     const getChartData = () => {
         if (!data || !data[chartMetric]) return [];
         return data[chartMetric].map(item => ({
@@ -117,16 +169,16 @@ const AdvancedStats = () => {
 
     const renderChart = () => {
         const chartData = getChartData();
-        if (chartData.length === 0) return <div className="flex h-full items-center justify-center text-slate-400 font-bold">Aucune donnée à afficher</div>;
+        if (chartData.length === 0) return <div className="flex h-[400px] items-center justify-center text-slate-400 font-bold">Aucune donnée à afficher sur le graphique</div>;
 
         if (chartType === 'pie') {
             return (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={400}>
                     <PieChart>
-                        <Pie data={chartData} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="Valeur">
+                        <Pie data={chartData} cx="50%" cy="50%" innerRadius={80} outerRadius={130} paddingAngle={5} dataKey="Valeur">
                             {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip contentStyle={{borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
                         <Legend />
                     </PieChart>
                 </ResponsiveContainer>
@@ -134,7 +186,7 @@ const AdvancedStats = () => {
         }
 
         return (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={400}>
                 {chartType === 'bar' ? (
                     <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -185,7 +237,7 @@ const AdvancedStats = () => {
 
             <div className="flex flex-col lg:flex-row gap-6 flex-1 h-[800px]">
                 
-                {/* --- PANNEAU LATÉRAL DES FILTRES (SCROLLABLE) --- */}
+                {/* --- PANNEAU LATÉRAL DES FILTRES --- */}
                 <div className="w-full lg:w-80 bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 h-full overflow-y-auto shrink-0 space-y-6 custom-scrollbar">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-4 sticky top-0 bg-white z-10">
                         <div className="flex items-center gap-2">
@@ -299,7 +351,7 @@ const AdvancedStats = () => {
                                 <FileSpreadsheet size={32} className="group-hover:scale-110 transition-transform" />
                                 <div className="text-left">
                                     <h3 className="font-black text-xl uppercase tracking-widest">Exporter la sélection</h3>
-                                    <p className="text-xs font-bold opacity-80">Télécharger {totalActs} lignes de détail en CSV (Excel)</p>
+                                    <p className="text-xs font-bold opacity-80">Télécharger {totalActs} lignes triées en CSV (Excel)</p>
                                 </div>
                             </button>
                         )}
@@ -316,7 +368,7 @@ const AdvancedStats = () => {
 
                     {/* VUE GRAPHIQUE */}
                     {viewMode === 'chart' && (
-                        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 flex-1 flex flex-col min-h-0">
+                        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 flex-1 flex flex-col min-h-[500px]">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 shrink-0">
                                 <div className="flex flex-wrap bg-slate-50 p-1 rounded-xl">
                                     <button onClick={() => setChartMetric('byDay')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMetric === 'byDay' ? 'bg-white shadow-sm text-car-dark' : 'text-slate-400'}`}>Par Jour</button>
@@ -332,7 +384,7 @@ const AdvancedStats = () => {
                                 </div>
                             </div>
 
-                            <div className="flex-1 w-full relative min-h-0">
+                            <div className="flex-1 w-full relative">
                                 {renderChart()}
                             </div>
                         </div>
@@ -343,33 +395,49 @@ const AdvancedStats = () => {
                         <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 flex-1 overflow-hidden flex flex-col min-h-0">
                             <div className="p-6 border-b border-slate-100 shrink-0 flex justify-between items-center">
                                 <h3 className="font-black text-car-dark text-lg">Aperçu des données brutes</h3>
-                                <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">Affiche les {data?.rawDetails?.length || 0} résultats</span>
+                                <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">Affiche les {sortedRawDetails.length} résultats</span>
                             </div>
                             <div className="flex-1 overflow-auto w-full custom-scrollbar">
                                 <table className="w-full text-left border-collapse min-w-[1000px]">
                                     <thead className="sticky top-0 bg-slate-50 shadow-sm z-10">
-                                        <tr className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">
-                                            <th className="p-4 border-b border-slate-200 whitespace-nowrap">Date</th>
-                                            <th className="p-4 border-b border-slate-200">Activité</th>
-                                            <th className="p-4 border-b border-slate-200">Enfant</th>
-                                            <th className="p-4 border-b border-slate-200">Âge</th>
-                                            <th className="p-4 border-b border-slate-200">Classe</th>
-                                            <th className="p-4 border-b border-slate-200 text-center">QF</th>
-                                            <th className="p-4 border-b border-slate-200 text-center">Régime</th>
-                                            <th className="p-4 border-b border-slate-200 text-center">Particularités</th>
+                                        <tr className="text-slate-500 font-bold uppercase text-[10px] tracking-wider select-none">
+                                            <th onClick={() => requestSort('date')} className="p-4 border-b border-slate-200 whitespace-nowrap cursor-pointer hover:bg-slate-200 transition-colors group">
+                                                Date <SortIcon columnKey="date" />
+                                            </th>
+                                            <th onClick={() => requestSort('sessionType')} className="p-4 border-b border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors group">
+                                                Activité <SortIcon columnKey="sessionType" />
+                                            </th>
+                                            <th onClick={() => requestSort('childName')} className="p-4 border-b border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors group">
+                                                Enfant <SortIcon columnKey="childName" />
+                                            </th>
+                                            <th onClick={() => requestSort('age')} className="p-4 border-b border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors group">
+                                                Âge <SortIcon columnKey="age" />
+                                            </th>
+                                            <th onClick={() => requestSort('category')} className="p-4 border-b border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors group">
+                                                Classe <SortIcon columnKey="category" />
+                                            </th>
+                                            <th onClick={() => requestSort('qf')} className="p-4 border-b border-slate-200 text-center cursor-pointer hover:bg-slate-200 transition-colors group">
+                                                QF <SortIcon columnKey="qf" />
+                                            </th>
+                                            <th onClick={() => requestSort('regimeAlimentaire')} className="p-4 border-b border-slate-200 text-center cursor-pointer hover:bg-slate-200 transition-colors group">
+                                                Régime <SortIcon columnKey="regimeAlimentaire" />
+                                            </th>
+                                            <th onClick={() => requestSort('hasPAI')} className="p-4 border-b border-slate-200 text-center cursor-pointer hover:bg-slate-200 transition-colors group">
+                                                Particularités <SortIcon columnKey="hasPAI" />
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {data?.rawDetails && data.rawDetails.length > 0 ? data.rawDetails.map((row) => (
+                                        {sortedRawDetails.length > 0 ? sortedRawDetails.map((row) => (
                                             <tr key={row._id} className="hover:bg-slate-50 border-b border-slate-100 transition-colors">
                                                 <td className="p-4 font-bold text-car-dark text-xs whitespace-nowrap">{new Date(row.date).toLocaleDateString('fr-FR')}</td>
                                                 <td className="p-4 text-xs font-black text-car-blue">{row.sessionType}</td>
                                                 <td className="p-4 text-sm font-black text-car-dark uppercase">{row.lastName} <span className="capitalize font-medium text-slate-500">{row.firstName}</span></td>
-                                                <td className="p-4 text-xs font-bold text-slate-600">{calculateAge(row.birthDate, row.date)} ans</td>
+                                                <td className="p-4 text-xs font-bold text-slate-600">{getAgeNum(row.birthDate, row.date) !== -1 ? `${getAgeNum(row.birthDate, row.date)} ans` : '-'}</td>
                                                 <td className="p-4 text-xs font-bold text-slate-600">{row.category || '-'}</td>
                                                 <td className="p-4 text-center text-xs font-black text-car-dark">{row.qf || 0}</td>
                                                 <td className="p-4 text-center text-[10px] font-bold text-slate-500">{row.regimeAlimentaire}</td>
-                                                <td className="p-4 flex gap-1 justify-center flex-wrap max-w-[150px]">
+                                                <td className="p-4 flex gap-1 justify-center flex-wrap max-w-[150px] min-h-[40px]">
                                                     {row.hasPAI && <span className="bg-car-pink/10 text-car-pink px-2 py-0.5 rounded text-[9px] font-black">PAI</span>}
                                                     {row.medical?.lunettes && <span className="bg-car-yellow/10 text-car-yellow px-2 py-0.5 rounded text-[9px] font-black">LUNETTES</span>}
                                                     {row.autorisationSortieSeul && <span className="bg-car-teal/10 text-car-teal px-2 py-0.5 rounded text-[9px] font-black">SORTIE SEUL</span>}
@@ -386,6 +454,7 @@ const AdvancedStats = () => {
                             </div>
                         </div>
                     )}
+
                 </div>
             </div>
         </div>
