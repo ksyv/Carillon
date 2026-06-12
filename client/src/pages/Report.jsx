@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { FileText, Download, CheckCircle, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { FileText, Download, CheckCircle, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -15,12 +15,18 @@ const Report = () => {
     const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [reportData, setReportData] = useState({ children: [], attendances: [] });
     const [activeTab, setActiveTab] = useState('PERISCO');
+    
+    // NOUVEAU : On stocke les classes pour le filtre
+    const [classes, setClasses] = useState([]);
 
-    // Filtres cumulatifs (Checkboxes)
+    // Filtres cumulatifs (Checkboxes & Select)
     const [categories, setCategories] = useState({
         Maternelle: access === 'Tous' || access === 'Maternelle',
         Élémentaire: access === 'Tous' || access === 'Élémentaire'
     });
+    
+    // NOUVEAU : Filtre par classe
+    const [selectedClassId, setSelectedClassId] = useState('');
 
     const [regimes, setRegimes] = useState({
         'Sans-porc': true,
@@ -32,7 +38,10 @@ const Report = () => {
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
     // --- CHARGEMENT ---
-    useEffect(() => { loadReport(); }, [startDate, endDate]);
+    useEffect(() => { 
+        loadReport();
+        loadClasses();
+    }, [startDate, endDate]);
     
     const loadReport = () => {
         api.get(`/report?startDate=${startDate}&endDate=${endDate}`).then(res => {
@@ -41,9 +50,23 @@ const Report = () => {
         });
     };
 
+    const loadClasses = () => {
+        api.get('/classes').then(res => {
+            setClasses(res.data);
+        }).catch(err => console.error(err));
+    };
+
+    // --- SUPPRESSION DE POINTAGES ---
     const handleRemoveLate = async (id) => {
-        if(window.confirm("Supprimer le supplément ?")) {
+        if(window.confirm("Supprimer le supplément retard (19h) pour cet enfant ?")) {
             await api.put(`/attendance/remove-late/${id}`);
+            loadReport();
+        }
+    };
+
+    const handleDeleteAttendance = async (id, type) => {
+        if(window.confirm(`Voulez-vous annuler complètement le pointage du ${type} pour cet enfant ?`)) {
+            await api.delete(`/attendance/${id}`);
             loadReport();
         }
     };
@@ -62,11 +85,19 @@ const Report = () => {
         const isAttendanceTab = activeTab === 'PERISCO' || activeTab === 'CANTINE';
         let list = isAttendanceTab ? [...reportData.attendances] : [...reportData.children];
 
-        // 1. Filtre par Catégorie (Cumulatif)
+        // 1. Filtre par Catégorie (Maternelle/Élémentaire)
         list = list.filter(r => {
             const cat = r.child.category || 'Maternelle';
             return categories[cat];
         });
+        
+        // NOUVEAU : Filtre par Classe
+        if (selectedClassId !== '') {
+            list = list.filter(r => {
+                const childClassId = r.child.classGroup?._id || r.child.classGroup;
+                return childClassId === selectedClassId;
+            });
+        }
 
         // 2. Filtres par onglet
         if (activeTab === 'PERISCO') list = list.filter(r => r.matin || r.soir || r.checkOut);
@@ -75,8 +106,8 @@ const Report = () => {
         if (activeTab === 'REGIMES') {
             list = list.filter(r => {
                 const reg = r.child.regimeAlimentaire;
-                if (reg === 'Standard') return false; // On exclut les standards
-                return regimes[reg]; // Vrai si la case du régime est cochée
+                if (reg === 'Standard') return false; 
+                return regimes[reg]; 
             });
         }
         if (activeTab === 'SORTIE_SEUL') list = list.filter(r => r.child.autorisationSortieSeul);
@@ -97,6 +128,9 @@ const Report = () => {
                 valB = nameB;
             } else if (sortConfig.key === 'category') {
                 valA = a.child.category || ''; valB = b.child.category || '';
+            } else if (sortConfig.key === 'class') {
+                // Tri par classe
+                valA = a.child.classGroup?.name || ''; valB = b.child.classGroup?.name || '';
             } else if (sortConfig.key === 'regime') {
                 valA = a.child.regimeAlimentaire || ''; valB = b.child.regimeAlimentaire || '';
             } else if (sortConfig.key === 'pai') {
@@ -109,7 +143,7 @@ const Report = () => {
             
             return nameA.localeCompare(nameB);
         });
-    }, [reportData, activeTab, categories, regimes, sortConfig]);
+    }, [reportData, activeTab, categories, regimes, sortConfig, selectedClassId]);
 
     // --- EXPORT PDF ---
     const exportPDF = () => {
@@ -125,38 +159,75 @@ const Report = () => {
 
         if (activeTab === 'PERISCO') {
             title = `Rapport Périscolaire - ${periodStr}`;
-            tableColumn = ["Date", "Nom", "Prénom", "Facture", "Matin", "Soir", "19h"];
-            tableRows = displayData.map(row => [new Date(row.date).toLocaleDateString('fr-FR'), row.child.lastName, row.child.firstName, row.billTo || '-', row.matin ? 'OUI' : '-', (row.checkOut || row.soir) ? 'OUI' : '-', row.isLate ? 'OUI' : '-']);
-            footData = [["TOTAL", "", "", "", displayData.filter(r=>r.matin).length.toString(), displayData.filter(r=>r.soir||r.checkOut).length.toString(), displayData.filter(r=>r.isLate).length.toString()]];
+            tableColumn = ["Date", "Nom", "Prénom", "Classe", "Facture", "Matin", "Soir", "19h"];
+            tableRows = displayData.map(row => [
+                new Date(row.date).toLocaleDateString('fr-FR'), 
+                row.child.lastName, 
+                row.child.firstName, 
+                row.child.classGroup?.name || '-',
+                row.billTo || '-', 
+                row.matin ? 'OUI' : '-', 
+                (row.checkOut || row.soir) ? 'OUI' : '-', 
+                row.isLate ? 'OUI' : '-'
+            ]);
+            footData = [["TOTAL", "", "", "", "", displayData.filter(r=>r.matin).length.toString(), displayData.filter(r=>r.soir||r.checkOut).length.toString(), displayData.filter(r=>r.isLate).length.toString()]];
         } 
         else if (activeTab === 'CANTINE') {
             title = `Rapport ABSENTS Cantine - ${periodStr}`;
-            tableColumn = ["Date", "Nom", "Prénom", "Catégorie", "Régime", "PAI"];
-            tableRows = displayData.map(row => [new Date(row.date).toLocaleDateString('fr-FR'), row.child.lastName, row.child.firstName, row.child.category, row.child.regimeAlimentaire, row.child.isPAIAlimentaire ? 'OUI' : '-']);
+            tableColumn = ["Date", "Nom", "Prénom", "Classe", "Régime", "PAI"];
+            tableRows = displayData.map(row => [
+                new Date(row.date).toLocaleDateString('fr-FR'), 
+                row.child.lastName, 
+                row.child.firstName, 
+                row.child.classGroup?.name || row.child.category, 
+                row.child.regimeAlimentaire, 
+                row.child.isPAIAlimentaire ? 'OUI' : '-'
+            ]);
             footData = [["TOTAL ABSENTS", displayData.length.toString(), "", "", "", ""]];
         }
         else if (activeTab === 'PAI') {
             title = `Liste Globale des PAI`;
-            tableColumn = ["Nom", "Prénom", "Catégorie", "Type PAI", "Détails"];
-            tableRows = displayData.map(row => [row.child.lastName, row.child.firstName, row.child.category, row.child.isPAIAlimentaire ? 'Alimentaire' : 'Médical', row.child.paiDetails]);
+            tableColumn = ["Nom", "Prénom", "Classe", "Type PAI", "Détails"];
+            tableRows = displayData.map(row => [
+                row.child.lastName, 
+                row.child.firstName, 
+                row.child.classGroup?.name || row.child.category, 
+                row.child.isPAIAlimentaire ? 'Alimentaire' : 'Médical', 
+                row.child.paiDetails
+            ]);
             footData = [["TOTAL ENFANTS PAI", displayData.length.toString(), "", "", ""]];
         }
         else if (activeTab === 'REGIMES') {
             title = `Régimes Alimentaires Spéciaux`;
-            tableColumn = ["Nom", "Prénom", "Catégorie", "Régime"];
-            tableRows = displayData.map(row => [row.child.lastName, row.child.firstName, row.child.category, row.child.regimeAlimentaire]);
+            tableColumn = ["Nom", "Prénom", "Classe", "Régime"];
+            tableRows = displayData.map(row => [
+                row.child.lastName, 
+                row.child.firstName, 
+                row.child.classGroup?.name || row.child.category, 
+                row.child.regimeAlimentaire
+            ]);
             footData = [["TOTAL RÉGIMES SÉLECTIONNÉS", displayData.length.toString(), "", ""]];
         }
         else if (activeTab === 'SORTIE_SEUL') {
             title = `Enfants autorisés à partir seuls`;
-            tableColumn = ["Nom", "Prénom", "Catégorie", "Statut"];
-            tableRows = displayData.map(row => [row.child.lastName, row.child.firstName, row.child.category, 'Autorisé']);
+            tableColumn = ["Nom", "Prénom", "Classe", "Statut"];
+            tableRows = displayData.map(row => [
+                row.child.lastName, 
+                row.child.firstName, 
+                row.child.classGroup?.name || row.child.category, 
+                'Autorisé'
+            ]);
             footData = [["TOTAL AUTORISÉS", displayData.length.toString(), "", ""]];
         }
         else if (activeTab === 'SANS_IMAGE') {
             title = `Enfants SANS droit à l'image`;
-            tableColumn = ["Nom", "Prénom", "Catégorie", "Statut"];
-            tableRows = displayData.map(row => [row.child.lastName, row.child.firstName, row.child.category, 'Refusé']);
+            tableColumn = ["Nom", "Prénom", "Classe", "Statut"];
+            tableRows = displayData.map(row => [
+                row.child.lastName, 
+                row.child.firstName, 
+                row.child.classGroup?.name || row.child.category, 
+                'Refusé'
+            ]);
             footData = [["TOTAL REFUSÉS", displayData.length.toString(), "", ""]];
         }
         
@@ -209,7 +280,7 @@ const Report = () => {
                 </div>
 
                 {/* ZONE DE FILTRES CUMULATIFS */}
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 mb-6">
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row flex-wrap gap-6 mb-6">
                     
                     {(activeTab === 'PERISCO' || activeTab === 'CANTINE') && (
                         <div className="flex flex-col gap-2 border-r border-slate-100 pr-6">
@@ -222,7 +293,7 @@ const Report = () => {
                         </div>
                     )}
                     
-                    <div className={`flex flex-col gap-2 ${activeTab === 'REGIMES' ? 'border-r border-slate-100 pr-6' : ''}`}>
+                    <div className="flex flex-col gap-2 border-r border-slate-100 pr-6">
                         <span className="text-[10px] font-bold text-slate-400 uppercase">Catégories (Cumulables) :</span>
                         <div className="flex gap-2">
                             <label className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 select-none transition-all ${categories.Maternelle ? 'bg-car-yellow border-car-yellow text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
@@ -234,6 +305,21 @@ const Report = () => {
                                 <span className="font-black text-sm">Élémentaire</span>
                             </label>
                         </div>
+                    </div>
+
+                    {/* NOUVEAU : FILTRE PAR CLASSE */}
+                    <div className={`flex flex-col gap-2 ${activeTab === 'REGIMES' ? 'border-r border-slate-100 pr-6' : ''}`}>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Filtrer par Classe :</span>
+                        <select 
+                            className="bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-bold text-car-dark text-sm h-full"
+                            value={selectedClassId}
+                            onChange={e => setSelectedClassId(e.target.value)}
+                        >
+                            <option value="">Toutes les classes</option>
+                            {classes.filter(c => (categories.Maternelle && c.category === 'Maternelle') || (categories.Élémentaire && c.category === 'Élémentaire')).map(cls => (
+                                <option key={cls._id} value={cls._id}>{cls.name}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {activeTab === 'REGIMES' && (
@@ -261,6 +347,8 @@ const Report = () => {
                                 )}
                                 <SortHeader label="Enfant (Nom Prénom)" sortKey="name" />
                                 
+                                <SortHeader label="Classe" sortKey="class" />
+
                                 {activeTab === 'PERISCO' && (
                                     <>
                                         <th className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">Facturation</th>
@@ -272,15 +360,14 @@ const Report = () => {
 
                                 {activeTab === 'CANTINE' && (
                                     <>
-                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
                                         <SortHeader label="Régime" sortKey="regime" className="text-center" />
                                         <SortHeader label="PAI Alim." sortKey="pai" className="text-center" />
+                                        <th className="p-5 border-b border-slate-100 text-center">Action</th>
                                     </>
                                 )}
 
                                 {activeTab === 'PAI' && (
                                     <>
-                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
                                         <th className="p-5 border-b border-slate-100">Détails du PAI</th>
                                         <SortHeader label="Alimentaire" sortKey="pai" className="text-center" />
                                     </>
@@ -288,21 +375,18 @@ const Report = () => {
 
                                 {activeTab === 'REGIMES' && (
                                     <>
-                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
                                         <SortHeader label="Régime Strict" sortKey="regime" />
                                     </>
                                 )}
 
                                 {activeTab === 'SORTIE_SEUL' && (
                                     <>
-                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
                                         <th className="p-5 border-b border-slate-100 text-center">Autorisation</th>
                                     </>
                                 )}
                                 
                                 {activeTab === 'SANS_IMAGE' && (
                                     <>
-                                        <SortHeader label="Catégorie" sortKey="category" className="text-center" />
                                         <th className="p-5 border-b border-slate-100 text-center">Droit à l'image</th>
                                     </>
                                 )}
@@ -321,27 +405,54 @@ const Report = () => {
                                     <td className="p-5 border-b border-slate-100">
                                         <span className="font-black text-car-dark">{c.lastName}</span> <span className="font-medium text-slate-500">{c.firstName}</span>
                                     </td>
+
+                                    {/* NOUVEAU : Affichage de la Classe */}
+                                    <td className="p-5 border-b border-slate-100">
+                                        <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">
+                                            {c.classGroup?.name || c.category}
+                                        </span>
+                                    </td>
                                     
                                     {activeTab === 'PERISCO' && (
                                         <>
                                             <td className="p-5 border-b border-slate-100 text-center hidden sm:table-cell">{row.billTo ? <span className="bg-car-blue/10 text-car-blue font-bold px-2 py-1 rounded-md text-xs uppercase tracking-widest">{row.billTo}</span> : <span className="text-slate-300">-</span>}</td>
-                                            <td className="p-5 border-b border-slate-100 text-center">{row.matin ? <CheckCircle className="text-car-yellow mx-auto" size={24}/> : <span className="text-slate-300 font-bold">-</span>}</td>
-                                            <td className="p-5 border-b border-slate-100 text-center">{(row.checkOut || row.soir) ? <CheckCircle className="text-car-blue mx-auto" size={24}/> : <span className="text-slate-300 font-bold">-</span>}</td>
-                                            <td className="p-5 border-b border-slate-100 text-center">{row.isLate ? <button onClick={() => handleRemoveLate(row.pmId)} className="text-xs font-bold text-white bg-car-pink px-3 py-1 rounded-lg hover:bg-red-600 transition-colors"> +19h (Annuler)</button> : <span className="text-slate-300 font-bold">-</span>}</td>
+                                            
+                                            <td className="p-5 border-b border-slate-100 text-center">
+                                                {row.matin ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <CheckCircle className="text-car-yellow" size={24}/>
+                                                        <button onClick={() => handleDeleteAttendance(row.matinId, 'Matin')} className="opacity-0 group-hover:opacity-100 text-[10px] text-slate-400 hover:text-car-pink transition-all flex items-center gap-1"><Trash2 size={10}/> Annuler</button>
+                                                    </div>
+                                                ) : <span className="text-slate-300 font-bold">-</span>}
+                                            </td>
+                                            
+                                            <td className="p-5 border-b border-slate-100 text-center">
+                                                {(row.checkOut || row.soir) ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <CheckCircle className="text-car-blue" size={24}/>
+                                                        <button onClick={() => handleDeleteAttendance(row.pmId, 'Soir')} className="opacity-0 group-hover:opacity-100 text-[10px] text-slate-400 hover:text-car-pink transition-all flex items-center gap-1"><Trash2 size={10}/> Annuler</button>
+                                                    </div>
+                                                ) : <span className="text-slate-300 font-bold">-</span>}
+                                            </td>
+                                            
+                                            <td className="p-5 border-b border-slate-100 text-center">
+                                                {row.isLate ? <button onClick={() => handleRemoveLate(row.pmId)} className="text-[10px] font-bold text-white bg-car-pink px-2 py-1 rounded hover:bg-red-600 transition-colors"> +19h (Annuler)</button> : <span className="text-slate-300 font-bold">-</span>}
+                                            </td>
                                         </>
                                     )}
 
                                     {activeTab === 'CANTINE' && (
                                         <>
-                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
                                             <td className="p-5 border-b border-slate-100 text-center"><span className="text-sm font-bold text-car-dark">{c.regimeAlimentaire}</span></td>
                                             <td className="p-5 border-b border-slate-100 text-center">{c.isPAIAlimentaire ? <AlertTriangle className="text-car-pink mx-auto" size={20}/> : <span className="text-slate-300">-</span>}</td>
+                                            <td className="p-5 border-b border-slate-100 text-center">
+                                                <button onClick={() => handleDeleteAttendance(row.midiId, 'Midi (Absence)')} className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-car-pink transition-all flex items-center justify-center gap-1 mx-auto"><Trash2 size={16}/></button>
+                                            </td>
                                         </>
                                     )}
 
                                     {activeTab === 'PAI' && (
                                         <>
-                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
                                             <td className="p-5 border-b border-slate-100 text-sm font-medium text-car-dark">{c.paiDetails}</td>
                                             <td className="p-5 border-b border-slate-100 text-center">{c.isPAIAlimentaire ? <span className="bg-car-pink text-white text-xs font-bold px-2 py-1 rounded-md">OUI</span> : <span className="text-slate-300">-</span>}</td>
                                         </>
@@ -349,28 +460,25 @@ const Report = () => {
 
                                     {activeTab === 'REGIMES' && (
                                         <>
-                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
                                             <td className="p-5 border-b border-slate-100"><span className="text-sm font-bold text-car-yellow bg-car-yellow/10 px-3 py-1 rounded-lg">{c.regimeAlimentaire}</span></td>
                                         </>
                                     )}
 
                                     {activeTab === 'SORTIE_SEUL' && (
                                         <>
-                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
                                             <td className="p-5 border-b border-slate-100 text-center"><span className="bg-car-blue/10 text-car-blue text-xs font-bold px-3 py-1 rounded-lg">AUTORISÉ À SORTIR SEUL</span></td>
                                         </>
                                     )}
 
                                     {activeTab === 'SANS_IMAGE' && (
                                         <>
-                                            <td className="p-5 border-b border-slate-100 text-center"><span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{c.category}</span></td>
                                             <td className="p-5 border-b border-slate-100 text-center"><span className="bg-car-pink/10 text-car-pink text-xs font-bold px-3 py-1 rounded-lg">SANS DROIT À L'IMAGE</span></td>
                                         </>
                                     )}
                                 </tr>
                             )})}
                             {displayData.length === 0 && (
-                                <tr><td colSpan="7" className="p-8 text-center text-slate-400 font-bold">Aucune donnée trouvée pour cette sélection.</td></tr>
+                                <tr><td colSpan="8" className="p-8 text-center text-slate-400 font-bold">Aucune donnée trouvée pour cette sélection.</td></tr>
                             )}
                         </tbody>
                         
@@ -379,7 +487,7 @@ const Report = () => {
                             <tfoot className="bg-slate-100/80 border-t-2 border-slate-200">
                                 {activeTab === 'PERISCO' && (
                                     <tr>
-                                        <td colSpan="3" className="p-5 font-black text-car-dark text-right sm:table-cell hidden">TOTAL PRÉSENCES</td>
+                                        <td colSpan="4" className="p-5 font-black text-car-dark text-right sm:table-cell hidden">TOTAL PRÉSENCES</td>
                                         <td colSpan="2" className="p-5 font-black text-car-dark text-right sm:hidden">TOTAL</td>
                                         <td className="p-5 font-black text-car-dark text-center text-lg">{displayData.filter(r=>r.matin).length}</td>
                                         <td className="p-5 font-black text-car-dark text-center text-lg">{displayData.filter(r=>r.soir||r.checkOut).length}</td>
@@ -388,32 +496,32 @@ const Report = () => {
                                 )}
                                 {activeTab === 'CANTINE' && (
                                     <tr>
-                                        <td colSpan="4" className="p-5 font-black text-car-teal text-right">TOTAL ABSENTS CANTINE :</td>
+                                        <td colSpan="5" className="p-5 font-black text-car-teal text-right">TOTAL ABSENTS CANTINE :</td>
                                         <td colSpan="2" className="p-5 font-black text-car-teal text-left text-xl">{displayData.length}</td>
                                     </tr>
                                 )}
                                 {activeTab === 'PAI' && (
                                     <tr>
-                                        <td colSpan="2" className="p-5 font-black text-car-pink text-right">TOTAL ENFANTS PAI :</td>
-                                        <td colSpan="3" className="p-5 font-black text-car-pink text-left text-xl">{displayData.length}</td>
+                                        <td colSpan="3" className="p-5 font-black text-car-pink text-right">TOTAL ENFANTS PAI :</td>
+                                        <td colSpan="2" className="p-5 font-black text-car-pink text-left text-xl">{displayData.length}</td>
                                     </tr>
                                 )}
                                 {activeTab === 'REGIMES' && (
                                     <tr>
-                                        <td colSpan="2" className="p-5 font-black text-car-yellow text-right">TOTAL RÉGIMES :</td>
-                                        <td colSpan="2" className="p-5 font-black text-car-yellow text-left text-xl">{displayData.length}</td>
+                                        <td colSpan="3" className="p-5 font-black text-car-yellow text-right">TOTAL RÉGIMES :</td>
+                                        <td colSpan="1" className="p-5 font-black text-car-yellow text-left text-xl">{displayData.length}</td>
                                     </tr>
                                 )}
                                 {activeTab === 'SORTIE_SEUL' && (
                                     <tr>
-                                        <td colSpan="2" className="p-5 font-black text-slate-700 text-right">TOTAL AUTORISÉS :</td>
-                                        <td colSpan="2" className="p-5 font-black text-slate-700 text-left text-xl">{displayData.length}</td>
+                                        <td colSpan="3" className="p-5 font-black text-slate-700 text-right">TOTAL AUTORISÉS :</td>
+                                        <td colSpan="1" className="p-5 font-black text-slate-700 text-left text-xl">{displayData.length}</td>
                                     </tr>
                                 )}
                                 {activeTab === 'SANS_IMAGE' && (
                                     <tr>
-                                        <td colSpan="2" className="p-5 font-black text-slate-700 text-right">TOTAL REFUSÉS :</td>
-                                        <td colSpan="2" className="p-5 font-black text-slate-700 text-left text-xl">{displayData.length}</td>
+                                        <td colSpan="3" className="p-5 font-black text-slate-700 text-right">TOTAL REFUSÉS :</td>
+                                        <td colSpan="1" className="p-5 font-black text-slate-700 text-left text-xl">{displayData.length}</td>
                                     </tr>
                                 )}
                             </tfoot>
