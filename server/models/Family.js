@@ -5,7 +5,12 @@ const ParentSchema = new mongoose.Schema({
   firstName: { type: String, default: '' },
   lastName: { type: String, default: '' },
   qualite: { type: String, default: '' }, // Père, Mère, Tuteur...
-  address: { type: String, default: '' },
+  
+  // --- LES NOUVEAUX CHAMPS AJOUTÉS POUR LA TRÉSORERIE ---
+  birthDate: { type: Date, default: null }, 
+  adressePostale: { type: String, default: '' },
+  
+  address: { type: String, default: '' }, // Ancien champ conservé au cas où
   phoneMobile: { type: String, default: '' },
   phoneFixe: { type: String, default: '' },
   email: { type: String, default: '' },
@@ -24,7 +29,7 @@ const ContactSchema = new mongoose.Schema({
   isEmergency: { type: Boolean, default: false } // Case "A contacter en cas d'urgence"
 });
 
-// Sous-schéma pour la gestion documentaire (avec tes fameuses dates de validité !)
+// Sous-schéma pour la gestion documentaire
 const DocumentSchema = new mongoose.Schema({
   status: { type: String, enum: ['Manquant', 'Valide', 'Expiré', 'Non concerné'], default: 'Manquant' },
   expiryDate: { type: Date, default: null },
@@ -63,7 +68,7 @@ const FamilySchema = new mongoose.Schema({
   // Statut global pour filtrer facilement les dossiers "en rouge"
   dossierComplet: { type: Boolean, default: false },
 
-  // NOUVEAU : Code d'accès au portail de l'école
+  // Code d'accès au portail de l'école
   portalCode: { type: String, default: '' }
 });
 
