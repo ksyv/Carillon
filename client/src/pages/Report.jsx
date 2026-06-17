@@ -46,7 +46,7 @@ const Report = () => {
     }, [startDate, endDate]);
     
     const loadReport = () => {
-        api.get(`/report?startDate=${startDate}&endDate=${endDate}`).then(res => {
+        api.get(`/stats/report?startDate=${startDate}&endDate=${endDate}`).then(res => {
             if (Array.isArray(res.data)) setReportData({ children: res.data, attendances: res.data });
             else setReportData(res.data);
         });
