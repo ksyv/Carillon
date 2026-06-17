@@ -469,54 +469,6 @@ const FamilyManager = () => {
                                 })}
                             </div>
                         </div>
-
-                        {selectedFamily && (
-                            <div className="bg-slate-50 rounded-3xl border border-slate-200 overflow-hidden flex flex-col max-h-[500px]">
-                                <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center">
-                                    <h3 className="font-black text-car-dark text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={16}/> Enfants</h3>
-                                </div>
-                                <div className="overflow-y-auto flex-1 p-3 space-y-2">
-                                    {attachedChildren.length > 0 ? attachedChildren.map(c => (
-                                        <div key={c._id} className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
-                                            <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
-                                                <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={16}/></div>
-                                                <span className="font-bold text-car-dark uppercase text-sm group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 rounded-lg transition-colors" title="Modifier"><Pencil size={16}/></button>
-                                                <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 rounded-lg transition-colors" title="Détacher"><X size={16}/></button>
-                                            </div>
-                                        </div>
-                                    )) : (
-                                        <p className="text-slate-400 font-medium italic text-xs text-center mt-4">Aucun enfant rattaché.</p>
-                                    )}
-                                </div>
-                                <div className="p-3 bg-white border-t border-slate-200">
-                                    {unattachedChildren.length > 0 && (
-                                        <div className="relative mb-2">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Search className="text-slate-400" size={14}/>
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rattacher enfant :</label>
-                                            </div>
-                                            <input type="text" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-car-yellow outline-none font-bold text-car-dark text-xs" placeholder="Chercher par prénom..." value={searchOrphan} onChange={e => setSearchOrphan(e.target.value)} />
-                                            {searchOrphan.length >= 2 && (
-                                                <div className="absolute w-full mt-1 bg-white shadow-xl rounded-xl border border-slate-100 max-h-40 overflow-y-auto z-20">
-                                                    {filteredUnattached.map(c => (
-                                                        <div key={c._id} className="p-3 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                            <span className="font-bold text-car-dark uppercase text-xs">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
-                                                            <button onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-sm">+ Lier</button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                    <button onClick={startAddChild} className="w-full bg-car-purple/10 text-car-purple font-bold p-2.5 rounded-xl hover:bg-car-purple hover:text-white transition-colors text-xs flex justify-center items-center gap-2">
-                                        <Plus size={16}/> Créer un enfant complet
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     {/* COLONNE DE DROITE : DOSSIER SÉLECTIONNÉ */}
