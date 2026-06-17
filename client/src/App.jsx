@@ -22,6 +22,7 @@ import CantineStats from './pages/CantineStats';
 import ClassManager from './pages/ClassManager';
 import AdultManager from './pages/AdultManager';
 import CustomListManager from './pages/CustomListManager';
+import StructureInfo from './components/StructureInfo';
 
 
 export default function App() {
@@ -32,87 +33,90 @@ export default function App() {
   
   return (
     <BrowserRouter>
-      <Routes>
-        {/* ========================================================== */}
-        {/* ROUTE PUBLIC : LE PORTAIL FAMILLE PARENT (ACCESSIBLE À TOUS) */}
-        {/* ========================================================== */}
-        <Route path="/parent/portal" element={<FamilyPortal />} />
+      <div className="font-sans text-slate-800">
+        <Routes>
+          {/* ========================================================== */}
+          {/* ROUTE PUBLIC : LE PORTAIL FAMILLE PARENT (ACCESSIBLE À TOUS) */}
+          {/* ========================================================== */}
+          <Route path="/parent/portal" element={<FamilyPortal />} />
 
-        {/* ========================================================== */}
-        {/* ROUTES PRIVÉES : RÉSERVÉES AU STAFF (PROTÉGÉES)             */}
-        {/* ========================================================== */}
-        <Route 
-          path="/" 
-          element={auth.token ? <Dashboard /> : <Login setAuth={setAuth} />} 
-        />
-        <Route 
-          path="/session/:date/:type" 
-          element={auth.token ? <SessionView /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/report" 
-          element={auth.token ? <Report /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/pointage-listes" 
-          element={<CustomListManager />} 
-        />
-        <Route 
-          path="/admin/children" 
-          element={auth.token ? <ChildrenManager /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/users" 
-          element={auth.token ? <UserManager /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/planned-notes" 
-          element={auth.token ? <PlannedNotesManager /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/billing" 
-          element={auth.token ? <BillingManager /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/families" 
-          element={auth.token ? <FamilyManager /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/caf" 
-          element={auth.token ? <CafStats /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/mailing" 
-          element={auth.token ? <Mailing /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/tariffs" 
-          element={auth.token ? <AdminTariffs /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/calendar-exception" 
-          element={auth.token ? <CalendarExceptionManager /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/cantine" 
-          element={auth.token ? <CantineStats /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/stats-advanced" 
-          element={auth.token ? <AdvancedStats /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/classes" 
-          element={auth.token ? <ClassManager /> : <Navigate to="/" />} 
-        />
-        <Route 
-          path="/admin/adults" 
-          element={auth.token ? <AdultManager /> : <Navigate to="/" />} 
-        />
+          {/* ========================================================== */}
+          {/* ROUTES PRIVÉES : RÉSERVÉES AU STAFF (PROTÉGÉES)             */}
+          {/* ========================================================== */}
+          <Route 
+            path="/" 
+            element={auth.token ? <Dashboard /> : <Login setAuth={setAuth} />} 
+          />
+          <Route 
+            path="/session/:date/:type" 
+            element={auth.token ? <SessionView /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/report" 
+            element={auth.token ? <Report /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/pointage-listes" 
+            element={auth.token ? <CustomListManager /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/children" 
+            element={auth.token ? <ChildrenManager /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/users" 
+            element={auth.token ? <UserManager /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/planned-notes" 
+            element={auth.token ? <PlannedNotesManager /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/billing" 
+            element={auth.token ? <BillingManager /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/families" 
+            element={auth.token ? <FamilyManager /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/caf" 
+            element={auth.token ? <CafStats /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/mailing" 
+            element={auth.token ? <Mailing /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/tariffs" 
+            element={auth.token ? <AdminTariffs /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/calendar-exception" 
+            element={auth.token ? <CalendarExceptionManager /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/cantine" 
+            element={auth.token ? <CantineStats /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/stats-advanced" 
+            element={auth.token ? <AdvancedStats /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/classes" 
+            element={auth.token ? <ClassManager /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/adults" 
+            element={auth.token ? <AdultManager /> : <Navigate to="/" />} 
+          />
 
-        {/* Filet de sécurité global */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+          {/* Filet de sécurité global */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+        <StructureInfo />
+      </div>
     </BrowserRouter>
   );
 }

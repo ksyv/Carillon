@@ -1093,6 +1093,31 @@ app.post('/api/settings/signature', auth(), async (req, res) => {
 });
 
 
+// --- INFOS DE LA STRUCTURE (MODALE GLOBALE) ---
+app.get('/api/settings/structure-info', auth(), async (req, res) => {
+    try {
+        const setting = await Settings.findOne({ key: 'structure_info' });
+        // Si ça n'existe pas encore, on renvoie un tableau vide par défaut
+        res.json(setting ? JSON.parse(setting.value) : []);
+    } catch (e) { 
+        res.status(500).send("Erreur lors de la récupération des infos."); 
+    }
+});
+
+app.put('/api/settings/structure-info', auth(['admin']), async (req, res) => {
+    try {
+        let setting = await Settings.findOne({ key: 'structure_info' });
+        if (!setting) {
+            setting = new Settings({ key: 'structure_info', value: JSON.stringify(req.body) });
+        } else {
+            setting.value = JSON.stringify(req.body);
+        }
+        await setting.save();
+        res.json(JSON.parse(setting.value));
+    } catch (e) { 
+        res.status(500).send("Erreur lors de la sauvegarde."); 
+    }
+});
 
 // --- MODULE STATISTIQUES AVANCÉES (BI & EXPORT) ---
 app.post('/api/stats/advanced', auth(['admin']), async (req, res) => {
