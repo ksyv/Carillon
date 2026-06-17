@@ -131,46 +131,75 @@ router.get('/caf', auth(['admin']), async (req, res) => {
 router.get('/cantine-1-euro', auth(['admin']), async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const attendances = await Attendance.find({
-            date: { $gte: startDate, $lte: endDate },
-            sessionType: 'MIDI',
-            checkOut: { $ne: null } 
-        }).populate({
-            path: 'child',
-            populate: { path: 'families' } 
+        
+        // 1. Récupération des enfants T1 et T2 (QF <= 1000) et hors Adultes
+        const children = await Child.find({ active: true, category: { $ne: 'Adulte' } }).populate('families');
+        const Settings = require('../models/Settings'); // On importe les settings pour les jours fermés
+        
+        const eligibleChildren = children.filter(c => {
+            if (!c.families || c.families.length === 0) return false;
+            const fam = c.families[0]; // On se base sur le dossier principal
+            if (!fam.revenuReference || !fam.nombreParts) return false;
+            const qf = Math.round((fam.revenuReference / 12) / fam.nombreParts);
+            return qf >= 0 && qf <= 1000;
         });
+
+        // 2. Détermination des jours d'école réels sur la période
+        const closedDaysSetting = await Settings.findOne({ key: 'closed_days' });
+        const closedDays = closedDaysSetting ? JSON.parse(closedDaysSetting.value) : [];
+        const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } });
+        const daysWithRealActivity = [...new Set(attendances.map(a => a.date))];
+        
+        let schoolDays = [];
+        let start = new Date(startDate);
+        let end = new Date(endDate);
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            // Lundi, Mardi, Jeudi, Vendredi + non fermé + activité détectée
+            if ([1, 2, 4, 5].includes(d.getDay()) && !closedDays.includes(dateStr) && daysWithRealActivity.includes(dateStr)) {
+                schoolDays.push(dateStr);
+            }
+        }
 
         const eligibleChildrenMap = new Map();
         const dailyMap = new Map();
         let totalMeals = 0;
 
-        attendances.forEach(record => {
-            if (!record.child || !record.child.families || record.child.families.length === 0) return;
-            const family = record.child.families[0]; 
-            const qf = Math.round((family.revenuReference / 12) / family.nombreParts);
+        // 3. Croisement : Jours d'école vs Absences Midi
+        eligibleChildren.forEach(child => {
+            const fam = child.families[0];
+            const qf = Math.round((fam.revenuReference / 12) / fam.nombreParts);
+            
+            schoolDays.forEach(date => {
+                // S'il y a un pointage MIDI, l'enfant était ABSENT
+                const isAbsent = attendances.some(a => a.child.toString() === child._id.toString() && a.date === date && a.sessionType === 'MIDI');
+                
+                if (!isAbsent) {
+                    totalMeals++;
+                    const childId = child._id.toString();
+                    
+                    if (!eligibleChildrenMap.has(childId)) {
+                        eligibleChildrenMap.set(childId, {
+                            _id: childId, firstName: child.firstName, lastName: child.lastName,
+                            qf: qf, mealsCount: 0
+                        });
+                    }
+                    eligibleChildrenMap.get(childId).mealsCount++;
 
-            if (qf >= 0 && qf <= 1000) {
-                totalMeals++;
-                const childId = record.child._id.toString();
-                if (!eligibleChildrenMap.has(childId)) {
-                    eligibleChildrenMap.set(childId, {
-                        _id: childId, firstName: record.child.firstName, lastName: record.child.lastName,
-                        qf: qf, mealsCount: 0
-                    });
+                    if (!dailyMap.has(date)) dailyMap.set(date, 0);
+                    dailyMap.set(date, dailyMap.get(date) + 1);
                 }
-                eligibleChildrenMap.get(childId).mealsCount++;
-
-                const dateKey = record.date.split('T')[0];
-                if (!dailyMap.has(dateKey)) { dailyMap.set(dateKey, 0); }
-                dailyMap.set(dateKey, dailyMap.get(dateKey) + 1);
-            }
+            });
         });
 
         const childrenArray = Array.from(eligibleChildrenMap.values()).sort((a, b) => a.lastName.localeCompare(b.lastName));
         const dailyArray = Array.from(dailyMap.entries()).map(([date, meals]) => ({ date, meals })).sort((a, b) => a.date.localeCompare(b.date));
 
         res.json({ global: { totalMeals: totalMeals, uniqueChildrenCount: childrenArray.length }, children: childrenArray, daily: dailyArray });
-    } catch (e) { res.status(500).send("Erreur Stats Cantine 1€"); }
+    } catch (e) { 
+        console.error("Erreur Stats Cantine 1€:", e);
+        res.status(500).send("Erreur Stats Cantine 1€"); 
+    }
 });
 
 router.post('/advanced', auth(['admin']), async (req, res) => {
