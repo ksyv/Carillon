@@ -14,30 +14,36 @@ const Dashboard = () => {
   const [pendingRequests, setPendingRequests] = useState(0);
 
   // Vérification périodique des demandes en attente
-  useEffect(() => {
+    useEffect(() => {
         const token = localStorage.getItem('token');
-        if (token) {
-        const fetchPendingCount = async () => {
-            try {
-                // IMPORTANT : Vérifie que ton instance 'api' pointe bien vers /api
-                const { data } = await api.get('/requests/pending-count');
-                setPendingRequests(data.count);
-            } catch (e) { console.error("Erreur récup. demandes:", e); }
-        };
-        fetchPendingCount();
-        const interval = setInterval(fetchPendingCount, 10000);
-        window.addEventListener('focus', fetchPendingCount);
-        const handleVisibilityChange = () => {
-            if (!document.hidden) fetchPendingCount();
-        };
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => {
-            clearInterval(interval);
-            window.removeEventListener('focus', fetchPendingCount);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
-    }
-  }, [role]);
+        // On ne lance l'intervalle que si l'utilisateur est admin ou responsable
+        if (token && (role === 'admin' || role === 'responsable')) {
+            const fetchPendingCount = async () => {
+                try {
+                    const { data } = await api.get('/requests/pending-count');
+                    setPendingRequests(data.count);
+                } catch (e) { 
+                    console.error("Erreur récup. demandes:", e); 
+                }
+            };
+
+            fetchPendingCount();
+            const interval = setInterval(fetchPendingCount, 10000);
+            
+            window.addEventListener('focus', fetchPendingCount);
+            
+            const handleVisibilityChange = () => {
+                if (!document.hidden) fetchPendingCount();
+            };
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+
+            return () => {
+                clearInterval(interval);
+                window.removeEventListener('focus', fetchPendingCount);
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            };
+        }
+    }, [role]);
 
   const getSessionStatus = (session) => {
       if (role === 'admin') return { locked: false, text: 'Admin' };
