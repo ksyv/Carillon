@@ -238,7 +238,7 @@ const Dashboard = () => {
                                 <ClipboardCheck size={24} strokeWidth={2.5}/>
                             </div>
                             <div>
-                                <h3 className="font-black text-car-dark text-lg">Sas de validation</h3>
+                                <h3 className="font-black text-car-dark text-lg">Demande de modification Famille</h3>
                                 <p className="text-xs text-slate-500 font-medium mt-1">Demandes de modifications familles</p>
                             </div>
                         </button>
