@@ -234,7 +234,7 @@ const Dashboard = () => {
                             </div>
                         </button>
                         <button onClick={() => navigate('/admin/requests')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                            <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-orange-500 transition-colors">
+                            <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-yellow-500 transition-colors">
                                 <ClipboardCheck size={24} strokeWidth={2.5}/>
                             </div>
                             <div>
