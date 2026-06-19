@@ -10,8 +10,6 @@ router.post('/login', async (req, res) => {
         const identifiant = req.body.username || req.body.email || req.body.pseudo;
         const password = req.body.password;
 
-        console.log("👉 URGENCE LOGIN - BODY REÇU :", req.body);
-
         if (!identifiant || !password) {
             console.log("❌ ERREUR : Identifiant ou mot de passe vide");
             return res.status(400).send("Identifiant ou mot de passe manquant.");
