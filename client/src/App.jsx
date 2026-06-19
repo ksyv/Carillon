@@ -113,7 +113,7 @@ export default function App() {
             element={auth.token ? <AdultManager /> : <Navigate to="/" />} 
           />
           <Route 
-            path="/admin/modification-requests" 
+            path="/admin/requests" 
             element={auth.token ? <ModificationRequestsAdmin /> : <Navigate to="/" />} 
           />
 

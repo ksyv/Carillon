@@ -153,17 +153,6 @@ const Dashboard = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 
-                {/* --- NOUVEAU BOUTON : SAS DE VALIDATION --- */}
-                <button onClick={() => navigate('/admin/requests')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
-                    <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-orange-500 transition-colors">
-                        <ClipboardCheck size={24} strokeWidth={2.5}/>
-                    </div>
-                    <div>
-                        <h3 className="font-black text-car-dark text-lg">Sas de validation</h3>
-                        <p className="text-xs text-slate-500 font-medium mt-1">Demandes de modifications familles</p>
-                    </div>
-                </button>
-                {/* ------------------------------------------ */}
 
                 <button onClick={() => navigate('/admin/children')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-green/10 p-4 rounded-2xl w-fit group-hover:bg-car-green group-hover:text-white text-car-green transition-colors"><Users size={24} strokeWidth={2.5}/></div>
@@ -244,6 +233,16 @@ const Dashboard = () => {
                                 <p className="text-xs text-slate-500 font-medium mt-1">Pointage cantine facturable (Enseignants & Personnel)</p>
                             </div>
                         </button>
+                        <button onClick={() => navigate('/admin/requests')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                            <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-orange-500 transition-colors">
+                                <ClipboardCheck size={24} strokeWidth={2.5}/>
+                            </div>
+                            <div>
+                                <h3 className="font-black text-car-dark text-lg">Sas de validation</h3>
+                                <p className="text-xs text-slate-500 font-medium mt-1">Demandes de modifications familles</p>
+                            </div>
+                        </button>
+
                                             </>
                 )}
             </div>
