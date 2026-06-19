@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Home, FolderHeart, FileEdit, Banknote, LogOut, Info, AlertTriangle, CheckCircle, Newspaper, Calendar, Send, Loader, User, Lock, KeyRound } from 'lucide-react';
+import { Home, FolderHeart, FileEdit, Banknote, LogOut, Info, AlertTriangle, CheckCircle, Newspaper, Calendar, Send, Loader, User, Lock, KeyRound, Mail } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
 import api from '../api';
 
@@ -14,6 +14,11 @@ const FamilyPortal = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isActivating, setIsActivating] = useState(false);
     const [activationSuccess, setActivationSuccess] = useState(false);
+
+    // --- ÉTATS DE CONNEXION PARENT ---
+    const [loginEmail, setLoginEmail] = useState('');
+    const [loginPassword, setLoginPassword] = useState('');
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     // --- ÉTATS DU PORTAIL ---
     const [activeTab, setActiveTab] = useState('HUB');
@@ -33,21 +38,43 @@ const FamilyPortal = () => {
     }, [activationToken]);
 
     const loadParentData = async () => {
+        // Si aucun token n'est présent dans le navigateur, on ne tente même pas la requête
+        if (!localStorage.getItem('token')) {
+            setIsLoading(false);
+            return;
+        }
+        
         try {
             const { data } = await api.get('/parent/me');
             setParentData(data);
         } catch (e) {
+            // Si le token est expiré ou invalide, on le supprime (mais on reste sur la page Famille)
             if (e.response?.status === 401 || e.response?.status === 403) {
-                handleLogout();
+                localStorage.removeItem('token');
             }
         } finally {
             setIsLoading(false);
         }
     };
 
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setIsLoggingIn(true);
+        try {
+            // On appelle la route de connexion parent (à vérifier selon ton backend)
+            const { data } = await api.post('/parent/login', { email: loginEmail, password: loginPassword });
+            localStorage.setItem('token', data.token);
+            // On recharge la page pour bien appliquer le token
+            window.location.href = '/parent/portal';
+        } catch (e) {
+            alert("Email ou mot de passe incorrect.");
+        }
+        setIsLoggingIn(false);
+    };
+
     const handleLogout = () => {
-        localStorage.clear();
-        window.location.href = '/';
+        localStorage.removeItem('token');
+        window.location.href = '/parent/portal';
     };
 
     const handleActivateAccount = async (e) => {
@@ -101,7 +128,7 @@ const FamilyPortal = () => {
                         </div>
                         <h1 className="text-2xl font-black text-car-dark mb-2">Compte Activé !</h1>
                         <p className="text-slate-500 font-medium mb-8">Votre mot de passe a bien été enregistré. Vous pouvez maintenant vous connecter à votre Espace Famille.</p>
-                        <button onClick={() => window.location.href = '/'} className="w-full bg-car-blue text-white font-black py-4 rounded-2xl shadow-lg hover:bg-blue-600 transition-colors uppercase tracking-widest">
+                        <button onClick={() => window.location.href = '/parent/portal'} className="w-full bg-car-blue text-white font-black py-4 rounded-2xl shadow-lg hover:bg-blue-600 transition-colors uppercase tracking-widest">
                             Aller à la connexion
                         </button>
                     </div>
@@ -156,8 +183,67 @@ const FamilyPortal = () => {
         );
     }
 
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <Loader className="animate-spin text-car-blue" size={48} />
+            </div>
+        );
+    }
+
     // ==========================================
-    // COMPOSANTS DES ONGLETS (Portail Normal)
+    // ÉCRAN DE CONNEXION PARENT (Si pas de parentData)
+    // ==========================================
+    if (!parentData) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+                <div className="mb-8"><LogoTexte className="text-3xl" /></div>
+                <div className="bg-white p-8 md:p-10 rounded-[2rem] shadow-xl max-w-md w-full border border-slate-100 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-car-blue"></div>
+                    <h1 className="text-2xl font-black text-car-dark text-center mb-2">Espace Famille</h1>
+                    <p className="text-slate-500 font-medium text-center mb-8 text-sm">Connectez-vous pour gérer votre dossier et vos démarches.</p>
+
+                    <form onSubmit={handleLogin} className="space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Email parent</label>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                <input 
+                                    type="email" 
+                                    className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-blue font-bold text-car-dark" 
+                                    placeholder="votre.email@exemple.fr"
+                                    value={loginEmail}
+                                    onChange={e => setLoginEmail(e.target.value)}
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Mot de passe</label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                <input 
+                                    type="password" 
+                                    className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-blue font-bold text-car-dark" 
+                                    placeholder="••••••••"
+                                    value={loginPassword}
+                                    onChange={e => setLoginPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <button type="submit" disabled={isLoggingIn || !loginEmail || !loginPassword} className="w-full bg-car-blue text-white font-black py-4 rounded-2xl shadow-lg shadow-car-blue/20 hover:bg-blue-600 transition-colors uppercase tracking-widest mt-4 flex justify-center items-center gap-2">
+                            {isLoggingIn ? <Loader className="animate-spin" size={20}/> : "Se connecter"}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
+
+    // ==========================================
+    // COMPOSANTS DES ONGLETS (Portail Connecté)
     // ==========================================
 
     const TabHub = () => (
@@ -319,14 +405,6 @@ const FamilyPortal = () => {
             </div>
         </div>
     );
-
-    if (isLoading) {
-        return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-                <Loader className="animate-spin text-car-blue" size={48} />
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
