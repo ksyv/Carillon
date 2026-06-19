@@ -1,29 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Home, FolderHeart, FileEdit, Banknote, LogOut, Info, AlertTriangle, CheckCircle, Newspaper, Calendar, Send, Loader, User } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Home, FolderHeart, FileEdit, Banknote, LogOut, Info, AlertTriangle, CheckCircle, Newspaper, Calendar, Send, Loader, User, Lock, KeyRound } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
 import api from '../api';
 
 const FamilyPortal = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const activationToken = searchParams.get('token');
+
+    // --- ÉTATS D'ACTIVATION ---
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [isActivating, setIsActivating] = useState(false);
+    const [activationSuccess, setActivationSuccess] = useState(false);
+
+    // --- ÉTATS DU PORTAIL ---
     const [activeTab, setActiveTab] = useState('HUB');
     const [parentData, setParentData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-
-    // États pour les démarches
     const [demarcheText, setDemarcheText] = useState('');
     const [isSendingDemarche, setIsSendingDemarche] = useState(false);
 
     useEffect(() => {
+        // 1. Si on a un token dans l'URL, on stoppe tout : on est en mode "Activation"
+        if (activationToken) {
+            setIsLoading(false);
+            return;
+        }
+        // 2. Sinon, on charge le portail normalement
         loadParentData();
-    }, []);
+    }, [activationToken]);
 
     const loadParentData = async () => {
         try {
             const { data } = await api.get('/parent/me');
             setParentData(data);
         } catch (e) {
-            console.error("Erreur de chargement des données parent");
             if (e.response?.status === 401 || e.response?.status === 403) {
                 handleLogout();
             }
@@ -35,6 +48,25 @@ const FamilyPortal = () => {
     const handleLogout = () => {
         localStorage.clear();
         window.location.href = '/';
+    };
+
+    const handleActivateAccount = async (e) => {
+        e.preventDefault();
+        if (newPassword !== confirmPassword) {
+            return alert("Les mots de passe ne correspondent pas.");
+        }
+        if (newPassword.length < 6) {
+            return alert("Le mot de passe doit contenir au moins 6 caractères.");
+        }
+
+        setIsActivating(true);
+        try {
+            await api.post('/parent/activate', { token: activationToken, password: newPassword });
+            setActivationSuccess(true);
+        } catch (e) {
+            alert("Erreur lors de l'activation. Le lien est peut-être expiré ou invalide.");
+        }
+        setIsActivating(false);
     };
 
     const handleSendDemarche = async (e) => {
@@ -56,11 +88,80 @@ const FamilyPortal = () => {
         setIsSendingDemarche(false);
     };
 
-    // --- COMPOSANTS DES ONGLETS ---
+    // ==========================================
+    // ÉCRANS D'ACTIVATION (Si ?token= est présent)
+    // ==========================================
+    if (activationToken) {
+        if (activationSuccess) {
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+                    <div className="bg-white p-10 rounded-[2rem] shadow-xl max-w-md w-full border border-slate-100">
+                        <div className="bg-car-green/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 text-car-green">
+                            <CheckCircle size={48} />
+                        </div>
+                        <h1 className="text-2xl font-black text-car-dark mb-2">Compte Activé !</h1>
+                        <p className="text-slate-500 font-medium mb-8">Votre mot de passe a bien été enregistré. Vous pouvez maintenant vous connecter à votre Espace Famille.</p>
+                        <button onClick={() => window.location.href = '/'} className="w-full bg-car-blue text-white font-black py-4 rounded-2xl shadow-lg hover:bg-blue-600 transition-colors uppercase tracking-widest">
+                            Aller à la connexion
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+                <div className="bg-white p-8 md:p-10 rounded-[2rem] shadow-xl max-w-md w-full border border-slate-100 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-car-blue"></div>
+                    <div className="flex justify-center mb-6 text-car-blue"><KeyRound size={48} strokeWidth={1.5} /></div>
+                    <h1 className="text-2xl font-black text-car-dark text-center mb-2">Activation du compte</h1>
+                    <p className="text-slate-500 font-medium text-center mb-8 text-sm">Veuillez définir un mot de passe sécurisé pour accéder à votre portail Carillon.</p>
+
+                    <form onSubmit={handleActivateAccount} className="space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Nouveau mot de passe</label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                <input 
+                                    type="password" 
+                                    className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-blue font-bold text-car-dark" 
+                                    placeholder="••••••••"
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Confirmer le mot de passe</label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                <input 
+                                    type="password" 
+                                    className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-blue font-bold text-car-dark" 
+                                    placeholder="••••••••"
+                                    value={confirmPassword}
+                                    onChange={e => setConfirmPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <button type="submit" disabled={isActivating || !newPassword} className="w-full bg-car-blue text-white font-black py-4 rounded-2xl shadow-lg shadow-car-blue/20 hover:bg-blue-600 transition-colors uppercase tracking-widest mt-4 flex justify-center items-center gap-2">
+                            {isActivating ? <Loader className="animate-spin" size={20}/> : "Activer mon espace"}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
+
+    // ==========================================
+    // COMPOSANTS DES ONGLETS (Portail Normal)
+    // ==========================================
 
     const TabHub = () => (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Message de bienvenue */}
             <div className="bg-car-blue text-white p-8 rounded-[2rem] shadow-lg relative overflow-hidden">
                 <div className="relative z-10">
                     <h2 className="text-sm font-bold tracking-widest opacity-80 uppercase mb-2">Bienvenue sur votre espace</h2>
@@ -72,7 +173,6 @@ const FamilyPortal = () => {
                 </div>
             </div>
 
-            {/* Fil d'actualités (Statique pour le moment, à dynamiser plus tard) */}
             <div className="flex items-center gap-3 mb-4 mt-8">
                 <div className="h-2 w-2 rounded-full bg-car-yellow"></div>
                 <h3 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Dernières Actualités</h3>
