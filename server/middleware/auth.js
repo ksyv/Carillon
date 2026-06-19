@@ -1,62 +1,16 @@
-const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const auth = require('../middleware/auth');
 
-router.post('/login', async (req, res) => {
+const auth = (roles = []) => (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).send('Accès refusé');
     try {
-        // 1. On récupère le mot de passe
-        const password = req.body.password;
-        
-        // 2. On récupère l'identifiant, peu importe comment le Front l'appelle (email, username, pseudo...)
-        const loginIdentifier = req.body.username || req.body.email || req.body.pseudo;
-
-        if (!loginIdentifier || !password) {
-            return res.status(400).send("Identifiant ou mot de passe manquant.");
-        }
-
-        // 3. On cherche l'utilisateur dans la base de données (soit par email, soit par username)
-        const user = await User.findOne({
-            $or: [
-                { username: loginIdentifier },
-                { email: loginIdentifier }
-            ]
-        });
-
-        if (!user) {
-            return res.status(400).send("Utilisateur introuvable.");
-        }
-
-        // 4. On vérifie le mot de passe
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).send("Mot de passe incorrect.");
-        }
-
-        // 5. On génère le token d'accès
-        const token = jwt.sign(
-            { id: user._id, role: user.role, categoryAccess: user.categoryAccess }, 
-            process.env.JWT_SECRET || 'SECRET', 
-            { expiresIn: '24h' }
-        );
-        
-        res.json({ token, role: user.role, categoryAccess: user.categoryAccess });
-
-    } catch (err) {
-        console.error("Erreur login:", err);
-        res.status(500).send("Erreur serveur lors de la connexion");
+        const v = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = v;
+        if (roles.length && !roles.includes(v.role)) return res.status(403).send('Interdit');
+        next();
+    } catch (e) { 
+        res.status(400).send('Token invalide'); 
     }
-});
+};
 
-router.get('/me', auth(), async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id).select('-password');
-        res.json(user);
-    } catch (e) {
-        res.status(500).send("Erreur serveur");
-    }
-});
-
-module.exports = router;
+module.exports = auth;
