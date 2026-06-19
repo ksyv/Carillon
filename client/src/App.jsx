@@ -23,6 +23,7 @@ import ClassManager from './pages/ClassManager';
 import AdultManager from './pages/AdultManager';
 import CustomListManager from './pages/CustomListManager';
 import StructureInfo from './components/StructureInfo';
+import ModificationRequestsAdmin from './pages/ModificationRequestsAdmin';
 
 
 export default function App() {
@@ -110,6 +111,10 @@ export default function App() {
           <Route 
             path="/admin/adults" 
             element={auth.token ? <AdultManager /> : <Navigate to="/" />} 
+          />
+          <Route 
+            path="/admin/modification-requests" 
+            element={auth.token ? <ModificationRequestsAdmin /> : <Navigate to="/" />} 
           />
 
           {/* Filet de sécurité global */}

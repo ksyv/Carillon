@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX, Bell, Activity, GraduationCap, Coffee, ListChecks } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX, Bell, Activity, GraduationCap, Coffee, ListChecks, ClipboardCheck } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
 import api from '../api';
 
@@ -96,7 +96,7 @@ const Dashboard = () => {
         
         {/* --- ALERTE DEMANDES PARENTS --- */}
         {pendingRequests > 0 && (
-            <div onClick={() => navigate('/admin/families')} className="cursor-pointer bg-orange-50 border-2 border-orange-200 p-6 rounded-4xl flex justify-between items-center shadow-sm hover:shadow-md transition-all group">
+            <div onClick={() => navigate('/admin/requests')} className="cursor-pointer bg-orange-50 border-2 border-orange-200 p-6 rounded-4xl flex justify-between items-center shadow-sm hover:shadow-md transition-all group">
                 <div className="flex items-center gap-4">
                     <div className="bg-orange-500 p-3 rounded-2xl text-white"><Bell size={24} className="animate-pulse"/></div>
                     <div>
@@ -152,6 +152,19 @@ const Dashboard = () => {
                 <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Administration</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                
+                {/* --- NOUVEAU BOUTON : SAS DE VALIDATION --- */}
+                <button onClick={() => navigate('/admin/requests')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
+                    <div className="bg-orange-500/10 p-4 rounded-2xl w-fit group-hover:bg-orange-500 group-hover:text-white text-orange-500 transition-colors">
+                        <ClipboardCheck size={24} strokeWidth={2.5}/>
+                    </div>
+                    <div>
+                        <h3 className="font-black text-car-dark text-lg">Sas de validation</h3>
+                        <p className="text-xs text-slate-500 font-medium mt-1">Demandes de modifications familles</p>
+                    </div>
+                </button>
+                {/* ------------------------------------------ */}
+
                 <button onClick={() => navigate('/admin/children')} className="bg-white p-6 rounded-4xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col gap-4 text-left group">
                     <div className="bg-car-green/10 p-4 rounded-2xl w-fit group-hover:bg-car-green group-hover:text-white text-car-green transition-colors"><Users size={24} strokeWidth={2.5}/></div>
                     <div><h3 className="font-black text-car-dark text-lg">Enfants & Fiches</h3><p className="text-xs text-slate-500 font-medium mt-1">Base de données, PAI...</p></div>

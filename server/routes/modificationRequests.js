@@ -107,4 +107,15 @@ router.post('/:id/process', auth(['admin', 'director', 'manager']), async (req, 
     }
 });
 
+// [STAFF] Compter le nombre de demandes en attente
+router.get('/count', auth(['admin', 'director', 'manager']), async (req, res) => {
+    try {
+        const count = await ModificationRequest.countDocuments({ globalStatus: 'pending' });
+        res.json({ count });
+    } catch (error) {
+        res.status(500).json({ error: "Erreur lors du comptage des demandes." });
+    }
+});
+
+
 module.exports = router;
