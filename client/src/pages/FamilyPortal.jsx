@@ -337,13 +337,35 @@ const FamilyPortal = () => {
                 </div>
             )}
 
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center py-12">
-                <User size={48} className="text-slate-200 mb-4" />
-                <h4 className="font-black text-car-dark text-lg mb-2">Fiches Enfants</h4>
-                <p className="text-sm font-medium text-slate-500 max-w-md">
-                    Pour des raisons de sécurité, les modifications sur les fiches de vos enfants se font uniquement via l'onglet "Mes Démarches" ou en contactant le secrétariat.
-                </p>
+            {/* --- NOUVELLE SECTION : LES ENFANTS --- */}
+            <div className="flex items-center gap-3 mb-4 mt-8">
+                <div className="h-2 w-2 rounded-full bg-car-blue"></div>
+                <h3 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Enfants rattachés</h3>
             </div>
+
+            {parentData?.children && parentData.children.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {parentData.children.map(child => (
+                        <div key={child._id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-car-blue/10 w-12 h-12 rounded-full flex items-center justify-center text-car-blue font-black text-lg shrink-0">
+                                {child.firstName?.charAt(0)}{child.lastName?.charAt(0)}
+                            </div>
+                            <div>
+                                <h5 className="font-black text-car-dark text-lg">{child.firstName} {child.lastName}</h5>
+                                <p className="text-xs text-slate-500 font-bold uppercase">{child.classLevel || 'Classe non renseignée'}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center py-12">
+                    <User size={48} className="text-slate-200 mb-4" />
+                    <h4 className="font-black text-car-dark text-lg mb-2">Aucun enfant trouvé</h4>
+                    <p className="text-sm font-medium text-slate-500 max-w-md">
+                        Si vos enfants n'apparaissent pas ici, veuillez contacter le secrétariat pour vérifier qu'ils sont bien rattachés à votre dossier (Code : {parentData?.family?.portalCode}).
+                    </p>
+                </div>
+            )}
         </div>
     );
 
