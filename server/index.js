@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const Child = require('./models/Child');
+const modificationRequestsRoutes = require('./routes/modificationRequests');
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/custom-lists', require('./routes/customLists'));
 app.use('/api/mail', require('./routes/mailing'));
 app.use('/api/parent', require('./routes/parentPortal'));
+app.use('/api/requests', modificationRequestsRoutes);
 
 // --- SERVEUR STATIC FRONTEND (PRODUCTION) ---
 if (process.env.NODE_ENV === 'production') {

@@ -1,17 +1,36 @@
 const mongoose = require('mongoose');
 
-const ModificationRequestSchema = new mongoose.Schema({
-    familyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Family', required: true },
-    childId: { type: mongoose.Schema.Types.ObjectId, ref: 'Child', default: null },
-    portalCode: { type: String, required: true },
-    type: { type: String, default: 'FAMILY_UPDATE' },
-    status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
-    dateRequest: { type: String, default: () => new Date().toLocaleTimeString('fr-FR') },
-    newData: { type: mongoose.Schema.Types.Mixed, required: true },
-    originalData: { type: mongoose.Schema.Types.Mixed, default: {} },
-    oldData: { type: mongoose.Schema.Types.Mixed, default: {} },
-    changeSummary: { type: String, default: '' },
-    refusalMessage: { type: String, default: '' }
+const requestedFieldSchema = new mongoose.Schema({
+    fieldKey: { type: String, required: true }, 
+    fieldNameFr: { type: String, required: true }, 
+    oldValue: { type: mongoose.Schema.Types.Mixed },
+    newValue: { type: mongoose.Schema.Types.Mixed },
+    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    rejectionReason: { type: String, default: '' } 
+});
+
+const modificationRequestSchema = new mongoose.Schema({
+    family: { type: mongoose.Schema.Types.ObjectId, ref: 'Family', required: true },
+    parent: { type: mongoose.Schema.Types.ObjectId, ref: 'Parent', required: true },
+    
+    // Savoir si on modifie la famille ou un enfant en particulier
+    targetType: { type: String, enum: ['Family', 'Child'], required: true },
+    targetId: { type: mongoose.Schema.Types.ObjectId, required: true, refPath: 'targetType' },
+    
+    // La liste des champs modifiés
+    fields: [requestedFieldSchema],
+    
+    // Pour les documents uploadés plus tard
+    documents: [{ 
+        name: String, 
+        path: String, 
+        status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+        rejectionReason: String
+    }],
+
+    // Statut global de la demande
+    globalStatus: { type: String, enum: ['pending', 'processed'], default: 'pending' },
+    
 }, { timestamps: true });
 
-module.exports = mongoose.model('ModificationRequest', ModificationRequestSchema);
+module.exports = mongoose.model('ModificationRequest', modificationRequestSchema);
