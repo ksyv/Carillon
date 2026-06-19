@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const Parent = require('../models/Parent');
+const Child = require('../models/Child'); // <-- AJOUT DU MODÈLE ENFANT
 const auth = require('../middleware/auth');
 
 router.post('/invite', auth(['admin']), async (req, res) => {
@@ -90,7 +91,16 @@ router.get('/me', auth(), async (req, res) => {
         if (req.user.role !== 'parent') return res.status(403).send('Interdit');
         const parent = await Parent.findById(req.user.id).populate('family');
         if (!parent || !parent.family) return res.status(404).send('Parent introuvable');
-        res.json({ email: parent.email, family: parent.family });
+
+        // AJOUT : On cherche tous les enfants dont le tableau "families" contient l'ID de cette famille
+        const children = await Child.find({ families: parent.family._id });
+
+        // AJOUT : On renvoie les enfants dans la réponse JSON
+        res.json({ 
+            email: parent.email, 
+            family: parent.family,
+            children: children 
+        });
     } catch (e) { res.status(500).send('Erreur.'); }
 });
 
