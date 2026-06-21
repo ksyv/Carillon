@@ -23,14 +23,15 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                 birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
                 droitImage: child.droitImage || false, 
                 autorisationSortieSeul: child.autorisationSortieSeul || false,
-                medical: child.medical || { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
+                // Clonage profond pour éviter la mutation par référence
+                medical: child.medical ? JSON.parse(JSON.stringify(child.medical)) : { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
                 hasPAI: child.hasPAI || false, 
                 paiDetails: child.paiDetails || '', 
                 isPAIAlimentaire: child.isPAIAlimentaire || false, 
                 paiDocument: child.paiDocument || '', 
                 regimeAlimentaire: child.regimeAlimentaire || 'Standard',
-                personnesAutorisees: child.personnesAutorisees || [],
-                documents: child.documents || { vaccins: {}, assurance: {} }
+                personnesAutorisees: child.personnesAutorisees ? JSON.parse(JSON.stringify(child.personnesAutorisees)) : [],
+                documents: child.documents ? JSON.parse(JSON.stringify(child.documents)) : { vaccins: {}, assurance: {} }
             });
         }
     }, [child]);
@@ -46,11 +47,16 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         if (!file) return;
         const reader = new FileReader();
         reader.onloadend = () => {
-            const updatedDocs = { ...(editingChild.documents || {}) };
-            if (!updatedDocs[docType]) updatedDocs[docType] = {};
-            updatedDocs[docType].fileUrl = reader.result;
-            updatedDocs[docType].status = 'En attente de validation';
-            setEditingChild({ ...editingChild, documents: updatedDocs });
+            setEditingChild(prev => {
+                // Clonage profond des documents existants
+                const updatedDocs = JSON.parse(JSON.stringify(prev.documents || {}));
+                if (!updatedDocs[docType]) updatedDocs[docType] = {};
+                
+                updatedDocs[docType].fileUrl = reader.result;
+                updatedDocs[docType].status = 'En attente de validation';
+                
+                return { ...prev, documents: updatedDocs };
+            });
         };
         reader.readAsDataURL(file);
     };
@@ -310,11 +316,12 @@ const FamilyPortal = () => {
             const { data } = await api.get('/parent/me');
             setParentData(data);
             
-            const resps = [...(data.family.responsables || [])];
+            // Clonage profond pour éviter la mutation par référence
+            const resps = data.family.responsables ? JSON.parse(JSON.stringify(data.family.responsables)) : [];
             while (resps.length < 2) resps.push({ firstName: '', lastName: '', qualite: '', birthDate: '', adressePostale: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' });
             
-            // On s'assure que 'documents' existe pour ne pas avoir d'erreur
-            const docs = data.family.documents || {};
+            const docs = data.family.documents ? JSON.parse(JSON.stringify(data.family.documents)) : {};
+            
             setEditFamily({ ...data.family, responsables: resps, documents: docs });
 
         } catch (e) {
@@ -350,17 +357,21 @@ const FamilyPortal = () => {
         setEditFamily({ ...editFamily, responsables: newResps });
     };
 
-    // Gestion du document CAF
     const handleFamilyDocUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onloadend = () => {
-            const updatedDocs = { ...(editFamily.documents || {}) };
-            if (!updatedDocs.attestationCAF) updatedDocs.attestationCAF = {};
-            updatedDocs.attestationCAF.fileUrl = reader.result;
-            updatedDocs.attestationCAF.status = 'En attente de validation';
-            setEditFamily({ ...editFamily, documents: updatedDocs });
+            setEditFamily(prev => {
+                // Clonage profond des documents existants
+                const updatedDocs = JSON.parse(JSON.stringify(prev.documents || {}));
+                if (!updatedDocs.attestationCAF) updatedDocs.attestationCAF = {};
+                
+                updatedDocs.attestationCAF.fileUrl = reader.result;
+                updatedDocs.attestationCAF.status = 'En attente de validation';
+                
+                return { ...prev, documents: updatedDocs };
+            });
         };
         reader.readAsDataURL(file);
     };
