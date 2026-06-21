@@ -88,17 +88,13 @@ router.get('/family/:familyId', auth(['admin', 'director', 'manager', 'responsab
     }
 });
 
-// 5. [STAFF] Traiter une demande CHAMP PAR CHAMP (Blindée contre les crashs d'objets)
+// 5. [STAFF] Traiter une demande CHAMP PAR CHAMP (Écriture forcée)
 router.post('/:id/process', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
     try {
         const { fieldId, status, rejectionReason } = req.body;
         
         const request = await ModificationRequest.findById(req.params.id).populate('targetId').populate('parent');
         if (!request) return res.status(404).send("Demande introuvable.");
-
-        let targetDoc = request.targetType === 'Child' 
-            ? await Child.findById(request.targetId) 
-            : await Family.findById(request.targetId);
 
         const field = request.fields.find(f => f._id.toString() === fieldId);
         if (!field) return res.status(404).send("Champ introuvable.");
@@ -111,9 +107,9 @@ router.post('/:id/process', auth(['admin', 'director', 'manager', 'responsable']
             
             let valueToSave = field.newValue;
 
-            // SOLUTION LOGIQUE : Si on valide un arbre de documents, on passe le statut du fichier à "Valide"
+            // Si c'est le champ documents, on change les statuts internes de "En attente" à "Valide"
             if (field.fieldKey === 'documents' && typeof valueToSave === 'object') {
-                valueToSave = JSON.parse(JSON.stringify(valueToSave)); // Copie propre
+                valueToSave = JSON.parse(JSON.stringify(valueToSave)); 
                 Object.keys(valueToSave).forEach(docType => {
                     if (valueToSave[docType] && valueToSave[docType].status === 'En attente de validation') {
                         valueToSave[docType].status = 'Valide';
@@ -121,13 +117,16 @@ router.post('/:id/process', auth(['admin', 'director', 'manager', 'responsable']
                 });
             }
 
-            // SOLUTION DU CRASH 500 : Utilisation de .set() et markModified() pour forcer Mongoose à accepter l'objet lourd
-            targetDoc.set(field.fieldKey, valueToSave);
-            targetDoc.markModified(field.fieldKey);
-            await targetDoc.save();
+            // CORRECTION ICI : Le mode "Bulldozer" pour forcer l'écriture MongoDB
+            // findByIdAndUpdate avec { strict: false } ignore les restrictions de schéma Mongoose
+            if (request.targetType === 'Child') {
+                await Child.findByIdAndUpdate(request.targetId._id, { $set: { [field.fieldKey]: valueToSave } }, { strict: false });
+            } else {
+                await Family.findByIdAndUpdate(request.targetId._id, { $set: { [field.fieldKey]: valueToSave } }, { strict: false });
+            }
         }
 
-        // Vérification si la demande globale est entièrement vidée
+        // Vérification si TOUS les champs de cette demande ont été traités
         const allFieldsProcessed = request.fields.every(f => f.status !== 'pending');
 
         if (allFieldsProcessed) {
