@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, X, FolderHeart, Utensils, AlertTriangle, Phone, Users, Info, Calendar } from 'lucide-react';
+import { Download, X, FolderHeart, AlertTriangle, Phone, Users, Info, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -7,7 +7,6 @@ const ChildInfoModal = ({ child, onClose }) => {
     if (!child) return null;
 
     // --- SUPPORT MULTI-FAMILLES ---
-    // On extrait et fusionne tous les responsables de TOUTES les familles auxquelles l'enfant est rattaché
     const responsables = child.families?.reduce((acc, fam) => {
         return fam.responsables ? [...acc, ...fam.responsables] : acc;
     }, []) || [];
@@ -61,8 +60,8 @@ const ChildInfoModal = ({ child, onClose }) => {
         const medicalInfo = [
             ['Médecin', `${child.medical?.medecinNom || '-'} (${child.medical?.medecinPhone || '-'})`],
             ['Autres infos', child.medical?.autresInfos || '-'],
-            ['Carnet de Vaccins', `${child.documents?.vaccins?.status || 'Manquant'}`],
-            ['Assurance Civile', `${child.documents?.assurance?.status || 'Manquant'} ${child.documents?.assurance?.expiryDate ? '(Expire le ' + new Date(child.documents.assurance.expiryDate).toLocaleDateString('fr-FR') + ')' : ''}`]
+            ['Carnet de Vaccins', `${child.documents?.vaccins?.status || 'Manquant'}`]
+            // SÉCURITÉ : La RC a été retirée du PDF pour le staff non autorisé
         ];
         if (child.hasPAI) {
             medicalInfo.push(['PAI ACTIF', child.isPAIAlimentaire ? 'Alimentaire' : 'Médical']);
@@ -84,7 +83,6 @@ const ChildInfoModal = ({ child, onClose }) => {
 
         if (child.paiDocument) appendDocumentToPDF(doc, child.paiDocument, "Protocole PAI");
         if (child.documents?.vaccins?.fileUrl) appendDocumentToPDF(doc, child.documents.vaccins.fileUrl, "Carnet de Vaccination");
-        if (child.documents?.assurance?.fileUrl) appendDocumentToPDF(doc, child.documents.assurance.fileUrl, "Assurance Responsabilité Civile");
 
         doc.save(`Fiche_${child.lastName.toUpperCase()}_${child.firstName}.pdf`);
     };
@@ -111,7 +109,6 @@ const ChildInfoModal = ({ child, onClose }) => {
                         </span>
                         {child.active === false && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
                         
-                        {/* AFFICHER TOUTES LES FAMILLES LIÉES */}
                         {child.families && child.families.length > 0 && child.families.map((fam, idx) => (
                             <React.Fragment key={idx}>
                                 <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest inline-flex items-center gap-1 bg-car-purple/10 text-car-purple mt-2 sm:mt-0">
@@ -164,9 +161,31 @@ const ChildInfoModal = ({ child, onClose }) => {
                                 <p className="text-car-dark font-medium text-sm whitespace-pre-wrap">{child.medical.autresInfos}</p>
                             </div>
                         )}
+
+                        {/* AFFICHAGE DES VACCINS POUR TOUT LE STAFF */}
+                        <div className="mt-4 border-t border-slate-200 pt-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><FileText size={12}/> Carnet de Vaccins</span>
+                                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${child.documents?.vaccins?.status === 'Valide' ? 'bg-car-green/10 text-car-green' : child.documents?.vaccins?.status === 'Expiré' ? 'bg-car-pink/10 text-car-pink' : 'bg-slate-100 text-slate-500'}`}>
+                                    {child.documents?.vaccins?.status || 'Manquant'}
+                                </span>
+                            </div>
+                            {child.documents?.vaccins?.fileUrl ? (
+                                <button 
+                                    onClick={() => openDoc(child.documents.vaccins.fileUrl)} 
+                                    className="w-full bg-car-blue/10 text-car-blue hover:bg-car-blue hover:text-white px-3 py-2 rounded-xl text-xs font-black transition-colors flex items-center justify-center gap-2"
+                                >
+                                    👀 VOIR LE CARNET DE VACCINS
+                                </button>
+                            ) : (
+                                <div className="w-full bg-white border border-slate-200 text-slate-400 px-3 py-2 rounded-xl text-xs font-bold text-center italic">
+                                    Aucun document transmis
+                                </div>
+                            )}
+                        </div>
                         
                         {child.hasPAI && (
-                            <div className="bg-car-pink/10 border border-car-pink/30 p-4 rounded-xl mt-2 mb-4">
+                            <div className="bg-car-pink/10 border border-car-pink/30 p-4 rounded-xl mt-4 mb-4">
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="text-car-pink font-black uppercase tracking-widest flex items-center gap-2"><AlertTriangle size={16}/> PAI ACTIF</div>
                                     {child.paiDocument && (
@@ -178,7 +197,7 @@ const ChildInfoModal = ({ child, onClose }) => {
                         )}
                     </div>
 
-                    {/* CONTACTS DES RESPONSABLES (DE TOUTES LES FAMILLES LIEES) */}
+                    {/* CONTACTS DES RESPONSABLES */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
                             <Phone size={18}/> RESPONSABLES LÉGAUX

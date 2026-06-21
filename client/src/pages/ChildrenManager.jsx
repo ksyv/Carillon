@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Search, X, Info, AlertTriangle, Pencil, Trash2, Check, Copy, GraduationCap } from 'lucide-react';
+import { Users, Plus, Search, X, Info, AlertTriangle, Pencil, Trash2, Check, Copy, GraduationCap, FileText } from 'lucide-react';
 import ChildInfoModal from '../components/ChildInfoModal';
 
 const ChildrenManager = () => {
     const [children, setChildren] = useState([]);
-    const [classes, setClasses] = useState([]); // NOUVEAU
+    const [classes, setClasses] = useState([]); 
     
     const role = localStorage.getItem('role');
     const access = localStorage.getItem('categoryAccess') || 'Tous';
@@ -110,7 +110,7 @@ const ChildrenManager = () => {
             _id: child._id,
             active: child.active !== false,
             firstName: child.firstName, lastName: child.lastName, category: child.category || 'Maternelle', 
-            classGroup: child.classGroup?._id || child.classGroup || '', // NOUVEAU
+            classGroup: child.classGroup?._id || child.classGroup || '', 
             sexe: child.sexe || '',
             birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
             droitImage: child.droitImage || false, autorisationSortieSeul: child.autorisationSortieSeul || false,
@@ -167,7 +167,6 @@ const ChildrenManager = () => {
             if(!window.confirm("Aucun document PAI n'a été joint. Voulez-vous quand même sauvegarder ?")) return;
         }
         try {
-            // Nettoyer la classe si vide
             const payload = { ...editingChild, classGroup: editingChild.classGroup || null };
 
             if (editingChild._id) {
@@ -247,7 +246,6 @@ const ChildrenManager = () => {
                                             <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
                                                 {child.category || 'Maternelle'}
                                             </span>
-                                            {/* AFFICHAGE DE LA CLASSE ICI */}
                                             {child.classGroup && (
                                                 <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-100 text-slate-600 flex items-center gap-1">
                                                     <GraduationCap size={12}/> {child.classGroup.name}
@@ -302,13 +300,11 @@ const ChildrenManager = () => {
                                     </select>
                                     <input type="date" className="col-span-2 sm:col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-medium text-car-dark" value={editingChild.birthDate} onChange={e => setEditingChild({...editingChild, birthDate: e.target.value})} required/>
                                     
-                                    {/* SÉLECTEUR DE CATÉGORIE QUI RÉINITIALISE LA CLASSE SI CHANGÉ */}
                                     <select className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.category} 
                                         onChange={e => setEditingChild({...editingChild, category: e.target.value, classGroup: ''})}>
                                         <option value="Maternelle">Maternelle</option><option value="Élémentaire">Élémentaire</option>
                                     </select>
 
-                                    {/* NOUVEAU : SÉLECTEUR DE CLASSE */}
                                     <select className="col-span-2 sm:col-span-4 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.classGroup} onChange={e => setEditingChild({...editingChild, classGroup: e.target.value})}>
                                         <option value="">-- Sans classe assignée --</option>
                                         {classes.filter(c => c.category === editingChild.category).map(cls => (
@@ -318,28 +314,60 @@ const ChildrenManager = () => {
                                 </div>
                             </div>
 
+                            {/* DOCUMENTS ADMINISTRATIFS VACCINS ET RC */}
                             <div>
                                 <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Documents Administratifs</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                        <span className="text-xs font-bold text-slate-500 uppercase block mb-2">Carnet de Vaccins</span>
-                                        <div className="flex gap-2 mb-2">
-                                            <select className="flex-1 p-2 rounded-lg text-sm font-bold border border-slate-200 outline-none" value={editingChild.documents?.vaccins?.status || 'Manquant'} onChange={e => handleChildDocChange('vaccins', 'status', e.target.value)}>
-                                                <option value="Manquant">Manquant</option><option value="Valide">Valide</option>
-                                            </select>
+                                    
+                                    {/* BLOC VACCINS */}
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
+                                        <div className="flex justify-between items-start mb-3 border-b border-slate-200 pb-3">
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-500 uppercase block mb-1">Carnet de Vaccins</span>
+                                                {editingChild.documents?.vaccins?.fileUrl ? (
+                                                    <button type="button" onClick={() => {
+                                                        const win = window.open();
+                                                        win.document.write(`<iframe src="${editingChild.documents.vaccins.fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                    }} className="bg-car-blue/10 text-car-blue px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-car-blue hover:text-white transition-colors flex items-center gap-1"><FileText size={12}/> VOIR LE DOC</button>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-200">Aucun fichier</span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <input type="file" accept=".pdf, image/*" onChange={e => handleChildDocUpload('vaccins', e)} className="text-xs text-slate-500 file:rounded-lg file:border-0 file:bg-slate-200 file:px-2 file:py-1 cursor-pointer"/>
-                                    </div>
-                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                        <span className="text-xs font-bold text-slate-500 uppercase block mb-2">Assurance Resp. Civile</span>
-                                        <div className="flex gap-2 mb-2">
-                                            <select className="w-1/2 p-2 rounded-lg text-sm font-bold border border-slate-200 outline-none" value={editingChild.documents?.assurance?.status || 'Manquant'} onChange={e => handleChildDocChange('assurance', 'status', e.target.value)}>
-                                                <option value="Manquant">Manquant</option><option value="Valide">Valide</option><option value="Expiré">Expiré</option>
+                                        <div className="flex flex-col gap-2">
+                                            <select className="p-2 rounded-lg text-sm font-bold border border-slate-200 outline-none w-full" value={editingChild.documents?.vaccins?.status || 'Manquant'} onChange={e => handleChildDocChange('vaccins', 'status', e.target.value)}>
+                                                <option value="Manquant">Manquant</option><option value="En attente de validation">En attente de validation</option><option value="Valide">Valide</option><option value="Expiré">Expiré</option>
                                             </select>
-                                            <input type="date" title="Expiration RC" className="w-1/2 p-2 rounded-lg text-sm border border-slate-200 outline-none" value={editingChild.documents?.assurance?.expiryDate ? editingChild.documents.assurance.expiryDate.split('T')[0] : ''} onChange={e => handleChildDocChange('assurance', 'expiryDate', e.target.value)}/>
+                                            <input type="file" accept=".pdf, image/*" onChange={e => handleChildDocUpload('vaccins', e)} className="text-xs text-slate-500 file:rounded-lg file:border-0 file:bg-slate-200 file:px-2 file:py-1 cursor-pointer w-full"/>
                                         </div>
-                                        <input type="file" accept=".pdf, image/*" onChange={e => handleChildDocUpload('assurance', e)} className="text-xs text-slate-500 file:rounded-lg file:border-0 file:bg-slate-200 file:px-2 file:py-1 cursor-pointer"/>
                                     </div>
+
+                                    {/* BLOC ASSURANCE */}
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
+                                        <div className="flex justify-between items-start mb-3 border-b border-slate-200 pb-3">
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-500 uppercase block mb-1">Assurance Resp. Civile</span>
+                                                {editingChild.documents?.assurance?.fileUrl ? (
+                                                    <button type="button" onClick={() => {
+                                                        const win = window.open();
+                                                        win.document.write(`<iframe src="${editingChild.documents.assurance.fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                    }} className="bg-car-blue/10 text-car-blue px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-car-blue hover:text-white transition-colors flex items-center gap-1"><FileText size={12}/> VOIR LE DOC</button>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-200">Aucun fichier</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex gap-2">
+                                                <select className="flex-1 p-2 rounded-lg text-sm font-bold border border-slate-200 outline-none" value={editingChild.documents?.assurance?.status || 'Manquant'} onChange={e => handleChildDocChange('assurance', 'status', e.target.value)}>
+                                                    <option value="Manquant">Manquant</option><option value="En attente de validation">En attente de validation</option><option value="Valide">Valide</option><option value="Expiré">Expiré</option>
+                                                </select>
+                                                <input type="date" title="Expiration RC" className="flex-1 p-2 rounded-lg text-sm border border-slate-200 outline-none" value={editingChild.documents?.assurance?.expiryDate ? editingChild.documents.assurance.expiryDate.split('T')[0] : ''} onChange={e => handleChildDocChange('assurance', 'expiryDate', e.target.value)}/>
+                                            </div>
+                                            <input type="file" accept=".pdf, image/*" onChange={e => handleChildDocUpload('assurance', e)} className="text-xs text-slate-500 file:rounded-lg file:border-0 file:bg-slate-200 file:px-2 file:py-1 cursor-pointer w-full"/>
+                                        </div>
+                                    </div>
+
                                 </div>
                             </div>
 
