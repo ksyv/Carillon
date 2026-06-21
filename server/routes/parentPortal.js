@@ -92,10 +92,8 @@ router.get('/me', auth(), async (req, res) => {
         const parent = await Parent.findById(req.user.id).populate('family');
         if (!parent || !parent.family) return res.status(404).send('Parent introuvable');
 
-        // AJOUT : On cherche tous les enfants dont le tableau "families" contient l'ID de cette famille
-        const children = await Child.find({ families: parent.family._id });
+        const children = await Child.find({ families: parent.family._id }).populate('classGroup');
 
-        // AJOUT : On renvoie les enfants dans la réponse JSON
         res.json({ 
             email: parent.email, 
             family: parent.family,

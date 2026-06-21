@@ -11,6 +11,21 @@ const ValueFormatter = ({ value }) => {
     if (typeof value === 'boolean') {
         return <span className="font-bold">{value ? 'Oui' : 'Non'}</span>;
     }
+
+    // CORRECTION ICI : Détection magique des fichiers (Base64)
+    if (typeof value === 'string' && value.startsWith('data:')) {
+        return (
+            <button 
+                onClick={() => {
+                    const win = window.open();
+                    win.document.write(`<iframe src="${value}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                }} 
+                className="mt-2 text-car-blue bg-car-blue/10 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-car-blue hover:text-white transition-colors cursor-pointer flex items-center gap-2 w-fit"
+            >
+                👀 Voir le document
+            </button>
+        );
+    }
     
     if (Array.isArray(value)) {
         if (value.length === 0) return <span className="italic opacity-50">Aucun</span>;
@@ -46,7 +61,7 @@ const ValueFormatter = ({ value }) => {
                     
                     const label = k.replace(/([A-Z])/g, ' $1').trim().toLowerCase();
                     return (
-                        <div key={k} className="flex justify-between border-b border-black/5 pb-1 last:border-0 last:pb-0">
+                        <div key={k} className="flex justify-between items-center border-b border-black/5 pb-2 pt-1 last:border-0">
                             <span className="capitalize opacity-70 pr-4">{label}</span>
                             <span className="font-bold text-right"><ValueFormatter value={v} /></span>
                         </div>

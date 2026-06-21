@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Home, FolderHeart, FileEdit, Banknote, LogOut, Info, AlertTriangle, CheckCircle, Newspaper, Calendar, Send, Loader, User, Lock, KeyRound, Mail, X, Check, Copy, Users, Pencil, GraduationCap } from 'lucide-react';
+import { Home, FolderHeart, FileEdit, Banknote, LogOut, Info, AlertTriangle, CheckCircle, Newspaper, Calendar, Send, Loader, User, Lock, KeyRound, Mail, X, Check, Copy, Users, Pencil, GraduationCap, UploadCloud } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
 import api from '../api';
 
 // ==========================================
-// MODAL ENFANT (Vue Parent - Envoi vers Sas)
+// MODAL ENFANT (Vue Parent)
 // ==========================================
 const ChildRequestModal = ({ child, onClose, onRefresh }) => {
     const [editingChild, setEditingChild] = useState(null);
@@ -18,7 +18,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                 firstName: child.firstName, 
                 lastName: child.lastName, 
                 category: child.category || 'Maternelle', 
-                classGroup: child.classGroup.name || 'Non assignée',
+                classGroup: child.classGroup?.name || 'Non assignée',
                 sexe: child.sexe || '',
                 birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
                 droitImage: child.droitImage || false, 
@@ -29,7 +29,8 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                 isPAIAlimentaire: child.isPAIAlimentaire || false, 
                 paiDocument: child.paiDocument || '', 
                 regimeAlimentaire: child.regimeAlimentaire || 'Standard',
-                personnesAutorisees: child.personnesAutorisees || []
+                personnesAutorisees: child.personnesAutorisees || [],
+                documents: child.documents || { vaccins: {}, assurance: {} }
             });
         }
     }, [child]);
@@ -38,6 +39,20 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         const newContacts = [...editingChild.personnesAutorisees];
         newContacts[index] = { ...newContacts[index], [field]: value };
         setEditingChild({ ...editingChild, personnesAutorisees: newContacts });
+    };
+
+    const handleChildDocUpload = (docType, e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const updatedDocs = { ...(editingChild.documents || {}) };
+            if (!updatedDocs[docType]) updatedDocs[docType] = {};
+            updatedDocs[docType].fileUrl = reader.result;
+            updatedDocs[docType].status = 'En attente de validation';
+            setEditingChild({ ...editingChild, documents: updatedDocs });
+        };
+        reader.readAsDataURL(file);
     };
 
     const submitRequest = async (e) => {
@@ -62,6 +77,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         compare('regimeAlimentaire', "Régime Alimentaire", child.regimeAlimentaire, editingChild.regimeAlimentaire);
         compare('medical', "Informations Médicales", child.medical, editingChild.medical);
         compare('personnesAutorisees', "Personnes Autorisées", child.personnesAutorisees, editingChild.personnesAutorisees);
+        compare('documents', "Documents Justificatifs", child.documents, editingChild.documents);
 
         if (changes.length === 0) {
             alert("Aucune modification n'a été détectée.");
@@ -75,7 +91,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                 targetId: child._id,
                 fields: changes
             });
-            alert("✅ Vos demandes de modifications ont bien été envoyées au secrétariat. Elles seront appliquées après validation.");
+            alert("✅ Vos demandes de modifications (et documents) ont bien été envoyées au secrétariat.");
             onClose();
             if (onRefresh) onRefresh();
         } catch (error) {
@@ -96,7 +112,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
 
                 <div className="bg-blue-50 text-blue-800 p-4 rounded-xl mb-6 text-sm font-bold flex gap-3 items-center">
                     <Info size={24} className="shrink-0" />
-                    <p>Toute modification apportée sur cette fiche sera transmise au service périscolaire pour validation. Vos changements apparaîtront une fois approuvés.</p>
+                    <p>Toute modification ou document transmis sera envoyé au service périscolaire pour validation.</p>
                 </div>
 
                 <form onSubmit={submitRequest} className="space-y-8">
@@ -112,8 +128,48 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                             <input type="date" className="col-span-2 sm:col-span-1 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-medium text-car-dark" value={editingChild.birthDate} onChange={e => setEditingChild({...editingChild, birthDate: e.target.value})} required/>
                             <div className="col-span-2 sm:col-span-2 bg-slate-100 border border-slate-200 p-4 rounded-xl font-bold text-slate-500 flex items-center justify-between">
                                 <span>Classe (Lecture seule) :</span>
-                                <span className="text-car-dark">{editingChild.classGroup}</span>
+                                <span className="text-car-dark bg-white px-3 py-1 rounded-lg border border-slate-200">{editingChild.classGroup}</span>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* DOCUMENTS ENFANTS */}
+                    <div>
+                        <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Documents Administratifs</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            
+                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
+                                <div>
+                                    <span className="text-xs font-black text-slate-500 uppercase block mb-1">Carnet de Vaccins</span>
+                                    {editingChild.documents?.vaccins?.fileUrl ? (
+                                        <span className="text-xs font-bold text-car-green flex items-center gap-1 mb-3"><CheckCircle size={14}/> Document chargé</span>
+                                    ) : (
+                                        <span className="text-xs text-slate-400 block mb-3">Aucun document transmis</span>
+                                    )}
+                                </div>
+                                <label className="cursor-pointer bg-white border-2 border-dashed border-slate-200 hover:border-car-blue p-4 rounded-xl flex flex-col items-center justify-center gap-2 group transition-colors">
+                                    <UploadCloud size={24} className="text-slate-300 group-hover:text-car-blue transition-colors" />
+                                    <span className="text-xs font-bold text-slate-500 group-hover:text-car-blue text-center">Transmettre un PDF ou une photo</span>
+                                    <input type="file" accept=".pdf, image/*" className="hidden" onChange={e => handleChildDocUpload('vaccins', e)} />
+                                </label>
+                            </div>
+
+                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
+                                <div>
+                                    <span className="text-xs font-black text-slate-500 uppercase block mb-1">Assurance Responsabilité Civile</span>
+                                    {editingChild.documents?.assurance?.fileUrl ? (
+                                        <span className="text-xs font-bold text-car-green flex items-center gap-1 mb-3"><CheckCircle size={14}/> Document chargé</span>
+                                    ) : (
+                                        <span className="text-xs text-slate-400 block mb-3">Aucun document transmis</span>
+                                    )}
+                                </div>
+                                <label className="cursor-pointer bg-white border-2 border-dashed border-slate-200 hover:border-car-blue p-4 rounded-xl flex flex-col items-center justify-center gap-2 group transition-colors">
+                                    <UploadCloud size={24} className="text-slate-300 group-hover:text-car-blue transition-colors" />
+                                    <span className="text-xs font-bold text-slate-500 group-hover:text-car-blue text-center">Transmettre un PDF ou une photo</span>
+                                    <input type="file" accept=".pdf, image/*" className="hidden" onChange={e => handleChildDocUpload('assurance', e)} />
+                                </label>
+                            </div>
+
                         </div>
                     </div>
 
@@ -221,7 +277,6 @@ const FamilyPortal = () => {
     const [searchParams] = useSearchParams();
     const activationToken = searchParams.get('token');
 
-    // États
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isActivating, setIsActivating] = useState(false);
@@ -235,7 +290,6 @@ const FamilyPortal = () => {
     const [parentData, setParentData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     
-    // État d'édition pour le dossier famille
     const [editFamily, setEditFamily] = useState(null);
     const [childToEdit, setChildToEdit] = useState(null);
 
@@ -256,10 +310,12 @@ const FamilyPortal = () => {
             const { data } = await api.get('/parent/me');
             setParentData(data);
             
-            // Préparer l'état editFamily pour correspondre exactement à FamilyManager
             const resps = [...(data.family.responsables || [])];
             while (resps.length < 2) resps.push({ firstName: '', lastName: '', qualite: '', birthDate: '', adressePostale: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' });
-            setEditFamily({ ...data.family, responsables: resps });
+            
+            // On s'assure que 'documents' existe pour ne pas avoir d'erreur
+            const docs = data.family.documents || {};
+            setEditFamily({ ...data.family, responsables: resps, documents: docs });
 
         } catch (e) {
             if (e.response?.status === 401 || e.response?.status === 403) {
@@ -288,11 +344,25 @@ const FamilyPortal = () => {
         window.location.href = '/parent/portal';
     };
 
-    // Gestion du formulaire Famille
     const handleRespChange = (index, field, value) => {
         const newResps = [...editFamily.responsables];
         newResps[index] = { ...newResps[index], [field]: value };
         setEditFamily({ ...editFamily, responsables: newResps });
+    };
+
+    // Gestion du document CAF
+    const handleFamilyDocUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const updatedDocs = { ...(editFamily.documents || {}) };
+            if (!updatedDocs.attestationCAF) updatedDocs.attestationCAF = {};
+            updatedDocs.attestationCAF.fileUrl = reader.result;
+            updatedDocs.attestationCAF.status = 'En attente de validation';
+            setEditFamily({ ...editFamily, documents: updatedDocs });
+        };
+        reader.readAsDataURL(file);
     };
 
     const submitFamilyChanges = async () => {
@@ -300,6 +370,10 @@ const FamilyPortal = () => {
         
         if (JSON.stringify(editFamily.responsables) !== JSON.stringify(parentData.family.responsables)) {
             changes.push({ fieldKey: 'responsables', fieldNameFr: 'Informations des responsables', oldValue: parentData.family.responsables, newValue: editFamily.responsables });
+        }
+        
+        if (JSON.stringify(editFamily.documents) !== JSON.stringify(parentData.family.documents)) {
+            changes.push({ fieldKey: 'documents', fieldNameFr: 'Justificatif (CAF/Impôts)', oldValue: parentData.family.documents, newValue: editFamily.documents });
         }
         
         if (changes.length === 0) {
@@ -313,8 +387,8 @@ const FamilyPortal = () => {
                 targetId: parentData.family._id,
                 fields: changes
             });
-            alert("✅ Vos demandes de modifications ont bien été envoyées au secrétariat !");
-            loadParentData(); // Rafraîchir
+            alert("✅ Vos demandes de modifications et justificatifs ont bien été envoyés au secrétariat !");
+            loadParentData(); 
         } catch (e) {
             alert("Erreur lors de l'envoi de la demande.");
         }
@@ -355,10 +429,6 @@ const FamilyPortal = () => {
         );
     }
 
-    // ==========================================
-    // ONGLETS CONNECTÉS
-    // ==========================================
-
     const TabHub = () => (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-car-blue text-white p-8 rounded-[2rem] shadow-lg relative overflow-hidden">
@@ -389,24 +459,45 @@ const FamilyPortal = () => {
                     </div>
                 </div>
 
-                {/* FACTURATION (Lecture Seule) */}
+                {/* FACTURATION */}
                 <div className="bg-white border border-slate-200 p-6 rounded-3xl flex flex-col mb-8">
                     <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
                         <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation & QF (Géré par la mairie)</h3>
                         <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-lg font-bold text-xs">Payeur : {parentData.family.payeur || 'Non assigné'}</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                        <div>
-                            <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase">Revenu Réf. (€)</label>
-                            <div className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-slate-500 text-sm">{parentData.family.revenuReference || '-'}</div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                        {/* Infos QF */}
+                        <div className="grid grid-cols-3 gap-3">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase">Revenu Réf. (€)</label>
+                                <div className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-slate-500 text-sm">{parentData.family.revenuReference || '-'}</div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase">Nb Parts</label>
+                                <div className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-slate-500 text-sm">{parentData.family.nombreParts || '-'}</div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold block mb-1 uppercase text-car-blue">QF Calculé</label>
+                                <div className="w-full bg-car-blue/10 border border-car-blue/20 p-3 rounded-xl font-black text-car-blue text-center text-sm">{parentData.family.quotientFamilial || '-'}</div>
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase">Nb Parts</label>
-                            <div className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-slate-500 text-sm">{parentData.family.nombreParts || '-'}</div>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold block mb-1 uppercase text-car-blue">QF Calculé</label>
-                            <div className="w-full bg-car-blue/10 border border-car-blue/20 p-3 rounded-xl font-black text-car-blue text-center text-sm">{parentData.family.quotientFamilial || '-'}</div>
+                        
+                        {/* Upload Justificatif CAF */}
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                            <div className="flex-1 w-full text-center sm:text-left">
+                                <span className="text-xs font-black text-slate-500 uppercase block mb-1">Justificatif CAF / Impôts</span>
+                                {editFamily?.documents?.attestationCAF?.fileUrl ? (
+                                    <span className="text-xs font-bold text-car-green flex items-center justify-center sm:justify-start gap-1"><CheckCircle size={14}/> Document chargé</span>
+                                ) : (
+                                    <span className="text-xs text-slate-400 block">Aucun document transmis</span>
+                                )}
+                            </div>
+                            <label className="cursor-pointer bg-white border border-slate-200 hover:border-car-blue px-4 py-2 w-full sm:w-auto rounded-xl flex items-center justify-center gap-2 group transition-colors">
+                                <UploadCloud size={18} className="text-slate-400 group-hover:text-car-blue transition-colors" />
+                                <span className="text-xs font-bold text-slate-500 group-hover:text-car-blue">Transmettre</span>
+                                <input type="file" accept=".pdf, image/*" className="hidden" onChange={handleFamilyDocUpload} />
+                            </label>
                         </div>
                     </div>
                 </div>
