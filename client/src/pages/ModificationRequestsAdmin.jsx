@@ -110,7 +110,16 @@ const ModificationRequestsAdmin = () => {
                                 (Demandé par {request.parent?.email})
                             </span>
                         </h3>
-                        <p><strong>Cible de la modification :</strong> {request.targetType === 'Child' ? 'Enfant' : 'Famille'} (ID: {request.targetId})</p>
+                        
+                        {/* C'EST ICI QU'ON A CORRIGÉ L'ERREUR 31 : on extrait intelligemment le prénom/nom */}
+                        <p>
+                            <strong>Cible de la modification :</strong> {request.targetType === 'Child' ? 'Fiche Enfant' : 'Dossier Famille'} 
+                            <span className="font-bold text-car-blue ml-2">
+                                ({request.targetType === 'Child' 
+                                    ? `${request.targetId?.firstName} ${request.targetId?.lastName}` 
+                                    : request.targetId?.name})
+                            </span>
+                        </p>
                         
                         <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
                             <thead>
