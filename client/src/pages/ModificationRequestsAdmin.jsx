@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Coffee, ArrowLeft, ArrowRight, Check, X, User, FolderHeart } from 'lucide-react';
+import { CheckCircle, Coffee, ArrowLeft, ArrowRight, Check, X, User, FolderHeart, Mail } from 'lucide-react';
 
 // --- COMPOSANT INTELLIGENT POUR FORMATER LES DONNÉES COMPLEXES ---
 const ValueFormatter = ({ value }) => {
