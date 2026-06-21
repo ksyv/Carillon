@@ -88,7 +88,7 @@ router.get('/family/:familyId', auth(['admin', 'director', 'manager', 'responsab
     }
 });
 
-// 5. [STAFF] Traiter une demande CHAMP PAR CHAMP
+// 5. [STAFF] Traiter une demande CHAMP PAR CHAMP (Blindée contre les crashs d'objets)
 router.post('/:id/process', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
     try {
         const { fieldId, status, rejectionReason } = req.body;
@@ -96,60 +96,70 @@ router.post('/:id/process', auth(['admin', 'director', 'manager', 'responsable']
         const request = await ModificationRequest.findById(req.params.id).populate('targetId').populate('parent');
         if (!request) return res.status(404).send("Demande introuvable.");
 
-        // Trouver le document cible (Enfant ou Famille)
         let targetDoc = request.targetType === 'Child' 
             ? await Child.findById(request.targetId) 
             : await Family.findById(request.targetId);
 
-        // Trouver le champ spécifique dans la demande
         const field = request.fields.find(f => f._id.toString() === fieldId);
         if (!field) return res.status(404).send("Champ introuvable.");
 
-        // 1. Mise à jour du statut du champ
         field.status = status;
+        
         if (status === 'rejected') {
             field.rejectionReason = rejectionReason;
         } else if (status === 'approved') {
-            // 2. Si approuvé, on met à jour la base de données
-            targetDoc[field.fieldKey] = field.newValue;
+            
+            let valueToSave = field.newValue;
+
+            // SOLUTION LOGIQUE : Si on valide un arbre de documents, on passe le statut du fichier à "Valide"
+            if (field.fieldKey === 'documents' && typeof valueToSave === 'object') {
+                valueToSave = JSON.parse(JSON.stringify(valueToSave)); // Copie propre
+                Object.keys(valueToSave).forEach(docType => {
+                    if (valueToSave[docType] && valueToSave[docType].status === 'En attente de validation') {
+                        valueToSave[docType].status = 'Valide';
+                    }
+                });
+            }
+
+            // SOLUTION DU CRASH 500 : Utilisation de .set() et markModified() pour forcer Mongoose à accepter l'objet lourd
+            targetDoc.set(field.fieldKey, valueToSave);
+            targetDoc.markModified(field.fieldKey);
             await targetDoc.save();
         }
 
-        // 3. Vérifier si TOUS les champs de cette demande ont été traités
+        // Vérification si la demande globale est entièrement vidée
         const allFieldsProcessed = request.fields.every(f => f.status !== 'pending');
 
         if (allFieldsProcessed) {
             request.globalStatus = 'processed';
             
-            // Préparation de l'email récapitulatif
-            let emailHtml = `<h3>Bilan de vos demandes de modifications</h3><ul>`;
+            let emailHtml = `<h3>Bilan de vos demandes de modifications - Ville de Carignan</h3><ul>`;
             request.fields.forEach(f => {
                 if (f.status === 'approved') {
-                    emailHtml += `<li>✅ <b>${f.fieldNameFr}</b> : Mise à jour acceptée.</li>`;
+                    emailHtml += `<li>✅ <b>${f.fieldNameFr}</b> : Validée et enregistrée.</li>`;
                 } else if (f.status === 'rejected') {
-                    emailHtml += `<li>❌ <b>${f.fieldNameFr}</b> : Refusée. <i>Motif : ${f.rejectionReason}</i></li>`;
+                    emailHtml += `<li>❌ <b>${f.fieldNameFr}</b> : Refusée. (Motif : ${f.rejectionReason})</li>`;
                 }
             });
-            emailHtml += `</ul><p>Merci pour votre collaboration.</p>`;
+            emailHtml += `</ul><p>Votre dossier est à jour sur votre espace Carillon.</p>`;
 
-            // Envoi de l'email
             const transporter = nodemailer.createTransport({
                 service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
             });
             await transporter.sendMail({
                 from: `"Portail Carillon" <${process.env.EMAIL_USER}>`,
                 to: request.parent.email,
-                subject: "Bilan de vos demandes de modification - Portail Famille",
+                subject: "Suivi de votre dossier périscolaire Carillon",
                 html: emailHtml
-            }).catch(e => console.log("Erreur mail:", e));
+            }).catch(e => console.log("Erreur envoi notification mail:", e));
         }
 
         await request.save();
-
         res.json({ success: true, allProcessed: allFieldsProcessed });
+
     } catch (error) {
-        console.error("ERREUR PROCESS :", error);
-        res.status(500).json({ error: "Erreur lors du traitement." });
+        console.error("ERREUR PROCESS TRAITEMENT CHAMP :", error);
+        res.status(500).json({ error: "Erreur interne lors du traitement : " + error.message });
     }
 });
 
