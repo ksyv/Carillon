@@ -18,7 +18,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                 firstName: child.firstName, 
                 lastName: child.lastName, 
                 category: child.category || 'Maternelle', 
-                classGroup: child.classGroup?.name || 'Non assignée',
+                classGroup: child.classGroup.name || 'Non assignée',
                 sexe: child.sexe || '',
                 birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
                 droitImage: child.droitImage || false, 
@@ -53,8 +53,6 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         compare('lastName', 'Nom', child.lastName, editingChild.lastName);
         compare('firstName', 'Prénom', child.firstName, editingChild.firstName);
         compare('sexe', 'Sexe', child.sexe, editingChild.sexe);
-        compare('category', 'Catégorie', child.category, editingChild.category);
-        compare('classGroup', 'Classe', child.classGroup, editingChild.classGroup);
         compare('birthDate', 'Date de naissance', child.birthDate ? child.birthDate.split('T')[0] : '', editingChild.birthDate);
         compare('droitImage', "Droit à l'image", child.droitImage, editingChild.droitImage);
         compare('autorisationSortieSeul', "Sortie Seul", child.autorisationSortieSeul, editingChild.autorisationSortieSeul);
