@@ -12,8 +12,6 @@ router.post('/', auth(), async (req, res) => {
     try {
         if (req.user.role !== 'parent') return res.status(403).send("Accès refusé");
         
-        // CORRECTION 500 : On va chercher le parent en base pour être 100% sûr d'avoir son familyId
-        // Cela évite les crashs si le parent utilise un vieux token de connexion
         const parentUser = await Parent.findById(req.user.id);
         if (!parentUser || !parentUser.family) {
             return res.status(404).send("Parent ou famille introuvable.");
@@ -47,7 +45,7 @@ router.get('/pending-count', auth(['admin', 'director', 'manager', 'responsable'
     }
 });
 
-// 3. [STAFF] AJOUT : Récupérer TOUTES les demandes en attente (Sas de validation global)
+// 3. [STAFF] Récupérer TOUTES les demandes en attente (Sas de validation global)
 router.get('/pending', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
     try {
         const requests = await ModificationRequest.find({ globalStatus: 'pending' })
@@ -63,18 +61,16 @@ router.get('/pending', auth(['admin', 'director', 'manager', 'responsable']), as
     }
 });
 
-// 4. [STAFF] Récupérer les demandes pour UNE famille spécifique (utilisé par FamilyManager)
+// 4. [STAFF] Récupérer les demandes pour UNE famille spécifique
 router.get('/family/:familyId', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
     try {
         const requests = await ModificationRequest.find({ family: req.params.familyId, globalStatus: 'pending' })
             .populate('targetId')
             .populate('parent', 'email');
         
-        // Formatage pour correspondre aux attentes de ton composant FamilyManager
         const formattedRequests = requests.map(req => {
             let summaryArray = [];
             req.fields.forEach(f => {
-                // On crée le résumé lisible pour l'équipe
                 summaryArray.push(`${f.fieldNameFr} modifié`);
             });
 
@@ -92,89 +88,68 @@ router.get('/family/:familyId', auth(['admin', 'director', 'manager', 'responsab
     }
 });
 
-// 5. [STAFF] Approuver une demande globale (utilisé par FamilyManager)
-router.post('/:id/approve', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
+// 5. [STAFF] Traiter une demande CHAMP PAR CHAMP
+router.post('/:id/process', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
     try {
+        const { fieldId, status, rejectionReason } = req.body;
+        
         const request = await ModificationRequest.findById(req.params.id).populate('targetId').populate('parent');
         if (!request) return res.status(404).send("Demande introuvable.");
 
+        // Trouver le document cible (Enfant ou Famille)
         let targetDoc = request.targetType === 'Child' 
             ? await Child.findById(request.targetId) 
             : await Family.findById(request.targetId);
 
-        let emailHtml = `<h3>Vos modifications ont été acceptées !</h3><ul>`;
-        
-        // On applique toutes les modifications de la demande d'un seul coup
-        request.fields.forEach(field => {
-            field.status = 'approved';
-            targetDoc[field.fieldKey] = field.newValue; 
-            emailHtml += `<li>✅ <b>${field.fieldNameFr}</b> a bien été mis à jour.</li>`;
-        });
-        emailHtml += `</ul><p>Votre dossier est maintenant à jour.</p>`;
+        // Trouver le champ spécifique dans la demande
+        const field = request.fields.find(f => f._id.toString() === fieldId);
+        if (!field) return res.status(404).send("Champ introuvable.");
 
-        request.globalStatus = 'processed';
-        await targetDoc.save(); 
-        await request.save();  
+        // 1. Mise à jour du statut du champ
+        field.status = status;
+        if (status === 'rejected') {
+            field.rejectionReason = rejectionReason;
+        } else if (status === 'approved') {
+            // 2. Si approuvé, on met à jour la base de données
+            targetDoc[field.fieldKey] = field.newValue;
+            await targetDoc.save();
+        }
 
-        // Envoi de la notification au parent
-        const transporter = nodemailer.createTransport({
-            service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-        });
-        await transporter.sendMail({
-            from: `"Portail Carillon" <${process.env.EMAIL_USER}>`,
-            to: request.parent.email,
-            subject: "Modifications validées - Portail Famille",
-            html: emailHtml
-        }).catch(e => console.log("Erreur mail:", e));
+        // 3. Vérifier si TOUS les champs de cette demande ont été traités
+        const allFieldsProcessed = request.fields.every(f => f.status !== 'pending');
 
-        // On renvoie les données mises à jour pour que le Front se rafraîchisse instantanément
-        res.json({ 
-            success: true, 
-            family: request.targetType === 'Family' ? targetDoc : null, 
-            child: request.targetType === 'Child' ? targetDoc : null 
-        });
-    } catch (error) {
-        console.error("ERREUR APPROBATION :", error);
-        res.status(500).json({ error: "Erreur lors de l'approbation." });
-    }
-});
+        if (allFieldsProcessed) {
+            request.globalStatus = 'processed';
+            
+            // Préparation de l'email récapitulatif
+            let emailHtml = `<h3>Bilan de vos demandes de modifications</h3><ul>`;
+            request.fields.forEach(f => {
+                if (f.status === 'approved') {
+                    emailHtml += `<li>✅ <b>${f.fieldNameFr}</b> : Mise à jour acceptée.</li>`;
+                } else if (f.status === 'rejected') {
+                    emailHtml += `<li>❌ <b>${f.fieldNameFr}</b> : Refusée. <i>Motif : ${f.rejectionReason}</i></li>`;
+                }
+            });
+            emailHtml += `</ul><p>Merci pour votre collaboration.</p>`;
 
-// 6. [STAFF] Rejeter une demande globale (utilisé par FamilyManager)
-router.post('/:id/reject', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
-    try {
-        const { message } = req.body;
-        const request = await ModificationRequest.findById(req.params.id).populate('parent');
-        if (!request) return res.status(404).send("Demande introuvable.");
+            // Envoi de l'email
+            const transporter = nodemailer.createTransport({
+                service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+            });
+            await transporter.sendMail({
+                from: `"Portail Carillon" <${process.env.EMAIL_USER}>`,
+                to: request.parent.email,
+                subject: "Bilan de vos demandes de modification - Portail Famille",
+                html: emailHtml
+            }).catch(e => console.log("Erreur mail:", e));
+        }
 
-        request.globalStatus = 'processed';
-        request.fields.forEach(f => {
-            f.status = 'rejected';
-            f.rejectionReason = message;
-        });
         await request.save();
 
-        const emailHtml = `
-            <h3>Refus de modification</h3>
-            <p>Bonjour,</p>
-            <p>Le secrétariat n'a pas pu valider les modifications demandées sur votre dossier.</p>
-            <p><b>Motif du refus :</b> ${message}</p>
-            <p>Merci de contacter la mairie pour plus de détails.</p>
-        `;
-        
-        const transporter = nodemailer.createTransport({
-            service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-        });
-        await transporter.sendMail({
-            from: `"Portail Carillon" <${process.env.EMAIL_USER}>`,
-            to: request.parent.email,
-            subject: "Refus de modification - Portail Famille",
-            html: emailHtml
-        }).catch(e => console.log("Erreur mail:", e));
-
-        res.json({ success: true });
+        res.json({ success: true, allProcessed: allFieldsProcessed });
     } catch (error) {
-        console.error("ERREUR REJET :", error);
-        res.status(500).json({ error: "Erreur lors du rejet." });
+        console.error("ERREUR PROCESS :", error);
+        res.status(500).json({ error: "Erreur lors du traitement." });
     }
 });
 

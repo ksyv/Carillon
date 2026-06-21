@@ -4,17 +4,14 @@ import { CheckCircle, Coffee, ArrowLeft, ArrowRight, Check, X, User, FolderHeart
 
 // --- COMPOSANT INTELLIGENT POUR FORMATER LES DONNÉES COMPLEXES ---
 const ValueFormatter = ({ value }) => {
-    // Cas 1 : Vide
     if (value === null || value === undefined || value === '') {
         return <span className="italic opacity-50">Vide</span>;
     }
     
-    // Cas 2 : Booléen (Vrai/Faux)
     if (typeof value === 'boolean') {
         return <span className="font-bold">{value ? 'Oui' : 'Non'}</span>;
     }
     
-    // Cas 3 : Tableau (Ex: Liste de contacts)
     if (Array.isArray(value)) {
         if (value.length === 0) return <span className="italic opacity-50">Aucun</span>;
         return (
@@ -28,9 +25,7 @@ const ValueFormatter = ({ value }) => {
         );
     }
 
-    // Cas 4 : Objet complexe (Ex: Contact unique, ou Fiche Médicale)
     if (typeof value === 'object') {
-        // Sous-cas : C'est une personne (Responsable ou Personne Autorisée)
         if (value.lastName !== undefined || value.firstName !== undefined) {
             const name = `${value.lastName || ''} ${value.firstName || ''}`.trim();
             const phone = value.phone || value.phoneMobile || value.phoneFixe;
@@ -44,14 +39,11 @@ const ValueFormatter = ({ value }) => {
             );
         }
         
-        // Sous-cas : Objet générique (Fiche médicale, etc.)
         return (
             <div className="flex flex-col gap-1 text-xs">
                 {Object.entries(value).map(([k, v]) => {
-                    // On masque les champs vides pour ne pas polluer l'écran
                     if (v === '' || v === null || (Array.isArray(v) && v.length === 0)) return null; 
                     
-                    // On formate la clé (ex: "appareilAuditif" -> "appareil auditif")
                     const label = k.replace(/([A-Z])/g, ' $1').trim().toLowerCase();
                     return (
                         <div key={k} className="flex justify-between border-b border-black/5 pb-1 last:border-0 last:pb-0">
@@ -64,11 +56,9 @@ const ValueFormatter = ({ value }) => {
         );
     }
 
-    // Cas 5 : Texte standard ou Numéro
     return <span>{String(value)}</span>;
 };
 // ---------------------------------------------------------------
-
 
 const ModificationRequestsAdmin = () => {
     const navigate = useNavigate();
@@ -96,6 +86,7 @@ const ModificationRequestsAdmin = () => {
         fetchRequests();
     }, []);
 
+    // Traitement champ par champ
     const handleDecision = async (requestId, fieldId, status) => {
         let rejectionReason = '';
         if (status === 'rejected') {
@@ -105,7 +96,9 @@ const ModificationRequestsAdmin = () => {
 
         try {
             const token = localStorage.getItem('token');
-            const payload = { processedFields: [{ fieldId, status, rejectionReason }] };
+            
+            // On envoie le statut et l'ID du champ spécifiquement
+            const payload = { fieldId, status, rejectionReason };
 
             const response = await fetch(`/api/requests/${requestId}/process`, {
                 method: 'POST',
@@ -117,7 +110,7 @@ const ModificationRequestsAdmin = () => {
             });
 
             if (response.ok) {
-                fetchRequests(); 
+                fetchRequests(); // Rafraîchir pour faire disparaître le champ traité
             } else {
                 alert("Erreur lors du traitement.");
             }
@@ -165,86 +158,83 @@ const ModificationRequestsAdmin = () => {
                 </div>
             ) : (
                 <div className="space-y-8">
-                    {requests.map(request => (
-                        <div key={request._id} className="bg-white rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden">
-                            
-                            {/* En-tête de la demande */}
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-slate-100 pb-4">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg">
-                                            {request.family?.name || 'Inconnue'}
-                                        </span>
-                                        <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
-                                            <Mail size={12}/> {request.parent?.email}
-                                        </span>
+                    {requests.map(request => {
+                        // On ne garde que les champs en attente
+                        const pendingFields = request.fields.filter(f => f.status === 'pending');
+                        
+                        // Si tous les champs ont été traités, on masque la carte (le temps que le fetchRequests la supprime définitivement)
+                        if (pendingFields.length === 0) return null;
+
+                        return (
+                            <div key={request._id} className="bg-white rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden">
+                                
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-slate-100 pb-4">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg">
+                                                {request.family?.name || 'Inconnue'}
+                                            </span>
+                                            <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
+                                                <Mail size={12}/> {request.parent?.email}
+                                            </span>
+                                        </div>
+                                        <h3 className="text-xl font-black text-car-dark flex items-center gap-2">
+                                            {request.targetType === 'Child' ? <User className="text-car-blue" size={24}/> : <FolderHeart className="text-car-yellow" size={24}/>}
+                                            {request.targetType === 'Child' ? 'Fiche Enfant' : 'Dossier Famille'} 
+                                            <span className="text-car-blue">
+                                                ({request.targetType === 'Child' 
+                                                    ? `${request.targetId?.firstName} ${request.targetId?.lastName}` 
+                                                    : request.targetId?.name})
+                                            </span>
+                                        </h3>
                                     </div>
-                                    <h3 className="text-xl font-black text-car-dark flex items-center gap-2">
-                                        {request.targetType === 'Child' ? <User className="text-car-blue" size={24}/> : <FolderHeart className="text-car-yellow" size={24}/>}
-                                        {request.targetType === 'Child' ? 'Fiche Enfant' : 'Dossier Famille'} 
-                                        <span className="text-car-blue">
-                                            ({request.targetType === 'Child' 
-                                                ? `${request.targetId?.firstName} ${request.targetId?.lastName}` 
-                                                : request.targetId?.name})
-                                        </span>
-                                    </h3>
                                 </div>
-                            </div>
-                            
-                            {/* Liste des champs à valider */}
-                            <div className="space-y-4">
-                                {request.fields.map(field => (
-                                    field.status === 'pending' && (
+                                
+                                <div className="space-y-4">
+                                    {pendingFields.map(field => (
                                         <div key={field._id} className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch bg-slate-50 rounded-2xl p-4 border border-slate-100">
                                             
-                                            {/* Nom du champ */}
                                             <div className="lg:col-span-2 flex items-center">
                                                 <span className="font-black text-slate-500 uppercase text-xs tracking-widest">
                                                     {field.fieldNameFr}
                                                 </span>
                                             </div>
 
-                                            {/* Valeur Actuelle (Rouge) */}
-                                            <div className="lg:col-span-4 bg-red-50/50 border border-red-100 rounded-xl p-4 text-red-900">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-2">Valeur actuelle</div>
+                                            <div className="lg:col-span-3 bg-red-50/50 border border-red-100 rounded-xl p-4 text-red-900">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-2">Ancienne valeur</div>
                                                 <ValueFormatter value={field.oldValue} />
                                             </div>
 
-                                            {/* Flèche (Cachée sur mobile) */}
                                             <div className="hidden lg:flex lg:col-span-1 items-center justify-center text-slate-300">
                                                 <ArrowRight size={24} />
                                             </div>
 
-                                            {/* Nouvelle Valeur (Vert) */}
                                             <div className="lg:col-span-4 bg-green-50/50 border border-green-100 rounded-xl p-4 text-green-900">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-2">Nouvelle valeur demandée</div>
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-2">Valeur demandée</div>
                                                 <ValueFormatter value={field.newValue} />
                                             </div>
 
-                                            {/* Actions */}
-                                            <div className="lg:col-span-1 flex lg:flex-col gap-2 justify-center">
+                                            <div className="lg:col-span-2 flex flex-row lg:flex-col gap-2 justify-center">
                                                 <button 
                                                     onClick={() => handleDecision(request._id, field._id, 'approved')}
-                                                    className="flex-1 bg-car-green hover:bg-green-600 text-white p-3 rounded-xl flex items-center justify-center transition-transform hover:scale-105 shadow-sm"
-                                                    title="Accepter"
+                                                    className="flex-1 bg-car-green hover:bg-green-600 text-white p-3 rounded-xl flex items-center justify-center transition-transform hover:scale-105 shadow-sm font-bold text-xs"
                                                 >
-                                                    <Check size={20} />
+                                                    <Check size={18} className="mr-1"/> Accepter
                                                 </button>
                                                 <button 
                                                     onClick={() => handleDecision(request._id, field._id, 'rejected')}
-                                                    className="flex-1 bg-white border-2 border-car-pink text-car-pink hover:bg-car-pink hover:text-white p-3 rounded-xl flex items-center justify-center transition-all shadow-sm"
-                                                    title="Refuser"
+                                                    className="flex-1 bg-white border-2 border-car-pink text-car-pink hover:bg-car-pink hover:text-white p-3 rounded-xl flex items-center justify-center transition-all shadow-sm font-bold text-xs"
                                                 >
-                                                    <X size={20} />
+                                                    <X size={18} className="mr-1"/> Refuser
                                                 </button>
                                             </div>
 
                                         </div>
-                                    )
-                                ))}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>
