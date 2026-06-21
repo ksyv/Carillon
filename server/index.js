@@ -42,7 +42,7 @@ mongoose.connect(process.env.MONGO_URI)
 // --- IMPORT ET BRANCHEMENT DES ROUTEURS ---
 app.use('/api', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
-app.use('/api', require('./routes/requests'));
+// app.use('/api', require('./routes/requests'));
 app.use('/api/children', require('./routes/children'));
 app.use('/api/families', require('./routes/families'));
 app.use('/api/attendance', require('./routes/attendance'));
