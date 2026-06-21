@@ -12,7 +12,7 @@ const ValueFormatter = ({ value }) => {
         return <span className="font-bold">{value ? 'Oui' : 'Non'}</span>;
     }
 
-    // CORRECTION ICI : Détection magique des fichiers (Base64)
+    // Détection des fichiers PDF/Images
     if (typeof value === 'string' && value.startsWith('data:')) {
         return (
             <button 
@@ -20,9 +20,9 @@ const ValueFormatter = ({ value }) => {
                     const win = window.open();
                     win.document.write(`<iframe src="${value}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
                 }} 
-                className="mt-2 text-car-blue bg-car-blue/10 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-car-blue hover:text-white transition-colors cursor-pointer flex items-center gap-2 w-fit"
+                className="mt-1 text-car-blue bg-car-blue/10 px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-car-blue hover:text-white transition-colors cursor-pointer flex items-center justify-center gap-2 w-full sm:w-max"
             >
-                👀 Voir le document
+                👀 VOIR DOC
             </button>
         );
     }
@@ -30,9 +30,9 @@ const ValueFormatter = ({ value }) => {
     if (Array.isArray(value)) {
         if (value.length === 0) return <span className="italic opacity-50">Aucun</span>;
         return (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 w-full">
                 {value.map((item, idx) => (
-                    <div key={idx} className="bg-white/40 p-2 rounded-lg border border-black/5 text-xs">
+                    <div key={idx} className="bg-white/50 p-2 rounded-lg border border-black/5 text-xs w-full overflow-hidden">
                         <ValueFormatter value={item} />
                     </div>
                 ))}
@@ -41,12 +41,13 @@ const ValueFormatter = ({ value }) => {
     }
 
     if (typeof value === 'object') {
+        // Affichage spécial pour les Personnes (Responsables / Contacts)
         if (value.lastName !== undefined || value.firstName !== undefined) {
             const name = `${value.lastName || ''} ${value.firstName || ''}`.trim();
             const phone = value.phone || value.phoneMobile || value.phoneFixe;
             const extra = value.qualite ? `(${value.qualite})` : value.isEmergency ? '(Contact Urgence)' : '';
             return (
-                <div>
+                <div className="w-full break-words">
                     <div className="font-black uppercase">{name} {extra && <span className="text-[10px] text-car-pink ml-1">{extra}</span>}</div>
                     {phone && <div>📞 {phone}</div>}
                     {value.email && <div>✉️ {value.email}</div>}
@@ -54,16 +55,23 @@ const ValueFormatter = ({ value }) => {
             );
         }
         
+        // Affichage d'objets génériques (Fiche Médicale, Documents...)
         return (
-            <div className="flex flex-col gap-1 text-xs">
+            <div className="flex flex-col gap-1 text-xs w-full">
                 {Object.entries(value).map(([k, v]) => {
-                    if (v === '' || v === null || (Array.isArray(v) && v.length === 0)) return null; 
+                    // On MASQUE les données techniques (_id, __v) et les champs vides !
+                    if (v === '' || v === null || k === '_id' || k === '__v' || (Array.isArray(v) && v.length === 0)) return null; 
                     
-                    const label = k.replace(/([A-Z])/g, ' $1').trim().toLowerCase();
+                    // On nettoie le nom du champ
+                    let label = k.replace(/([A-Z])/g, ' $1').trim().toLowerCase();
+                    if (label === 'file url') label = 'document';
+
                     return (
-                        <div key={k} className="flex justify-between items-center border-b border-black/5 pb-2 pt-1 last:border-0">
-                            <span className="capitalize opacity-70 pr-4">{label}</span>
-                            <span className="font-bold text-right"><ValueFormatter value={v} /></span>
+                        <div key={k} className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center border-b border-black/5 pb-2 pt-1 last:border-0 gap-1 sm:gap-4 w-full">
+                            <span className="capitalize opacity-70 shrink-0 font-medium">{label}</span>
+                            <div className="font-bold sm:text-right break-words min-w-0 w-full sm:w-auto">
+                                <ValueFormatter value={v} />
+                            </div>
                         </div>
                     );
                 })}
@@ -71,7 +79,8 @@ const ValueFormatter = ({ value }) => {
         );
     }
 
-    return <span>{String(value)}</span>;
+    // Sécurité pour les très longues chaînes de caractères (URL, etc.)
+    return <span className="break-words break-all sm:break-normal">{String(value)}</span>;
 };
 // ---------------------------------------------------------------
 
@@ -111,8 +120,6 @@ const ModificationRequestsAdmin = () => {
 
         try {
             const token = localStorage.getItem('token');
-            
-            // On envoie le statut et l'ID du champ spécifiquement
             const payload = { fieldId, status, rejectionReason };
 
             const response = await fetch(`/api/requests/${requestId}/process`, {
@@ -125,7 +132,7 @@ const ModificationRequestsAdmin = () => {
             });
 
             if (response.ok) {
-                fetchRequests(); // Rafraîchir pour faire disparaître le champ traité
+                fetchRequests(); 
             } else {
                 alert("Erreur lors du traitement.");
             }
@@ -144,7 +151,7 @@ const ModificationRequestsAdmin = () => {
     }
 
     return (
-        <div className="max-w-5xl mx-auto p-4 md:p-8 min-h-screen">
+        <div className="max-w-6xl mx-auto p-4 md:p-8 min-h-screen">
             <div className="flex items-center gap-3 mb-8 ml-2">
                 <div className="h-2 w-2 rounded-full bg-orange-500"></div>
                 <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Sas de validation : Demandes des familles</h2>
@@ -174,10 +181,7 @@ const ModificationRequestsAdmin = () => {
             ) : (
                 <div className="space-y-8">
                     {requests.map(request => {
-                        // On ne garde que les champs en attente
                         const pendingFields = request.fields.filter(f => f.status === 'pending');
-                        
-                        // Si tous les champs ont été traités, on masque la carte (le temps que le fetchRequests la supprime définitivement)
                         if (pendingFields.length === 0) return null;
 
                         return (
@@ -207,29 +211,33 @@ const ModificationRequestsAdmin = () => {
                                 
                                 <div className="space-y-4">
                                     {pendingFields.map(field => (
-                                        <div key={field._id} className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                                        <div key={field._id} className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch bg-slate-50 rounded-2xl p-4 border border-slate-100 overflow-hidden">
                                             
-                                            <div className="lg:col-span-2 flex items-center">
-                                                <span className="font-black text-slate-500 uppercase text-xs tracking-widest">
+                                            {/* NOM DU CHAMP */}
+                                            <div className="xl:col-span-2 flex items-center">
+                                                <span className="font-black text-slate-500 uppercase text-xs tracking-widest break-words">
                                                     {field.fieldNameFr}
                                                 </span>
                                             </div>
 
-                                            <div className="lg:col-span-3 bg-red-50/50 border border-red-100 rounded-xl p-4 text-red-900">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-2">Ancienne valeur</div>
-                                                <ValueFormatter value={field.oldValue} />
+                                            {/* ANCIENNE VALEUR */}
+                                            <div className="xl:col-span-4 bg-red-50/50 border border-red-100 rounded-xl p-4 text-red-900 w-full overflow-hidden">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-3 border-b border-red-100/50 pb-2">Ancienne valeur</div>
+                                                <div className="w-full">
+                                                    <ValueFormatter value={field.oldValue} />
+                                                </div>
                                             </div>
 
-                                            <div className="hidden lg:flex lg:col-span-1 items-center justify-center text-slate-300">
-                                                <ArrowRight size={24} />
+                                            {/* NOUVELLE VALEUR */}
+                                            <div className="xl:col-span-4 bg-green-50/50 border border-green-100 rounded-xl p-4 text-green-900 w-full overflow-hidden">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-3 border-b border-green-100/50 pb-2">Valeur demandée</div>
+                                                <div className="w-full">
+                                                    <ValueFormatter value={field.newValue} />
+                                                </div>
                                             </div>
 
-                                            <div className="lg:col-span-4 bg-green-50/50 border border-green-100 rounded-xl p-4 text-green-900">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-2">Valeur demandée</div>
-                                                <ValueFormatter value={field.newValue} />
-                                            </div>
-
-                                            <div className="lg:col-span-2 flex flex-row lg:flex-col gap-2 justify-center">
+                                            {/* ACTIONS */}
+                                            <div className="xl:col-span-2 flex flex-row xl:flex-col gap-2 justify-center shrink-0">
                                                 <button 
                                                     onClick={() => handleDecision(request._id, field._id, 'approved')}
                                                     className="flex-1 bg-car-green hover:bg-green-600 text-white p-3 rounded-xl flex items-center justify-center transition-transform hover:scale-105 shadow-sm font-bold text-xs"
