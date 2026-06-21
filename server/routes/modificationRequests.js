@@ -47,7 +47,23 @@ router.get('/pending-count', auth(['admin', 'director', 'manager', 'responsable'
     }
 });
 
-// 3. [STAFF] Récupérer les demandes pour UNE famille spécifique (utilisé par FamilyManager)
+// 3. [STAFF] AJOUT : Récupérer TOUTES les demandes en attente (Sas de validation global)
+router.get('/pending', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
+    try {
+        const requests = await ModificationRequest.find({ globalStatus: 'pending' })
+            .populate('family', 'name')
+            .populate('parent', 'email')
+            .populate('targetId')
+            .sort({ createdAt: -1 });
+            
+        res.json(requests);
+    } catch (error) {
+        console.error("ERREUR FETCH PENDING GLOBAL :", error);
+        res.status(500).json({ error: "Erreur lors de la récupération globale des demandes." });
+    }
+});
+
+// 4. [STAFF] Récupérer les demandes pour UNE famille spécifique (utilisé par FamilyManager)
 router.get('/family/:familyId', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
     try {
         const requests = await ModificationRequest.find({ family: req.params.familyId, globalStatus: 'pending' })
@@ -76,7 +92,7 @@ router.get('/family/:familyId', auth(['admin', 'director', 'manager', 'responsab
     }
 });
 
-// 4. [STAFF] Approuver une demande globale (utilisé par FamilyManager)
+// 5. [STAFF] Approuver une demande globale (utilisé par FamilyManager)
 router.post('/:id/approve', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
     try {
         const request = await ModificationRequest.findById(req.params.id).populate('targetId').populate('parent');
@@ -123,7 +139,7 @@ router.post('/:id/approve', auth(['admin', 'director', 'manager', 'responsable']
     }
 });
 
-// 5. [STAFF] Rejeter une demande globale (utilisé par FamilyManager)
+// 6. [STAFF] Rejeter une demande globale (utilisé par FamilyManager)
 router.post('/:id/reject', auth(['admin', 'director', 'manager', 'responsable']), async (req, res) => {
     try {
         const { message } = req.body;
