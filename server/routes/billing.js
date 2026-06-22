@@ -214,45 +214,56 @@ router.post('/generate', auth(['admin']), async (req, res) => {
             const alt = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(att.date));
             let billedFamilyId = child.families[0].toString();
             if (alt && alt.billToFamily) billedFamilyId = alt.billToFamily.toString();
-
             const targetFamily = families.find(f => f._id.toString() === billedFamilyId);
             if (!targetFamily) return;
 
             const fratrieCount = childrenInFamily[targetFamily._id.toString()] || 1;
             const qf = targetFamily.quotientFamilial || 0;
-
             let pNom = targetFamily.name;
             if (alt) pNom = `Garde Alternée : ${targetFamily.name} (Enfant: ${child.firstName})`;
-
             initInvoice(targetFamily._id.toString(), pNom);
-            let targetCode = att.sessionType === 'MATIN' ? 'CA2_MATIN' : (att.isLate ? 'CA2_SUPP' : 'CA2_SOIR');
-            let label = att.sessionType === 'MATIN' ? 'APS Matin' : (att.isLate ? 'Supplément Fin de Soirée' : 'APS Soir (16h30-18h30)');
-            const rule = tariffMap[targetCode]; 
-            if (!rule) return;
 
-            const price = calculateUnitPrice(rule, fratrieCount, qf);
-            
-            const itemKey = `${child._id.toString()}_${targetCode}`;
-            const formattedDate = att.date.split('-')[2] + '/' + att.date.split('-')[1];
-            
-            if (!invoiceDrafts[targetFamily._id].items[itemKey]) {
-                invoiceDrafts[targetFamily._id].items[itemKey] = { 
-                    childName: `${child.firstName} ${child.lastName.toUpperCase()}`, // NOM + Prénom sécurisé
-                    code: targetCode, 
-                    label, 
-                    unitPrice: price, 
-                    count: 0, 
-                    total: 0,
-                    dates: [] 
-                };
+            // LOGIQUE CUMULATIVE : On crée une liste d'activités à facturer pour cet enregistrement
+            let activitiesToBill = [];
+
+            if (att.sessionType === 'MATIN') {
+                activitiesToBill.push({ code: 'CA2_MATIN', label: 'APS Matin' });
+            } else if (att.sessionType === 'SOIR') {
+                activitiesToBill.push({ code: 'CA2_SOIR', label: 'APS Soir (16h30-18h30)' });
+                // Si tard, on ajoute le supplément
+                if (att.isLate) {
+                    activitiesToBill.push({ code: 'CA2_SUPP', label: 'Supplément 19h' });
+                }
             }
-            invoiceDrafts[targetFamily._id].items[itemKey].count += 1;
-            invoiceDrafts[targetFamily._id].items[itemKey].total += price;
-            
-            if (!invoiceDrafts[targetFamily._id].items[itemKey].dates.includes(formattedDate)) {
-                invoiceDrafts[targetFamily._id].items[itemKey].dates.push(formattedDate);
-            }
-            invoiceDrafts[targetFamily._id].totalGlobal += price;
+
+            // Traitement de chaque activité (permet le cumul)
+            activitiesToBill.forEach(act => {
+                const rule = tariffMap[act.code];
+                if (!rule) return;
+
+                const price = calculateUnitPrice(rule, fratrieCount, qf);
+                const itemKey = `${child._id.toString()}_${act.code}_${att.date}`; // Clé unique par date et par type
+                const formattedDate = att.date.split('-')[2] + '/' + att.date.split('-')[1];
+
+                if (!invoiceDrafts[targetFamily._id].items[itemKey]) {
+                    invoiceDrafts[targetFamily._id].items[itemKey] = { 
+                        childName: `${child.firstName} ${child.lastName.toUpperCase()}`,
+                        code: act.code, 
+                        label: act.label, 
+                        unitPrice: price, 
+                        count: 0, 
+                        total: 0,
+                        dates: [] 
+                    };
+                }
+                
+                invoiceDrafts[targetFamily._id].items[itemKey].count += 1;
+                invoiceDrafts[targetFamily._id].items[itemKey].total += price;
+                if (!invoiceDrafts[targetFamily._id].items[itemKey].dates.includes(formattedDate)) {
+                    invoiceDrafts[targetFamily._id].items[itemKey].dates.push(formattedDate);
+                }
+                invoiceDrafts[targetFamily._id].totalGlobal += price;
+            });
         });
 
         // 3. Finalisation des documents et écriture en base
