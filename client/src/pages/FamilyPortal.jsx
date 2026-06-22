@@ -23,7 +23,6 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                 birthDate: child.birthDate ? child.birthDate.split('T')[0] : '', 
                 droitImage: child.droitImage || false, 
                 autorisationSortieSeul: child.autorisationSortieSeul || false,
-                // Clonage profond pour éviter la mutation par référence
                 medical: child.medical ? JSON.parse(JSON.stringify(child.medical)) : { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
                 hasPAI: child.hasPAI || false, 
                 paiDetails: child.paiDetails || '', 
@@ -48,7 +47,6 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         const reader = new FileReader();
         reader.onloadend = () => {
             setEditingChild(prev => {
-                // Clonage profond des documents existants
                 const updatedDocs = JSON.parse(JSON.stringify(prev.documents || {}));
                 if (!updatedDocs[docType]) updatedDocs[docType] = {};
                 
@@ -57,6 +55,17 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                 
                 return { ...prev, documents: updatedDocs };
             });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // NOUVEAU : Gestion de l'upload du document de protocole PAI
+    const handlePaiDocumentUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setEditingChild(prev => ({ ...prev, paiDocument: reader.result }));
         };
         reader.readAsDataURL(file);
     };
@@ -80,6 +89,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         compare('hasPAI', "Présence d'un PAI", child.hasPAI, editingChild.hasPAI);
         compare('paiDetails', "Détails PAI", child.paiDetails, editingChild.paiDetails);
         compare('isPAIAlimentaire', "PAI Alimentaire", child.isPAIAlimentaire, editingChild.isPAIAlimentaire);
+        compare('paiDocument', "Document Protocole PAI", child.paiDocument, editingChild.paiDocument); // AJOUTÉ
         compare('regimeAlimentaire', "Régime Alimentaire", child.regimeAlimentaire, editingChild.regimeAlimentaire);
         compare('medical', "Informations Médicales", child.medical, editingChild.medical);
         compare('personnesAutorisees', "Personnes Autorisées", child.personnesAutorisees, editingChild.personnesAutorisees);
@@ -238,7 +248,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                         </div>
                     </div>
 
-                    {/* PAI */}
+                    {/* PAI & CANTINE */}
                     <div>
                         <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">PAI & Cantine</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -251,6 +261,23 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                                             const isAlim = e.target.checked;
                                             setEditingChild({...editingChild, isPAIAlimentaire: isAlim, regimeAlimentaire: isAlim ? 'PAI' : 'Standard'});
                                         }} /> C'est un PAI Alimentaire</label>
+                                        
+                                        {/* NOUVEAU : Bloc pour transmettre le fichier de protocole PAI */}
+                                        <div className="mt-2 bg-white p-3 rounded-xl border border-car-pink/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                            <div className="flex flex-col flex-1 w-full">
+                                                <span className="text-[10px] font-black text-car-pink uppercase">Joindre le document PAI</span>
+                                                {editingChild.paiDocument ? (
+                                                    <span className="text-xs font-bold text-car-green flex items-center gap-1 mt-1"><CheckCircle size={14}/> Fichier chargé</span>
+                                                ) : (
+                                                    <span className="text-[10px] text-slate-400 mt-1">Aucun fichier (requis)</span>
+                                                )}
+                                            </div>
+                                            <label className="cursor-pointer bg-slate-50 border border-slate-200 hover:border-car-pink px-4 py-2 rounded-xl flex items-center justify-center gap-2 group transition-colors shrink-0 w-full sm:w-auto">
+                                                <UploadCloud size={18} className="text-slate-400 group-hover:text-car-pink transition-colors" />
+                                                <span className="text-xs font-bold text-slate-500 group-hover:text-car-pink">Transmettre</span>
+                                                <input type="file" accept=".pdf, image/*" className="hidden" onChange={handlePaiDocumentUpload} />
+                                            </label>
+                                        </div>
                                     </>
                                 )}
                             </div>
@@ -316,21 +343,22 @@ const FamilyPortal = () => {
             const { data } = await api.get('/parent/me');
             setParentData(data);
             
-            // Clonage profond pour éviter la mutation par référence
             const resps = data.family.responsables ? JSON.parse(JSON.stringify(data.family.responsables)) : [];
             while (resps.length < 2) resps.push({ firstName: '', lastName: '', qualite: '', birthDate: '', adressePostale: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' });
             
             const docs = data.family.documents ? JSON.parse(JSON.stringify(data.family.documents)) : {};
             
-            setEditFamily({ ...data.family, responsables: resps, documents: docs });
+            setEditFamily({ ...data.family, wombResps: resps, responsables: resps, documents: docs });
 
         } catch (e) {
             if (e.response?.status === 401 || e.response?.status === 403) {
                 localStorage.removeItem('token');
             }
-        } finally {
-            setIsLoading(false);
-        }
+        } fillAllData();
+    };
+
+    const fillAllData = () => {
+        setIsLoading(false);
     };
 
     const handleLogin = async (e) => {
@@ -363,7 +391,6 @@ const FamilyPortal = () => {
         const reader = new FileReader();
         reader.onloadend = () => {
             setEditFamily(prev => {
-                // Clonage profond des documents existants
                 const updatedDocs = JSON.parse(JSON.stringify(prev.documents || {}));
                 if (!updatedDocs.attestationCAF) updatedDocs.attestationCAF = {};
                 
@@ -478,7 +505,6 @@ const FamilyPortal = () => {
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                        {/* Infos QF */}
                         <div className="grid grid-cols-3 gap-3">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase">Revenu Réf. (€)</label>
@@ -494,7 +520,6 @@ const FamilyPortal = () => {
                             </div>
                         </div>
                         
-                        {/* Upload Justificatif CAF */}
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
                             <div className="flex-1 w-full text-center sm:text-left">
                                 <span className="text-xs font-black text-slate-500 uppercase block mb-1">Justificatif CAF / Impôts</span>
