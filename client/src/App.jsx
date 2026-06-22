@@ -24,6 +24,7 @@ import AdultManager from './pages/AdultManager';
 import CustomListManager from './pages/CustomListManager';
 import StructureInfo from './components/StructureInfo';
 import ModificationRequestsAdmin from './pages/ModificationRequestsAdmin';
+import NewsManager from './pages/NewsManager';
 
 
 export default function App() {
@@ -116,8 +117,13 @@ export default function App() {
             path="/admin/requests" 
             element={auth.token ? <ModificationRequestsAdmin /> : <Navigate to="/" />} 
           />
-
-          {/* Filet de sécurité global */}
+          <Route 
+            path="/admin/news" 
+            element={auth.token ? <NewsManager /> : <Navigate to="/" />} 
+          />
+          {/* ========================================================== */}
+          {/* ROUTE PAR DÉFAUT : REDIRECTION VERS LE DASHBOARD OU LOGIN */}
+          {/* ========================================================== */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
         <StructureInfo />

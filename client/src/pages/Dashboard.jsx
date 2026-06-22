@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX, Bell, Activity, GraduationCap, Coffee, ListChecks, ClipboardCheck } from 'lucide-react';
+import { LogOut, Sun, Moon, FileText, Users, Shield, CalendarDays, Banknote, Utensils, FolderHeart, Lock, Calculator, Mail, Tags, CalendarX, Bell, Activity, GraduationCap, Coffee, ListChecks, ClipboardCheck, Newspaper } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
 import api from '../api';
 
@@ -240,6 +240,18 @@ const Dashboard = () => {
                             <div>
                                 <h3 className="font-black text-car-dark text-lg">Demande de modification Famille</h3>
                                 <p className="text-xs text-slate-500 font-medium mt-1">Demandes de modifications familles</p>
+                            </div>
+                        </button>
+                        <button 
+                            onClick={() => navigate('/news')} 
+                            className="bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex items-center gap-4 text-left group"
+                        >
+                            <div className="bg-car-blue/10 p-4 rounded-2xl group-hover:scale-110 transition-transform">
+                                <Newspaper className="text-car-blue w-8 h-8"/>
+                            </div>
+                            <div>
+                                <h3 className="font-black text-car-dark text-xl leading-tight">Gérer l'Accueil</h3>
+                                <p className="text-slate-500 font-medium text-sm mt-1">Actualités du portail famille</p>
                             </div>
                         </button>
 
