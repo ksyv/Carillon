@@ -10,7 +10,11 @@ const ChildInfoModal = ({ child, onClose }) => {
 
     // NOUVEAU : Dès qu'on ouvre la modale, on va chercher les documents manquants
     useEffect(() => {
-        if (!child) return;
+        // --- LA LIGNE MANQUANTE EST ICI ---
+        if (!child) {
+            setDisplayChild(null); // On vide l'affichage pour que la modale disparaisse !
+            return;
+        }
         
         // On affiche d'abord la donnée allégée pour que ça soit instantané
         setDisplayChild(child);
