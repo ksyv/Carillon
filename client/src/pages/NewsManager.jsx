@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Newspaper, Plus, Trash2, Save, GripVertical, Image as ImageIcon, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Eye, EyeOff, Link, Type } from 'lucide-react';
+import { Newspaper, Plus, Trash2, Save, GripVertical, Image as ImageIcon, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Eye, EyeOff, Link } from 'lucide-react';
 import api from '../api';
 
-// --- COMPOSANT : ÉDITEUR WYSIWYG AVANCÉ (ANTI-PERTE DE FOCUS) ---
+// --- COMPOSANT : ÉDITEUR WYSIWYG REPENSI (SÉLECTEURS ET IMAGES FLUIDES) ---
 const RichTextEditor = ({ content, onChange }) => {
     const editorRef = useRef(null);
     const savedRangeRef = useRef(null);
 
-    // Sauvegarde la position exacte du curseur ou de la sélection
+    // Sauvegarde la position exacte du curseur
     const saveSelection = () => {
         const sel = window.getSelection();
         if (sel.rangeCount > 0) {
@@ -16,12 +16,19 @@ const RichTextEditor = ({ content, onChange }) => {
         }
     };
 
-    // Restaure la sélection pour forcer l'action au bon endroit
+    // Restaure la sélection ou se positionne à la fin par défaut
     const restoreSelection = () => {
+        const sel = window.getSelection();
         if (savedRangeRef.current) {
-            const sel = window.getSelection();
             sel.removeAllRanges();
             sel.addRange(savedRangeRef.current);
+        } else {
+            // Sécurité : si la sélection a été perdue, on se place à la fin de l'éditeur
+            const range = document.createRange();
+            range.selectNodeContents(editorRef.current);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
         }
     };
 
@@ -39,62 +46,61 @@ const RichTextEditor = ({ content, onChange }) => {
 
         const reader = new FileReader();
         reader.onloadend = () => {
-            restoreSelection();
             editorRef.current.focus();
-            // Insertion propre de l'image HTML au niveau du curseur
+            restoreSelection();
+            
+            // Insertion forcée et propre de l'image HTML
             document.execCommand('insertImage', false, reader.result);
+            
             saveSelection();
             onChange(editorRef.current.innerHTML);
-            // On vide l'input pour pouvoir ré-uploader la même image si besoin
-            e.target.value = '';
+            e.target.value = ''; // Reset de l'input
         };
         reader.readAsDataURL(file);
     };
 
     const handleLinkImage = () => {
-        const url = window.prompt("Collez l'URL de l'image :");
+        const url = window.prompt("Collez l'URL de l'image internet :");
         if (url) format('insertImage', url);
     };
 
     return (
         <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white flex flex-col shadow-sm">
-            {/* BARRE D'OUTILS ENRICHIE */}
-            {/* TRÈS IMPORTANT : Le onMouseDown={(e) => e.preventDefault()} empêche de perdre la sélection de texte */}
+            {/* BARRE D'OUTILS NETTOYÉE */}
             <div className="bg-slate-50 border-b border-slate-200 p-3 flex flex-wrap gap-2 items-center shrink-0 select-none">
                 
-                {/* Choix de la police */}
+                {/* Sélecteur de Police (onMouseDown retiré pour permettre l'ouverture) */}
                 <select 
                     onChange={(e) => format('fontName', e.target.value)}
-                    onMouseDown={(e) => e.preventDefault()}
-                    className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer"
-                    title="Police"
+                    className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer hover:border-slate-300"
+                    title="Police de caractères"
                 >
                     <option value="Arial">Arial</option>
                     <option value="Montserrat">Montserrat</option>
                     <option value="Comic Sans MS">Comic Sans</option>
                     <option value="Courier New">Courier</option>
                     <option value="Georgia">Georgia</option>
-                    <option value="Impact">Impact</option>
+                    <option value="Times New Roman">Times New Roman</option>
                 </select>
 
-                {/* Choix de la taille */}
+                {/* Sélecteur de Taille (onMouseDown retiré également) */}
                 <select 
                     onChange={(e) => format('fontSize', e.target.value)}
-                    onMouseDown={(e) => e.preventDefault()}
-                    className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer"
+                    className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer hover:border-slate-300"
                     title="Taille du texte"
+                    defaultValue="3"
                 >
                     <option value="2">Petit</option>
                     <option value="3">Normal</option>
-                    <option value="4">Moyen (Titre 3)</option>
-                    <option value="5">Grand (Titre 2)</option>
-                    <option value="6">Très Grand (Titre 1)</option>
-                    <option value="7">Énorme</option>
+                    <option value="4">Grand (Titre H3)</option>
+                    <option value="5">Très Grand (Titre H2)</option>
+                    <option value="6">Énorme (Titre H1)</option>
+                    <option value="7">Géant</option>
                 </select>
 
                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
 
-                {/* Styles de base */}
+                {/* Boutons de style */}
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('bold'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Gras"><Bold size={16}/></button>
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('italic'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Italique"><Italic size={16}/></button>
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('underline'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Souligné"><Underline size={16}/></button>
@@ -108,7 +114,7 @@ const RichTextEditor = ({ content, onChange }) => {
                 
                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
                 
-                {/* Couleur de texte */}
+                {/* Nuancier de couleur */}
                 <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1 rounded-xl" title="Couleur du texte">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Couleur</span>
                     <input 
@@ -121,7 +127,7 @@ const RichTextEditor = ({ content, onChange }) => {
 
                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
 
-                {/* Médias (Images) */}
+                {/* Importations Médias */}
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); saveSelection(); handleLinkImage(); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors flex items-center gap-1 text-xs font-black uppercase tracking-wider" title="Image par lien Internet"><Link size={14}/> Image URL</button>
                 
                 <label onMouseDown={saveSelection} className="p-2 hover:bg-slate-200 rounded-xl text-slate-600 cursor-pointer flex items-center gap-1 text-xs font-black uppercase tracking-wider transition-colors" title="Téléverser une image locale">
@@ -130,7 +136,7 @@ const RichTextEditor = ({ content, onChange }) => {
                 </label>
             </div>
 
-            {/* ZONE DE TEXTE ÉDITABLE ENRICHI */}
+            {/* ZONE D'ÉCRITURE */}
             <div 
                 ref={editorRef}
                 className="p-6 min-h-[400px] outline-none max-w-full overflow-x-hidden prose prose-slate focus:prose-blue bg-white"
@@ -240,7 +246,7 @@ const NewsManager = () => {
                         <div className="bg-car-blue/10 p-4 rounded-2xl"><Newspaper className="text-car-blue w-8 h-8"/></div>
                         <div>
                             <h1 className="text-3xl font-black text-car-dark">Page d'accueil Parents</h1>
-                            <p className="text-slate-500 font-medium">Gerez l'ordre et le contenu textuel enrichi</p>
+                            <p className="text-slate-500 font-medium">Gérez l'ordre et le contenu textuel enrichi</p>
                         </div>
                     </div>
                     <button onClick={handleCreateNew} className="bg-car-blue text-white px-5 py-3 rounded-xl font-black tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg shadow-car-blue/20 text-xs">
@@ -265,7 +271,7 @@ const NewsManager = () => {
                                     onDragOver={(e) => onDragOver(e, index)}
                                     onDrop={(e) => onDrop(e, index)}
                                     onDragEnd={onDragEnd}
-                                    className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${selectedCard?._id === news._id ? 'bg-slate-100 border-slate-300 shadow-inner' : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                    className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${selectedCard?._id === news._id ? 'bg-slate-100 border-slate-300 shadow-inner' : 'bg-white border-slate-100'}`}
                                     onClick={() => setSelectedCard(news)}
                                     style={{ borderLeftColor: news.borderColor, borderLeftWidth: '6px' }}
                                 >
