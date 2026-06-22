@@ -5,6 +5,59 @@ import LogoTexte from '../components/LogoTexte';
 import api from '../api';
 
 // ==========================================
+// NOUVEAU : MODAL DE LECTURE COMPLÈTE D'UNE NEWS
+// ==========================================
+const NewsViewModal = ({ news, onClose, onImageClick }) => {
+    if (!news) return null;
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[2rem] w-full max-w-3xl shadow-2xl overflow-y-auto max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                <div className="h-4 w-full shrink-0" style={{ backgroundColor: news.borderColor || '#0ea5e9' }}></div>
+                <div className="p-6 sm:p-8 flex-1 overflow-y-auto">
+                    <div className="flex justify-between items-start mb-6 gap-4">
+                        <h2 className="text-2xl sm:text-3xl font-black text-car-dark">{news.title}</h2>
+                        <button onClick={onClose} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink transition-colors shrink-0"><X size={24}/></button>
+                    </div>
+                    {/* Intercepteur au clic sur le conteneur prose pour le zoom d'image */}
+                    <div 
+                        onClick={(e) => {
+                            if (e.target.tagName === 'IMG') {
+                                onImageClick(e.target.src);
+                            }
+                        }}
+                        className="prose prose-sm sm:prose-base max-w-none text-slate-600 prose-headings:font-black prose-a:text-car-blue prose-img:rounded-xl prose-img:shadow-sm prose-img:cursor-zoom-in hover:prose-img:opacity-95 transition-opacity"
+                        dangerouslySetInnerHTML={{ __html: news.content }} 
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ==========================================
+// NOUVEAU : LIGHTBOX PLEIN ÉCRAN POUR ZOOMER SUR LES IMAGES
+// ==========================================
+const ImageLightbox = ({ src, onClose }) => {
+    if (!src) return null;
+    return (
+        <div 
+            onClick={onClose}
+            className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+        >
+            <button onClick={onClose} className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 p-3 rounded-full text-white transition-colors">
+                <X size={24}/>
+            </button>
+            <img 
+                src={src} 
+                alt="Zoom publication" 
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()} 
+            />
+        </div>
+    );
+};
+
+// ==========================================
 // MODAL ENFANT (Vue Parent)
 // ==========================================
 const ChildRequestModal = ({ child, onClose, onRefresh }) => {
@@ -59,7 +112,6 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         reader.readAsDataURL(file);
     };
 
-    // Gestion de l'upload du document de protocole PAI
     const handlePaiDocumentUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -89,7 +141,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         compare('hasPAI', "Présence d'un PAI", child.hasPAI, editingChild.hasPAI);
         compare('paiDetails', "Détails PAI", child.paiDetails, editingChild.paiDetails);
         compare('isPAIAlimentaire', "PAI Alimentaire", child.isPAIAlimentaire, editingChild.isPAIAlimentaire);
-        compare('paiDocument', "Document Protocole PAI", child.paiDocument, editingChild.paiDocument);
+        compare('paiDocument', "Document Protocole PAI", child.paiDocument, editingChild.paiDocument); 
         compare('regimeAlimentaire', "Régime Alimentaire", child.regimeAlimentaire, editingChild.regimeAlimentaire);
         compare('medical', "Informations Médicales", child.medical, editingChild.medical);
         compare('personnesAutorisees', "Personnes Autorisées", child.personnesAutorisees, editingChild.personnesAutorisees);
@@ -320,11 +372,15 @@ const FamilyPortal = () => {
 
     const [activeTab, setActiveTab] = useState('HUB');
     const [parentData, setParentData] = useState(null);
-    const [newsList, setNewsList] = useState([]); // NOUVEAU: Stockage des actualités
+    const [newsList, setNewsList] = useState([]); 
     const [isLoading, setIsLoading] = useState(true);
     
     const [editFamily, setEditFamily] = useState(null);
     const [childToEdit, setChildToEdit] = useState(null);
+
+    // NOUVELLES OPTIONS DE COULOIRS FRONTEND : LECTURE ET LIGHTBOX ZOOM
+    const [newsToView, setNewsToView] = useState(null);
+    const [zoomedImage, setZoomedImage] = useState(null);
 
     useEffect(() => {
         if (activationToken) {
@@ -340,7 +396,6 @@ const FamilyPortal = () => {
             return;
         }
         try {
-            // NOUVEAU: On récupère les news en parallèle des infos du parent
             const [meRes, newsRes] = await Promise.all([
                 api.get('/parent/me'),
                 api.get('/news')
@@ -441,45 +496,12 @@ const FamilyPortal = () => {
         }
     };
 
-    if (isLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader className="animate-spin text-car-blue" size={48} /></div>;
-
-    if (!parentData && !activationToken) {
-        return (
-            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-                <div className="mb-8"><LogoTexte className="text-3xl" /></div>
-                <div className="bg-white p-8 md:p-10 rounded-[2rem] shadow-xl max-w-md w-full border border-slate-100 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-2 bg-car-blue"></div>
-                    <h1 className="text-2xl font-black text-car-dark text-center mb-2">Espace Famille</h1>
-                    <p className="text-slate-500 font-medium text-center mb-8 text-sm">Connectez-vous pour gérer votre dossier.</p>
-
-                    <form onSubmit={handleLogin} className="space-y-4">
-                        <div>
-                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Email parent</label>
-                            <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                                <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-blue font-bold text-car-dark" required />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Mot de passe</label>
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                                <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-blue font-bold text-car-dark" required />
-                            </div>
-                        </div>
-                        <button type="submit" disabled={isLoggingIn || !loginEmail || !loginPassword} className="w-full bg-car-blue text-white font-black py-4 rounded-2xl shadow-lg mt-4 flex justify-center items-center gap-2">
-                            {isLoggingIn ? <Loader className="animate-spin" size={20}/> : "Se connecter"}
-                        </button>
-                    </form>
-                </div>
-            </div>
-        );
-    }
-
-    // NOUVEAU: Onglet Accueil affichant les cartes d'actualités (News)
+    // ==========================================================
+    // MODIFICATION DE L'ACCUEIL : RENDU EN GRILLE ET MODAL CLIQUE
+    // ==========================================================
     const TabHub = () => (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-car-blue text-white p-8 rounded-[2rem] shadow-lg relative overflow-hidden mb-8">
+            <div className="bg-car-blue text-white p-8 rounded-[2rem] shadow-lg relative overflow-hidden mb-6">
                 <div className="relative z-10">
                     <h2 className="text-sm font-bold tracking-widest opacity-80 uppercase mb-2">Bienvenue sur votre espace</h2>
                     <h1 className="text-3xl sm:text-4xl font-black mb-2">Service Périscolaire</h1>
@@ -488,29 +510,37 @@ const FamilyPortal = () => {
                 <div className="absolute -right-10 -bottom-10 opacity-10 rotate-12 pointer-events-none"><Newspaper size={200} /></div>
             </div>
 
-            <div className="space-y-6">
+            {/* CORRECTION : Rendu Grille responsive intelligente sur grands écrans */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {newsList.length > 0 ? (
                     newsList.map(news => (
                         <div 
                             key={news._id} 
-                            className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden"
+                            onClick={() => setNewsToView(news)}
+                            className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-100 overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col h-80 relative group"
                         >
-                            {/* Ligne de couleur personnalisable en haut de la carte */}
-                            <div className="h-3 w-full" style={{ backgroundColor: news.borderColor || '#0ea5e9' }}></div>
+                            <div className="h-2.5 w-full shrink-0" style={{ backgroundColor: news.borderColor || '#0ea5e9' }}></div>
                             
-                            <div className="p-6 sm:p-8">
-                                <h3 className="text-2xl font-black text-car-dark mb-6">{news.title}</h3>
+                            <div className="p-6 flex flex-col flex-1 overflow-hidden">
+                                <h3 className="text-lg font-black text-car-dark mb-3 line-clamp-2 group-hover:text-car-blue transition-colors">{news.title}</h3>
                                 
-                                {/* Le conteneur "prose" applique un style automatique au HTML brut généré par l'éditeur */}
-                                <div 
-                                    className="prose prose-sm sm:prose-base max-w-none text-slate-600 prose-headings:font-black prose-a:text-car-blue prose-img:rounded-xl prose-img:shadow-sm"
-                                    dangerouslySetInnerHTML={{ __html: news.content }} 
-                                />
+                                {/* pointer-events-none désactive l'interactivité dans la carte d'aperçu pour rendre le clic global fluide */}
+                                <div className="relative flex-1 overflow-hidden pointer-events-none text-xs text-slate-500">
+                                    <div 
+                                        className="prose prose-sm max-w-none text-slate-500 prose-headings:font-black prose-img:max-h-24 prose-img:object-cover prose-img:rounded-xl"
+                                        dangerouslySetInnerHTML={{ __html: news.content }} 
+                                    />
+                                    {/* Effet fondu blanc en bas de l'aperçu si le texte ou les images débordent */}
+                                    <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-white via-white/80 to-transparent"></div>
+                                </div>
+                                <div className="mt-3 text-[10px] font-black uppercase text-car-blue tracking-wider flex items-center gap-1 shrink-0">
+                                    Lire la suite →
+                                </div>
                             </div>
                         </div>
                     ))
                 ) : (
-                    <div className="bg-slate-100/50 p-12 rounded-[2rem] border-2 border-dashed border-slate-200 text-center">
+                    <div className="col-span-full bg-slate-100/50 p-12 rounded-[2rem] border-2 border-dashed border-slate-200 text-center">
                         <p className="text-slate-400 font-bold">Aucune actualité pour le moment.</p>
                     </div>
                 )}
@@ -720,6 +750,10 @@ const FamilyPortal = () => {
             </main>
 
             {childToEdit && <ChildRequestModal child={childToEdit} onClose={() => setChildToEdit(null)} onRefresh={loadParentData} />}
+
+            {/* RENDU SÉCURISÉ DES NOUVEAUX MODULES DE LECTURE ET LIGHTBOX ZOOM */}
+            {newsToView && <NewsViewModal news={newsToView} onClose={() => setNewsToView(null)} onImageClick={(src) => setZoomedImage(src)} />}
+            {zoomedImage && <ImageLightbox src={zoomedImage} onClose={() => setZoomedImage(null)} />}
 
             <nav className="fixed bottom-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-30 pb-safe">
                 <div className="max-w-md md:max-w-2xl mx-auto flex justify-around items-center px-4 py-3">
