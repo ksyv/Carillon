@@ -223,27 +223,21 @@ router.post('/generate', auth(['admin']), async (req, res) => {
             if (alt) pNom = `Garde Alternée : ${targetFamily.name} (Enfant: ${child.firstName})`;
             initInvoice(targetFamily._id.toString(), pNom);
 
-            // LOGIQUE CUMULATIVE : On crée une liste d'activités à facturer pour cet enregistrement
             let activitiesToBill = [];
-
             if (att.sessionType === 'MATIN') {
                 activitiesToBill.push({ code: 'CA2_MATIN', label: 'APS Matin' });
             } else if (att.sessionType === 'SOIR') {
                 activitiesToBill.push({ code: 'CA2_SOIR', label: 'APS Soir (16h30-18h30)' });
-                // Si tard, on ajoute le supplément
                 if (att.isLate) {
                     activitiesToBill.push({ code: 'CA2_SUPP', label: 'Supplément 19h' });
                 }
             }
 
-            // Traitement de chaque activité (permet le cumul)
             activitiesToBill.forEach(act => {
                 const rule = tariffMap[act.code];
                 if (!rule) return;
 
                 const price = calculateUnitPrice(rule, fratrieCount, qf);
-                
-                // CORRECTION : On retire la date de la clé pour regrouper les prestations par Enfant + Type
                 const itemKey = `${child._id.toString()}_${act.code}`; 
                 const formattedDate = att.date.split('-')[2] + '/' + att.date.split('-')[1];
 
@@ -259,14 +253,14 @@ router.post('/generate', auth(['admin']), async (req, res) => {
                     };
                 }
                 
-                invoiceDrafts[targetFamily._id].items[itemKey].count += 1;
-                invoiceDrafts[targetFamily._id].items[itemKey].total += price;
-                
-                // On ajoute la date dans le tableau de l'item groupé
+                // VÉRIFICATION CRUCIALE : On ne compte l'acte et n'ajoute la date QUE si elle n'est pas déjà présente
+                // (Cela évite les doublons de pointages multiples sur une même session)
                 if (!invoiceDrafts[targetFamily._id].items[itemKey].dates.includes(formattedDate)) {
+                    invoiceDrafts[targetFamily._id].items[itemKey].count += 1;
+                    invoiceDrafts[targetFamily._id].items[itemKey].total += price;
                     invoiceDrafts[targetFamily._id].items[itemKey].dates.push(formattedDate);
+                    invoiceDrafts[targetFamily._id].totalGlobal += price;
                 }
-                invoiceDrafts[targetFamily._id].totalGlobal += price;
             });
         });
 
