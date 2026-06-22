@@ -75,6 +75,31 @@ const SessionView = () => {
         if (cachedNotes) setPlannedNotes(JSON.parse(cachedNotes));
     };
 
+    // --- NOUVEAU: Fonction sécurisée d'écriture dans le cache ---
+    const safeSetOfflineData = (key, dataArray) => {
+        try {
+            // Nettoyage: on supprime les champs lourds en Base64 avant de sauvegarder le pointage localement
+            const cleanData = dataArray.map(item => {
+                let cleanItem = { ...item };
+                // Si l'objet est un enfant, on le nettoie directement
+                if (cleanItem.documents) delete cleanItem.documents;
+                if (cleanItem.paiDocument) delete cleanItem.paiDocument;
+                
+                // Si l'objet est un pointage (attendance), il contient l'enfant dans .child
+                if (cleanItem.child) {
+                    cleanItem.child = { ...cleanItem.child };
+                    if (cleanItem.child.documents) delete cleanItem.child.documents;
+                    if (cleanItem.child.paiDocument) delete cleanItem.child.paiDocument;
+                }
+                return cleanItem;
+            });
+            
+            localStorage.setItem(key, JSON.stringify(cleanData));
+        } catch (error) {
+            console.warn(`Stockage hors-ligne plein pour la clé ${key}. L'app continue de fonctionner en ligne.`, error);
+        }
+    };
+
     const loadData = async () => {
         if (!navigator.onLine) {
             setIsOnline(false);
@@ -94,10 +119,16 @@ const SessionView = () => {
             setAmAttendance(amAttRes.data);
             setPlannedNotes(notesRes.data);
 
-            localStorage.setItem('offline_children', JSON.stringify(kidsRes.data));
-            localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(attRes.data));
-            if (type === 'SOIR') localStorage.setItem(`offline_attendance_${date}_MATIN`, JSON.stringify(amAttRes.data));
-            localStorage.setItem(`offline_notes_${date}`, JSON.stringify(notesRes.data));
+            // Remplacement des localStorage par la version allégée et sécurisée
+            safeSetOfflineData('offline_children', kidsRes.data);
+            safeSetOfflineData(`offline_attendance_${date}_${type}`, attRes.data);
+            if (type === 'SOIR') safeSetOfflineData(`offline_attendance_${date}_MATIN`, amAttRes.data);
+            
+            try {
+                localStorage.setItem(`offline_notes_${date}`, JSON.stringify(notesRes.data));
+            } catch (e) {
+                console.warn('Echec save notes offline');
+            }
             
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             setPendingSync(queue.length);
@@ -143,11 +174,15 @@ const SessionView = () => {
         setAttendance(prev => optimisticUpdate(prev, timestamp));
         const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
         queue.push(action);
-        localStorage.setItem('syncQueue', JSON.stringify(queue));
+        
+        try {
+            localStorage.setItem('syncQueue', JSON.stringify(queue));
+        } catch(e) { console.warn("SyncQueue saturée") }
+        
         setPendingSync(queue.length);
 
         setAttendance(currentAtt => {
-            localStorage.setItem(`offline_attendance_${date}_${type}`, JSON.stringify(currentAtt));
+            safeSetOfflineData(`offline_attendance_${date}_${type}`, currentAtt);
             return currentAtt;
         });
         if (navigator.onLine) syncOfflineActions();
@@ -320,10 +355,8 @@ const SessionView = () => {
                             const isGone = isPresent && !!attendanceRecord.checkOut;
 
                             return (
-                                /* MODIFICATION 1 : La classe 'cursor-pointer' est sur toute la div principale de l'enfant */
                                 <div key={child._id} 
                                      onClick={(e) => {
-                                         // On empêche le clic de se déclencher si l'utilisateur cliquait sur le bouton d'info
                                          if(e.target.closest('button')) return;
                                          
                                          if (!isPresent) handleCheckIn(child._id);
@@ -333,7 +366,7 @@ const SessionView = () => {
                                     
                                     <div className="flex items-center gap-3">
                                         <button onClick={(e) => {
-                                            e.stopPropagation(); // Évite de pointer l'enfant quand on clique sur le bouton info
+                                            e.stopPropagation(); 
                                             setChildInfoToView(child);
                                         }} className="text-slate-300 hover:text-car-blue bg-white p-2 rounded-full shadow-sm border border-slate-100 transition-colors">
                                             <Info size={20}/>
@@ -343,7 +376,6 @@ const SessionView = () => {
                                     </div>
                                     
                                     <div>
-                                        {/* MODIFICATION 2 : J'ai retiré 'opacity-0 group-hover:opacity-100' pour que ça soit toujours visible sur mobile */}
                                         {!isPresent && <span className={`bg-${themeColor} text-white text-xs font-bold px-4 py-2 rounded-xl transition-opacity tracking-wider`}>{isMidi ? 'MARQUER ABSENT' : '+ AJOUTER'}</span>}
                                         {isPresent && !isGone && !isMatin && !isMidi && <span className="bg-car-dark text-white text-xs font-bold px-4 py-2 rounded-xl transition-opacity tracking-wider">DÉPART</span>}
                                         {isGone && !isMidi && <span className="text-slate-400 text-xs font-bold px-4 py-2 rounded-xl">Déjà parti</span>}
@@ -372,7 +404,6 @@ const SessionView = () => {
                                 <div className={`font-black text-xl flex items-center gap-2 ${isGone ? 'text-slate-400 line-through decoration-slate-300' : 'text-car-dark'}`}>
                                     <button 
                                         onClick={() => {
-                                            // On cherche la fiche complète de l'enfant dans allChildren pour avoir les infos famille
                                             const fullChild = allChildren.find(c => c._id === record.child._id) || record.child;
                                             setChildInfoToView(fullChild);
                                         }} 
