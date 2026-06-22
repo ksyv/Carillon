@@ -3,58 +3,56 @@ import { useNavigate } from 'react-router-dom';
 import { Newspaper, Plus, Trash2, Save, GripVertical, Image as ImageIcon, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Eye, EyeOff, Link } from 'lucide-react';
 import api from '../api';
 
-// --- COMPOSANT : ÉDITEUR WYSIWYG ULTRA-STABLE (ANTI-TAILWIND OVERRIDES) ---
-const RichTextEditor = ({ content, onChange }) => {
+// --- COMPOSANT : ÉDITEUR WYSIWYG DE COUPLÉ DE REACT (ZÉRO JUMP DE CURSEUR) ---
+const RichTextEditor = ({ content, cardId, onChange }) => {
     const editorRef = useRef(null);
     const savedRangeRef = useRef(null);
+
+    // Synchronisation initiale unique : On ne charge le texte QUE si on change de carte !
+    useEffect(() => {
+        if (editorRef.current) {
+            editorRef.current.innerHTML = content || '<p><br></p>';
+        }
+    }, [cardId]);
 
     // Sauvegarde la position exacte du curseur
     const saveSelection = () => {
         const sel = window.getSelection();
         if (sel.rangeCount > 0) {
-            savedRangeRef.current = sel.getRangeAt(0);
+            const range = sel.getRangeAt(0);
+            // Sécurité : On ne sauvegarde que si le curseur est bien à l'intérieur de notre éditeur
+            if (editorRef.current.contains(range.commonAncestorContainer)) {
+                savedRangeRef.current = range;
+            }
         }
     };
 
-    // Restaure la sélection ou se positionne à la fin par défaut
+    // Restaure la sélection du curseur
     const restoreSelection = () => {
-        const sel = window.getSelection();
         if (savedRangeRef.current) {
+            const sel = window.getSelection();
             sel.removeAllRanges();
             sel.addRange(savedRangeRef.current);
-        } else {
-            const range = document.createRange();
-            range.selectNodeContents(editorRef.current);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
         }
     };
 
-    // Nettoie et convertit les vieilles balises <font> en <span style="..."> pour écraser Tailwind
+    // Nettoie et transmute les balises à la volée pour contourner Tailwind
     const cleanAndSync = () => {
         if (!editorRef.current) return;
 
         const fontTags = editorRef.current.getElementsByTagName('font');
         if (fontTags.length > 0) {
-            // Correspondance des tailles natives en pixels réels indispensables pour contourner Tailwind
             const sizeMap = {
                 '1': '12px', '2': '14px', '3': '16px', 
                 '4': '20px', '5': '24px', '6': '32px', '7': '48px'
             };
 
-            // On fige la sélection pendant qu'on transmute le DOM
-            const sel = window.getSelection();
-            let backupRange = null;
-            if (sel.rangeCount > 0) backupRange = sel.getRangeAt(0).cloneRange();
+            // On gèle la position du curseur
+            saveSelection();
 
             Array.from(fontTags).forEach(font => {
                 const span = document.createElement('span');
-                
-                // Si la balise a déjà des styles, on les préserve
                 if (font.style.cssText) span.style.cssText = font.style.cssText;
-
-                // Conversion magique anti-Tailwind
                 if (font.hasAttribute('face')) span.style.fontFamily = font.getAttribute('face');
                 if (font.hasAttribute('size')) span.style.fontSize = sizeMap[font.getAttribute('size')] || '16px';
                 if (font.hasAttribute('color')) span.style.color = font.getAttribute('color');
@@ -65,23 +63,20 @@ const RichTextEditor = ({ content, onChange }) => {
                 font.parentNode.replaceChild(span, font);
             });
 
-            // On remet le curseur exactement là où il était
-            if (backupRange) {
-                sel.removeAllRanges();
-                sel.addRange(backupRange);
-            }
+            // On restaure la position du curseur
+            restoreSelection();
         }
         
-        // On envoie le HTML propre à l'état React
+        // On pousse le résultat au parent
         onChange(editorRef.current.innerHTML);
     };
 
     const format = (command, value = null) => {
+        editorRef.current.focus();
         restoreSelection();
         document.execCommand(command, false, value);
-        editorRef.current.focus();
         saveSelection();
-        cleanAndSync(); // Nettoyage immédiat au clic ou changement de liste
+        cleanAndSync();
     };
 
     const handleImageUpload = (e) => {
@@ -107,7 +102,7 @@ const RichTextEditor = ({ content, onChange }) => {
 
     return (
         <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white flex flex-col shadow-sm">
-            {/* BARRE D'OUTILS SÉCURISÉE */}
+            {/* BARRE D'OUTILS */}
             <div className="bg-slate-50 border-b border-slate-200 p-3 flex flex-wrap gap-2 items-center shrink-0 select-none">
                 
                 {/* Sélecteur de Police */}
@@ -142,21 +137,18 @@ const RichTextEditor = ({ content, onChange }) => {
 
                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
 
-                {/* Styles de base */}
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('bold'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Gras"><Bold size={16}/></button>
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('italic'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Italique"><Italic size={16}/></button>
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('underline'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Souligné"><Underline size={16}/></button>
                 
                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
                 
-                {/* Alignements */}
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('justifyLeft'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Aligner à gauche"><AlignLeft size={16}/></button>
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('justifyCenter'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Centrer"><AlignCenter size={16}/></button>
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('justifyRight'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Aligner à droite"><AlignRight size={16}/></button>
                 
                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
                 
-                {/* Nuancier de couleur */}
                 <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1 rounded-xl" title="Couleur du texte">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Couleur</span>
                     <input 
@@ -169,7 +161,6 @@ const RichTextEditor = ({ content, onChange }) => {
 
                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
 
-                {/* Importations Médias */}
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); saveSelection(); handleLinkImage(); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors flex items-center gap-1 text-xs font-black uppercase tracking-wider" title="Image par lien Internet"><Link size={14}/> Image URL</button>
                 
                 <label onMouseDown={saveSelection} className="p-2 hover:bg-slate-200 rounded-xl text-slate-600 cursor-pointer flex items-center gap-1 text-xs font-black uppercase tracking-wider transition-colors" title="Téléverser une image locale">
@@ -178,15 +169,14 @@ const RichTextEditor = ({ content, onChange }) => {
                 </label>
             </div>
 
-            {/* ZONE D'ÉCRITURE PRINCIPALE */}
+            {/* ZONE DE TEXTE TOTALEMENT UNCONTROLLED (Plus aucun reset de curseur) */}
             <div 
                 ref={editorRef}
                 className="p-6 min-h-[400px] outline-none max-w-full overflow-x-auto prose prose-slate focus:prose-blue bg-white"
                 contentEditable={true}
-                onKeyUp={() => { saveSelection(); cleanAndSync(); }}
-                onMouseUp={() => { saveSelection(); cleanAndSync(); }}
-                onBlur={() => { saveSelection(); cleanAndSync(); }}
-                dangerouslySetInnerHTML={{ __html: content }} 
+                onInput={cleanAndSync}
+                onKeyUp={saveSelection}
+                onMouseUp={saveSelection}
             />
         </div>
     );
@@ -242,7 +232,7 @@ const NewsManager = () => {
         }
     };
 
-    // DRAG & DROP LOGIQUE
+    // DRAG & DROP
     const [draggedItemIndex, setDraggedItemIndex] = useState(null);
 
     const onDragStart = (e, index) => {
@@ -383,7 +373,9 @@ const NewsManager = () => {
                                 <div className="flex-1 flex flex-col">
                                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Contenu de la publication</label>
                                     <div className="flex-1 overflow-hidden">
+                                        {/* CORRECTION ICI : On passe cardId pour piloter la mise à jour sélective */}
                                         <RichTextEditor 
+                                            cardId={selectedCard._id}
                                             content={selectedCard.content} 
                                             onChange={(html) => setSelectedCard({...selectedCard, content: html})}
                                         />
