@@ -84,14 +84,14 @@ const StructureInfo = () => {
 
     return (
         <>
-            {/* LANGUETTE LATÉRALE DROITE - DISCRÈTE ET INVIOLABLE */}
+            {/* LANGUETTE LATÉRALE GAUCHE - SÉCURISÉE HORS ZONE DE SCROLL */}
             <button 
                 onClick={() => setIsOpen(true)}
-                className="fixed right-0 top-1/2 -translate-y-1/2 z-[9000] bg-car-dark text-white pl-3 pr-2 py-4 rounded-l-2xl shadow-2xl hover:pl-4 transition-all flex items-center justify-center group border-l border-y border-white/10"
+                className="fixed left-0 top-1/2 -translate-y-1/2 z-[9000] bg-car-dark text-white pl-2 pr-3 py-4 rounded-r-2xl shadow-2xl hover:pr-4 transition-all flex items-center justify-center group border-r border-y border-white/10"
                 title="Informations de la structure"
             >
                 <Building2 size={22} />
-                <span className="absolute right-full mr-3 bg-black/80 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity honesty whitespace-nowrap pointer-events-none hidden sm:block">
+                <span className="absolute left-full ml-3 bg-black/80 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none hidden sm:block">
                     Infos Utiles
                 </span>
             </button>
