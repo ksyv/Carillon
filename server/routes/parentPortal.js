@@ -5,7 +5,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const Parent = require('../models/Parent');
-const Child = require('../models/Child'); // <-- AJOUT DU MODÈLE ENFANT
+const Child = require('../models/Child');
+const Invoice = require('../models/Invoice');
 const auth = require('../middleware/auth');
 
 router.post('/invite', auth(['admin']), async (req, res) => {
