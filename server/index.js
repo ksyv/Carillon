@@ -8,6 +8,7 @@ const path = require('path');
 const Child = require('./models/Child');
 const modificationRequestsRoutes = require('./routes/modificationRequests');
 
+
 const app = express();
 
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -57,6 +58,7 @@ app.use('/api/custom-lists', require('./routes/customLists'));
 app.use('/api/mail', require('./routes/mailing'));
 app.use('/api/parent', require('./routes/parentPortal'));
 app.use('/api/requests', modificationRequestsRoutes);
+app.use('/api/news', require('./routes/news'));
 
 // --- SERVEUR STATIC FRONTEND (PRODUCTION) ---
 if (process.env.NODE_ENV === 'production') {

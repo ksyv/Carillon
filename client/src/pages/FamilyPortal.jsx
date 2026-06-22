@@ -59,7 +59,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         reader.readAsDataURL(file);
     };
 
-    // NOUVEAU : Gestion de l'upload du document de protocole PAI
+    // Gestion de l'upload du document de protocole PAI
     const handlePaiDocumentUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -89,7 +89,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         compare('hasPAI', "Présence d'un PAI", child.hasPAI, editingChild.hasPAI);
         compare('paiDetails', "Détails PAI", child.paiDetails, editingChild.paiDetails);
         compare('isPAIAlimentaire', "PAI Alimentaire", child.isPAIAlimentaire, editingChild.isPAIAlimentaire);
-        compare('paiDocument', "Document Protocole PAI", child.paiDocument, editingChild.paiDocument); // AJOUTÉ
+        compare('paiDocument', "Document Protocole PAI", child.paiDocument, editingChild.paiDocument);
         compare('regimeAlimentaire', "Régime Alimentaire", child.regimeAlimentaire, editingChild.regimeAlimentaire);
         compare('medical', "Informations Médicales", child.medical, editingChild.medical);
         compare('personnesAutorisees', "Personnes Autorisées", child.personnesAutorisees, editingChild.personnesAutorisees);
@@ -262,7 +262,6 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                                             setEditingChild({...editingChild, isPAIAlimentaire: isAlim, regimeAlimentaire: isAlim ? 'PAI' : 'Standard'});
                                         }} /> C'est un PAI Alimentaire</label>
                                         
-                                        {/* NOUVEAU : Bloc pour transmettre le fichier de protocole PAI */}
                                         <div className="mt-2 bg-white p-3 rounded-xl border border-car-pink/30 flex flex-col sm:flex-row items-center justify-between gap-4">
                                             <div className="flex flex-col flex-1 w-full">
                                                 <span className="text-[10px] font-black text-car-pink uppercase">Joindre le document PAI</span>
@@ -321,6 +320,7 @@ const FamilyPortal = () => {
 
     const [activeTab, setActiveTab] = useState('HUB');
     const [parentData, setParentData] = useState(null);
+    const [newsList, setNewsList] = useState([]); // NOUVEAU: Stockage des actualités
     const [isLoading, setIsLoading] = useState(true);
     
     const [editFamily, setEditFamily] = useState(null);
@@ -340,8 +340,15 @@ const FamilyPortal = () => {
             return;
         }
         try {
-            const { data } = await api.get('/parent/me');
+            // NOUVEAU: On récupère les news en parallèle des infos du parent
+            const [meRes, newsRes] = await Promise.all([
+                api.get('/parent/me'),
+                api.get('/news')
+            ]);
+            
+            const data = meRes.data;
             setParentData(data);
+            setNewsList(newsRes.data || []);
             
             const resps = data.family.responsables ? JSON.parse(JSON.stringify(data.family.responsables)) : [];
             while (resps.length < 2) resps.push({ firstName: '', lastName: '', qualite: '', birthDate: '', adressePostale: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' });
@@ -354,7 +361,9 @@ const FamilyPortal = () => {
             if (e.response?.status === 401 || e.response?.status === 403) {
                 localStorage.removeItem('token');
             }
-        } fillAllData();
+        } finally {
+            fillAllData();
+        }
     };
 
     const fillAllData = () => {
@@ -467,15 +476,44 @@ const FamilyPortal = () => {
         );
     }
 
+    // NOUVEAU: Onglet Accueil affichant les cartes d'actualités (News)
     const TabHub = () => (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-car-blue text-white p-8 rounded-[2rem] shadow-lg relative overflow-hidden">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-car-blue text-white p-8 rounded-[2rem] shadow-lg relative overflow-hidden mb-8">
                 <div className="relative z-10">
                     <h2 className="text-sm font-bold tracking-widest opacity-80 uppercase mb-2">Bienvenue sur votre espace</h2>
-                    <h1 className="text-3xl font-black mb-2">Service Périscolaire</h1>
-                    <p className="text-sm font-medium opacity-90 max-w-md">Retrouvez ici toutes les actualités de la structure, vos factures et les informations de votre dossier.</p>
+                    <h1 className="text-3xl sm:text-4xl font-black mb-2">Service Périscolaire</h1>
+                    <p className="text-sm font-medium opacity-90 max-w-md">Retrouvez ici toutes les actualités de la structure et les informations importantes.</p>
                 </div>
                 <div className="absolute -right-10 -bottom-10 opacity-10 rotate-12 pointer-events-none"><Newspaper size={200} /></div>
+            </div>
+
+            <div className="space-y-6">
+                {newsList.length > 0 ? (
+                    newsList.map(news => (
+                        <div 
+                            key={news._id} 
+                            className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden"
+                        >
+                            {/* Ligne de couleur personnalisable en haut de la carte */}
+                            <div className="h-3 w-full" style={{ backgroundColor: news.borderColor || '#0ea5e9' }}></div>
+                            
+                            <div className="p-6 sm:p-8">
+                                <h3 className="text-2xl font-black text-car-dark mb-6">{news.title}</h3>
+                                
+                                {/* Le conteneur "prose" applique un style automatique au HTML brut généré par l'éditeur */}
+                                <div 
+                                    className="prose prose-sm sm:prose-base max-w-none text-slate-600 prose-headings:font-black prose-a:text-car-blue prose-img:rounded-xl prose-img:shadow-sm"
+                                    dangerouslySetInnerHTML={{ __html: news.content }} 
+                                />
+                            </div>
+                        </div>
+                    ))
+                ) : (
+                    <div className="bg-slate-100/50 p-12 rounded-[2rem] border-2 border-dashed border-slate-200 text-center">
+                        <p className="text-slate-400 font-bold">Aucune actualité pour le moment.</p>
+                    </div>
+                )}
             </div>
         </div>
     );
