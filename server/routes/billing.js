@@ -12,7 +12,7 @@ const auth = require('../middleware/auth');
 // Récupérer les règles de garde alternée d'un enfant
 router.get('/child/:childId', auth(['admin']), async (req, res) => {
     try {
-        const rules = await Billing.find({ child: req.params.childId }).populate('billToFamily');
+        const rules = await Billing.find({ child: req.params.childId }).populate('billToFamily').lean();
         res.json(rules);
     } catch (e) {
         res.status(500).send("Erreur de récupération des règles.");
@@ -48,7 +48,7 @@ router.get('/invoices', auth(['admin']), async (req, res) => {
         const invoices = await Invoice.find({ 
             periodStart: startDate, 
             periodEnd: endDate 
-        }).sort({ payeur: 1 });
+        }).sort({ payeur: 1 }).lean();
         res.json(invoices);
     } catch (e) { 
         res.status(500).send("Erreur lecture factures."); 
@@ -62,7 +62,7 @@ router.post('/generate', auth(['admin']), async (req, res) => {
 
     try {
         // 1. Contrôle anti-doublon et verrouillage
-        const existingInvoices = await Invoice.find({ periodStart: startDate, periodEnd: endDate });
+        const existingInvoices = await Invoice.find({ periodStart: startDate, periodEnd: endDate }).lean();
         
         if (existingInvoices.length > 0) {
             if (existingInvoices.some(inv => inv.status === 'published')) {
@@ -80,13 +80,13 @@ router.post('/generate', auth(['admin']), async (req, res) => {
             await Invoice.deleteMany({ periodStart: startDate, periodEnd: endDate, status: 'draft' });
         }
 
-        // 2. Chargement des données nécessaires au calcul
-        const tariffs = await Tariff.find();
-        const families = await Family.find();
-        const children = await Child.find({ active: true });
-        const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } });
-        const alternateBillings = await Billing.find({ dates: { $elemMatch: { $gte: startDate, $lte: endDate } } });
-        const closedDaysSetting = await Settings.findOne({ key: 'closed_days' });
+        // 2. Chargement des données nécessaires au calcul (.lean() pour sécuriser les lectures de propriétés)
+        const tariffs = await Tariff.find().lean();
+        const families = await Family.find().lean();
+        const children = await Child.find({ active: true }).lean();
+        const attendances = await Attendance.find({ date: { $gte: startDate, $lte: endDate } }).lean();
+        const alternateBillings = await Billing.find({ dates: { $elemMatch: { $gte: startDate, $lte: endDate } } }).lean();
+        const closedDaysSetting = await Settings.findOne({ key: 'closed_days' }).lean();
         const closedDays = closedDaysSetting ? JSON.parse(closedDaysSetting.value) : [];
 
         const tariffMap = tariffs.reduce((acc, t) => ({ ...acc, [t.activityCode]: t }), {});
@@ -181,12 +181,12 @@ router.post('/generate', auth(['admin']), async (req, res) => {
                     initInvoice(targetFamily._id.toString(), pNom);
                     const price = calculateUnitPrice(rule, fratrieCount, qf);
                     
-                    const itemKey = `${child._id}_${targetCode}`;
+                    const itemKey = `${child._id.toString()}_${targetCode}`;
                     const formattedDate = date.split('-')[2] + '/' + date.split('-')[1];
                     
                     if (!invoiceDrafts[targetFamily._id].items[itemKey]) {
                         invoiceDrafts[targetFamily._id].items[itemKey] = { 
-                            childName: child.firstName,
+                            childName: `${child.firstName} ${child.lastName.toUpperCase()}`, // NOM + Prénom sécurisé
                             code: targetCode, 
                             label, 
                             unitPrice: price, 
@@ -232,12 +232,12 @@ router.post('/generate', auth(['admin']), async (req, res) => {
 
             const price = calculateUnitPrice(rule, fratrieCount, qf);
             
-            const itemKey = `${child._id}_${targetCode}`;
+            const itemKey = `${child._id.toString()}_${targetCode}`;
             const formattedDate = att.date.split('-')[2] + '/' + att.date.split('-')[1];
             
             if (!invoiceDrafts[targetFamily._id].items[itemKey]) {
                 invoiceDrafts[targetFamily._id].items[itemKey] = { 
-                    childName: child.firstName, 
+                    childName: `${child.firstName} ${child.lastName.toUpperCase()}`, // NOM + Prénom sécurisé
                     code: targetCode, 
                     label, 
                     unitPrice: price, 

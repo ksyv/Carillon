@@ -32,7 +32,7 @@ const BillingManager = () => {
            .catch(() => setChildren([]));
     }, []);
 
-    // Vérification de l'existence des données lors du changement de période
+    // Vérification automatique au changement de dates
     useEffect(() => {
         if (activeTab === 'calc') {
             loadExistingInvoices();
@@ -59,12 +59,12 @@ const BillingManager = () => {
             const { data } = await api.post(`/billing/generate`, { startDate, endDate, forceOverwrite });
             setCalculatedInvoices(data);
             setHasExistingData(true);
-            alert(forceOverwrite ? "Facturation écrasée et recalculée !" : "Facturation générée et sauvegardée !");
+            alert(forceOverwrite ? "Facturation écrasée et recalculée avec succès !" : "Facturation générée et sauvegardée !");
         } catch (e) {
             if (e.response?.status === 409) {
-                alert("⚠️ Une facturation existe déjà pour cette période. Utilisez le bouton 'Recalculer' pour l'écraser.");
+                alert("⚠️ Une facturation existe déjà pour cette période. Cliquez sur 'Recalculer' pour l'écraser.");
             } else if (e.response?.status === 403) {
-                alert("⛔ OPÉRATION IMPOSSIBLE : Les factures de cette période sont verrouillées et validées.");
+                alert("⛔ OPÉRATION IMPOSSIBLE : Les factures de cette période sont validées et verrouillées.");
             } else {
                 alert("Erreur lors de la génération.");
             }
@@ -186,7 +186,7 @@ const BillingManager = () => {
             headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
             styles: { font: 'helvetica', fontSize: 9, cellPadding: 3 },
             columnStyles: { 
-                0: { fontStyle: 'bold', cellWidth: 22 },
+                0: { fontStyle: 'bold', cellWidth: 35 },
                 1: { cellWidth: 35 },
                 2: { cellWidth: 'auto', fontSize: 8 },
                 3: { halign: 'center', cellWidth: 12 },
@@ -341,7 +341,7 @@ const BillingManager = () => {
                 headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
                 styles: { font: 'helvetica', fontSize: 9, cellPadding: 3 },
                 columnStyles: { 
-                    0: { fontStyle: 'bold', cellWidth: 22 },
+                    0: { fontStyle: 'bold', cellWidth: 35 },
                     1: { cellWidth: 35 },
                     2: { cellWidth: 'auto', fontSize: 8 },
                     3: { halign: 'center', cellWidth: 12 },
@@ -465,7 +465,7 @@ const BillingManager = () => {
                                                 <div className="flex flex-col gap-1.5 mt-2">
                                                     {inv.items.map((item, iIdx) => (
                                                         <span key={iIdx} className="text-[11px] bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded-md shadow-sm w-fit">
-                                                            <strong className="text-car-dark">{item.childName}</strong> - {item.label} : <strong>x{item.count}</strong> ({item.total.toFixed(2)}€)
+                                                            <strong className="text-car-dark">{item.childName || 'Enfant inconnu'}</strong> - {item.label} : <strong>x{item.count}</strong> ({item.total.toFixed(2)}€)
                                                         </span>
                                                     ))}
                                                 </div>
@@ -486,7 +486,7 @@ const BillingManager = () => {
                 </div>
             )}
 
-            {/* ONGLET 2 : GARDE ALTERNÉE */}
+            {/* ONTLET 2 : GARDE ALTERNÉE */}
             {activeTab === 'alternance' && (
                 <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6 animate-in fade-in duration-300">
                     <div className="relative">

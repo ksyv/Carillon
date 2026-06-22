@@ -7,13 +7,13 @@ const InvoiceSchema = new mongoose.Schema({
     periodEnd: { type: String, required: true },
     reference: { type: String },
     items: [{
-        childName: String, 
+        childName: String,
         code: String,
         label: String,
         count: Number,
         unitPrice: Number,
         total: Number,
-        dates: [{ type: String }] 
+        dates: [{ type: String }]
     }],
     totalGlobal: { type: Number, required: true },
     status: { type: String, enum: ['draft', 'published'], default: 'draft' }
