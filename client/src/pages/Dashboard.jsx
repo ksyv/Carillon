@@ -250,7 +250,7 @@ const Dashboard = () => {
                                 <Newspaper className="text-car-blue w-8 h-8"/>
                             </div>
                             <div>
-                                <h3 className="font-black text-car-dark text-xl leading-tight">Gérer l'Accueil</h3>
+                                <h3 className="font-black text-car-dark text-xl leading-tight">Accueil Portail Famille</h3>
                                 <p className="text-slate-500 font-medium text-sm mt-1">Actualités du portail famille</p>
                             </div>
                         </button>
