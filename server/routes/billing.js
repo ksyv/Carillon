@@ -9,7 +9,7 @@ const Attendance = require('../models/Attendance');
 const Settings = require('../models/Settings');
 const auth = require('../middleware/auth');
 
-// Récupérer les règles de garde alternée d'un enfant
+// 1. RÉCUPÉRER LES RÈGLES DE GARDE ALTERNÉE D'UN ENFANT
 router.get('/child/:childId', auth(['admin']), async (req, res) => {
     try {
         const rules = await Billing.find({ child: req.params.childId }).populate('billToFamily').lean();
@@ -19,7 +19,7 @@ router.get('/child/:childId', auth(['admin']), async (req, res) => {
     }
 });
 
-// Créer une règle de garde alternée
+// 2. CRÉER UNE RÈGLE DE GARDE ALTERNÉE
 router.post('/', auth(['admin']), async (req, res) => {
     try {
         const { childId, billToFamily, dates } = req.body;
@@ -31,7 +31,7 @@ router.post('/', auth(['admin']), async (req, res) => {
     }
 });
 
-// Supprimer une règle de garde alternée
+// 3. SUPPRIMER UNE RÈGLE DE GARDE ALTERNÉE
 router.delete('/:id', auth(['admin']), async (req, res) => {
     try {
         await Billing.findByIdAndDelete(req.params.id);
@@ -41,7 +41,7 @@ router.delete('/:id', auth(['admin']), async (req, res) => {
     }
 });
 
-// Récupérer les factures sauvegardées pour une période donnée
+// 4. RÉCUPÉRER LES FACTURES SAUVEGARDÉES POUR UNE PÉRIODE DONNÉE
 router.get('/invoices', auth(['admin']), async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
@@ -55,13 +55,13 @@ router.get('/invoices', auth(['admin']), async (req, res) => {
     }
 });
 
-// Générer, calculer et sauvegarder la facturation mensuelle
+// 5. GÉNÉRER, CALCULER ET SAUVEGARDER LA FACTURATION MENSUELLE
 router.post('/generate', auth(['admin']), async (req, res) => {
     const { startDate, endDate, forceOverwrite } = req.body;
     if (!startDate || !endDate) return res.status(400).send("Dates manquantes");
 
     try {
-        // 1. Contrôle anti-doublon et verrouillage
+        // A. Contrôle anti-doublon et verrouillage de sécurité
         const existingInvoices = await Invoice.find({ periodStart: startDate, periodEnd: endDate }).lean();
         
         if (existingInvoices.length > 0) {
@@ -80,7 +80,7 @@ router.post('/generate', auth(['admin']), async (req, res) => {
             await Invoice.deleteMany({ periodStart: startDate, periodEnd: endDate, status: 'draft' });
         }
 
-        // 2. Chargement des données nécessaires au calcul (.lean() pour sécuriser les lectures de propriétés)
+        // B. Chargement des données nécessaires au calcul (.lean() pour casser les instances MongoDB)
         const tariffs = await Tariff.find().lean();
         const families = await Family.find().lean();
         const children = await Child.find({ active: true }).lean();
@@ -91,7 +91,7 @@ router.post('/generate', auth(['admin']), async (req, res) => {
 
         const tariffMap = tariffs.reduce((acc, t) => ({ ...acc, [t.activityCode]: t }), {});
         
-        // Calcul de la fratrie active par famille
+        // Calcul du nombre d'enfants par fratrie active dans chaque famille
         const childrenInFamily = children.reduce((acc, c) => {
             if (!c.families) return acc;
             c.families.forEach(fId => { 
@@ -101,7 +101,7 @@ router.post('/generate', auth(['admin']), async (req, res) => {
             return acc;
         }, {});
 
-        // Identification des jours d'activité réelle de l'école
+        // Extraction des jours réels d'activité scolaire
         const daysWithRealActivity = [...new Set(attendances.map(a => a.date))];
         let schoolDays = [];
         let start = new Date(startDate);
@@ -142,7 +142,7 @@ router.post('/generate', auth(['admin']), async (req, res) => {
             return 0;
         };
 
-        // --- RESTAURATION SCOLAIRE (CANTINE) ---
+        // --- SECTION 1 : RESTAURATION SCOLAIRE (CANTINE) ---
         children.forEach(child => {
             if (!child.families || child.families.length === 0) return;
             
@@ -172,21 +172,23 @@ router.post('/generate', auth(['admin']), async (req, res) => {
                     const targetFamily = families.find(f => f._id.toString() === billedFamilyId);
                     if (!targetFamily) return;
 
-                    const fratrieCount = childrenInFamily[targetFamily._id.toString()] || 1;
+                    const famIdStr = targetFamily._id.toString();
+                    const fratrieCount = childrenInFamily[famIdStr] || 1;
                     const qf = targetFamily.quotientFamilial || 0;
                     
                     let pNom = targetFamily.name;
                     if (alt) pNom = `Garde Alternée : ${targetFamily.name} (Enfant: ${child.firstName})`;
                     
-                    initInvoice(targetFamily._id.toString(), pNom);
+                    initInvoice(famIdStr, pNom);
                     const price = calculateUnitPrice(rule, fratrieCount, qf);
                     
-                    const itemKey = `${child._id.toString()}_${targetCode}`;
+                    const childIdStr = child._id.toString();
+                    const itemKey = `${childIdStr}_${targetCode}`;
                     const formattedDate = date.split('-')[2] + '/' + date.split('-')[1];
                     
-                    if (!invoiceDrafts[targetFamily._id].items[itemKey]) {
-                        invoiceDrafts[targetFamily._id].items[itemKey] = { 
-                            childName: `${child.firstName} ${child.lastName.toUpperCase()}`, // NOM + Prénom sécurisé
+                    if (!invoiceDrafts[famIdStr].items[itemKey]) {
+                        invoiceDrafts[famIdStr].items[itemKey] = { 
+                            childName: `${child.firstName} ${child.lastName.toUpperCase()}`,
                             code: targetCode, 
                             label, 
                             unitPrice: price, 
@@ -196,19 +198,20 @@ router.post('/generate', auth(['admin']), async (req, res) => {
                         };
                     }
                     
-                    invoiceDrafts[targetFamily._id].items[itemKey].count += 1;
-                    invoiceDrafts[targetFamily._id].items[itemKey].total += price;
-                    invoiceDrafts[targetFamily._id].items[itemKey].dates.push(formattedDate);
-                    invoiceDrafts[targetFamily._id].totalGlobal += price;
+                    if (!invoiceDrafts[famIdStr].items[itemKey].dates.includes(formattedDate)) {
+                        invoiceDrafts[famIdStr].items[itemKey].count += 1;
+                        invoiceDrafts[famIdStr].items[itemKey].total += price;
+                        invoiceDrafts[famIdStr].items[itemKey].dates.push(formattedDate);
+                        invoiceDrafts[famIdStr].totalGlobal += price;
+                    }
                 }
             });
         });
 
-        // --- ACCUEIL PÉRISCOLAIRE (APS MATIN & SOIR) ---
-       attendances.forEach(att => {
+        // --- SECTION 2 : ACCUEIL PÉRISCOLAIRE (APS MATIN & SOIR + 19H) ---
+        attendances.forEach(att => {
             if (att.sessionType === 'MIDI' || att.sessionType === 'MIDI_ADULTE' || closedDays.includes(att.date)) return;
             
-            // SÉCURITÉ 1 : On force l'ID de l'enfant en texte pur immédiat
             const childIdStr = att.child.toString();
             const child = children.find(c => c._id.toString() === childIdStr);
             if (!child || child.category === 'Adulte' || !child.families || child.families.length === 0) return;
@@ -221,7 +224,6 @@ router.post('/generate', auth(['admin']), async (req, res) => {
             const targetFamily = families.find(f => f._id.toString() === billedFamilyId);
             if (!targetFamily) return;
 
-            // SÉCURITÉ 2 : On force l'ID de la famille en texte pur
             const famIdStr = targetFamily._id.toString(); 
             const fratrieCount = childrenInFamily[famIdStr] || 1;
             const qf = targetFamily.quotientFamilial || 0;
@@ -231,6 +233,7 @@ router.post('/generate', auth(['admin']), async (req, res) => {
             
             initInvoice(famIdStr, pNom);
 
+            // GESTION DU CUMUL : On liste les prestations déclenchées par ce pointage
             let activitiesToBill = [];
             if (att.sessionType === 'MATIN') {
                 activitiesToBill.push({ code: 'CA2_MATIN', label: 'APS Matin' });
@@ -247,11 +250,10 @@ router.post('/generate', auth(['admin']), async (req, res) => {
 
                 const price = calculateUnitPrice(rule, fratrieCount, qf);
                 
-                // SÉCURITÉ 3 : Une clé 100% texte, sans aucune date, ni objet
+                // Clé de groupement 100% String-safe par Enfant et par Prestation
                 const itemKey = `${childIdStr}_${act.code}`; 
                 const formattedDate = att.date.split('-')[2] + '/' + att.date.split('-')[1];
 
-                // Si cette combinaison Enfant + Prestation n'existe pas encore, on la crée
                 if (!invoiceDrafts[famIdStr].items[itemKey]) {
                     invoiceDrafts[famIdStr].items[itemKey] = { 
                         childName: `${child.firstName} ${child.lastName.toUpperCase()}`,
@@ -264,7 +266,7 @@ router.post('/generate', auth(['admin']), async (req, res) => {
                     };
                 }
                 
-                // On ajoute le pointage SEULEMENT si la date n'y est pas déjà
+                // On incrémente uniquement si la date n'est pas déjà dans le tableau de cet enfant
                 if (!invoiceDrafts[famIdStr].items[itemKey].dates.includes(formattedDate)) {
                     invoiceDrafts[famIdStr].items[itemKey].count += 1;
                     invoiceDrafts[famIdStr].items[itemKey].total += price;
@@ -274,7 +276,7 @@ router.post('/generate', auth(['admin']), async (req, res) => {
             });
         });
 
-        // 3. Finalisation des documents et écriture en base
+        // C. Aplatissement des dictionnaires et insertion finale en BDD
         const exercice = startDate.split('-')[0];
         let refCounter = 1;
         
@@ -295,6 +297,28 @@ router.post('/generate', auth(['admin']), async (req, res) => {
     } catch (e) { 
         console.error(e);
         res.status(500).send("Erreur génération facturation."); 
+    }
+});
+
+// 6. VERROUILLER ET PUBLIER LES FACTURES D'UNE PÉRIODE (REND VISIBLE AUX PARENTS)
+router.put('/publish', auth(['admin']), async (req, res) => {
+    const { startDate, endDate } = req.body;
+    if (!startDate || !endDate) return res.status(400).send("Dates manquantes");
+
+    try {
+        const result = await Invoice.updateMany(
+            { periodStart: startDate, periodEnd: endDate, status: 'draft' },
+            { $set: { status: 'published' } }
+        );
+
+        res.json({ 
+            success: true, 
+            message: `${result.modifiedCount} factures publiées avec succès.`,
+            modifiedCount: result.modifiedCount
+        });
+    } catch (e) { 
+        console.error("Erreur lors de la publication:", e);
+        res.status(500).send("Erreur lors de la publication des factures."); 
     }
 });
 
