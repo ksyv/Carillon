@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { Banknote, Search, Users, Trash2, Check, Calculator, FileSpreadsheet, Layers, FolderHeart, RefreshCcw } from 'lucide-react';
+import { Banknote, Search, Users, Trash2, Check, Calculator, FileSpreadsheet, Layers, FolderHeart, RefreshCcw, Send } from 'lucide-react';
 import InteractiveCalendar from '../components/InteractiveCalendar';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -70,6 +70,23 @@ const BillingManager = () => {
             }
         }
         setIsCalculating(false);
+    };
+
+    const publishInvoices = async () => {
+        const confirm = window.confirm(
+            "ATTENTION : Cette action va verrouiller les factures de ce mois et les rendre instantanément visibles sur le portail des familles.\n\nÊtes-vous sûr de vouloir publier ces factures ?"
+        );
+
+        if (!confirm) return;
+
+        try {
+            await api.put('/billing/publish', { startDate, endDate });
+            alert("Les factures ont été publiées avec succès !");
+            loadExistingInvoices(); 
+        } catch (err) {
+            console.error(err);
+            alert("Une erreur est survenue lors de la publication.");
+        }
     };
 
     const filteredSearch = useMemo(() => {
@@ -416,12 +433,20 @@ const BillingManager = () => {
                             </button>
                         ) : (
                             <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-                                <span className="bg-car-green/10 text-car-green font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2">
+                                <span className="bg-slate-100 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 border border-slate-200">
                                     <Check size={16}/> Facturation enregistrée
                                 </span>
                                 <button onClick={() => triggerGeneration(true)} disabled={isCalculating} className="bg-slate-100 text-slate-600 hover:text-car-pink hover:bg-red-50 font-black uppercase tracking-widest px-6 py-3 rounded-2xl transition-all flex items-center gap-2 border border-slate-200 w-full sm:w-auto justify-center text-xs">
-                                    <RefreshCcw size={16}/> Recalculer (Écraser)
+                                    <RefreshCcw size={16}/> Recalculer
                                 </button>
+                                {calculatedInvoices.some(inv => inv.status === 'draft') && (
+                                    <button 
+                                        onClick={publishInvoices}
+                                        className="bg-car-green text-white hover:bg-green-600 px-6 py-3 rounded-2xl font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-2 text-xs"
+                                    >
+                                        <Send size={16}/> Publier sur le Portail
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -461,6 +486,9 @@ const BillingManager = () => {
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-black text-car-dark text-base">{inv.payeur}</span>
                                                     <span className="text-[10px] font-black tracking-widest text-slate-400 bg-slate-100 px-2 py-1 rounded-md">{inv.reference || 'BROUILLON'}</span>
+                                                    {inv.status === 'published' && (
+                                                        <span className="text-[10px] font-black tracking-widest text-car-green bg-car-green/10 px-2 py-1 rounded-md">PUBLIÉ</span>
+                                                    )}
                                                 </div>
                                                 <div className="flex flex-col gap-1.5 mt-2">
                                                     {inv.items.map((item, iIdx) => (

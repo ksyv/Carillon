@@ -109,4 +109,21 @@ router.put('/children/:id', auth(), async (req, res) => {
     } catch (e) { res.status(500).send('Erreur modification enfant'); }
 });
 
+// Récupérer les factures validées de la famille connectée
+router.get('/my-invoices', auth(['parent']), async (req, res) => {
+    try {
+        // On récupère l'ID de la famille depuis le token de l'utilisateur connecté
+        const familyId = req.user.familyId; 
+
+        const invoices = await Invoice.find({ 
+            family: familyId, 
+            status: 'published' // SÉCURITÉ : Uniquement les factures validées par le staff
+        }).sort({ periodStart: -1 }); // Les plus récentes en premier
+
+        res.json(invoices);
+    } catch (e) {
+        res.status(500).send("Erreur de récupération des factures.");
+    }
+});
+
 module.exports = router;
