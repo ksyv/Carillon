@@ -2,16 +2,18 @@ const mongoose = require('mongoose');
 
 const InvoiceSchema = new mongoose.Schema({
     family: { type: mongoose.Schema.Types.ObjectId, ref: 'Family', required: true },
-    payeur: { type: String, required: true }, // Le nom affiché sur la facture au moment de la génération
-    periodStart: { type: String, required: true }, // ex: "2026-06-01"
-    periodEnd: { type: String, required: true },   // ex: "2026-06-30"
-    reference: { type: String }, // ex: "2026-CA-00-0001"
+    payeur: { type: String, required: true },
+    periodStart: { type: String, required: true },
+    periodEnd: { type: String, required: true },
+    reference: { type: String },
     items: [{
+        childName: String, 
         code: String,
         label: String,
         count: Number,
         unitPrice: Number,
-        total: Number
+        total: Number,
+        dates: [{ type: String }] 
     }],
     totalGlobal: { type: Number, required: true },
     status: { type: String, enum: ['draft', 'published'], default: 'draft' }
