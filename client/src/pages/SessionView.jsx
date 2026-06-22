@@ -10,7 +10,10 @@ import ChildInfoModal from '../components/ChildInfoModal';
 
 const SessionView = () => {
     const { date, type } = useParams();
-    const role = localStorage.getItem('role');
+    
+    // SÉCURITÉ 1 : On force le rôle en minuscules et sans espaces pour éviter le Ping-Pong
+    const role = (localStorage.getItem('role') || '').toLowerCase().trim();
+    
     const [allChildren, setAllChildren] = useState([]); 
     const [attendance, setAttendance] = useState([]); 
     const [amAttendance, setAmAttendance] = useState([]); 
@@ -57,7 +60,7 @@ const SessionView = () => {
             localStorage.removeItem('syncQueue'); 
             setPendingSync(0);
             setIsOnline(true); 
-            loadData(); 
+            refreshAttendanceBackground(); // On rafraîchit que les présences, pas les 3Mo d'enfants !
         } catch (e) {
             setIsOnline(false); 
         }
@@ -75,17 +78,12 @@ const SessionView = () => {
         if (cachedNotes) setPlannedNotes(JSON.parse(cachedNotes));
     };
 
-    // --- NOUVEAU: Fonction sécurisée d'écriture dans le cache ---
     const safeSetOfflineData = (key, dataArray) => {
         try {
-            // Nettoyage: on supprime les champs lourds en Base64 avant de sauvegarder le pointage localement
             const cleanData = dataArray.map(item => {
                 let cleanItem = { ...item };
-                // Si l'objet est un enfant, on le nettoie directement
                 if (cleanItem.documents) delete cleanItem.documents;
                 if (cleanItem.paiDocument) delete cleanItem.paiDocument;
-                
-                // Si l'objet est un pointage (attendance), il contient l'enfant dans .child
                 if (cleanItem.child) {
                     cleanItem.child = { ...cleanItem.child };
                     if (cleanItem.child.documents) delete cleanItem.child.documents;
@@ -93,14 +91,14 @@ const SessionView = () => {
                 }
                 return cleanItem;
             });
-            
             localStorage.setItem(key, JSON.stringify(cleanData));
         } catch (error) {
-            console.warn(`Stockage hors-ligne plein pour la clé ${key}. L'app continue de fonctionner en ligne.`, error);
+            console.warn(`Stockage hors-ligne plein pour la clé ${key}`);
         }
     };
 
-    const loadData = async () => {
+    // SÉCURITÉ 2 : CHARGEMENT LOURD (Fait 1 seule fois à l'ouverture)
+    const loadInitialData = async () => {
         if (!navigator.onLine) {
             setIsOnline(false);
             loadLocalFallback();
@@ -119,16 +117,10 @@ const SessionView = () => {
             setAmAttendance(amAttRes.data);
             setPlannedNotes(notesRes.data);
 
-            // Remplacement des localStorage par la version allégée et sécurisée
             safeSetOfflineData('offline_children', kidsRes.data);
             safeSetOfflineData(`offline_attendance_${date}_${type}`, attRes.data);
             if (type === 'SOIR') safeSetOfflineData(`offline_attendance_${date}_MATIN`, amAttRes.data);
-            
-            try {
-                localStorage.setItem(`offline_notes_${date}`, JSON.stringify(notesRes.data));
-            } catch (e) {
-                console.warn('Echec save notes offline');
-            }
+            try { localStorage.setItem(`offline_notes_${date}`, JSON.stringify(notesRes.data)); } catch (e) {}
             
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             setPendingSync(queue.length);
@@ -138,21 +130,44 @@ const SessionView = () => {
         }
     };
 
+    // SÉCURITÉ 3 : RAFRAÎCHISSEMENT LÉGER (Fait en boucle, consomme très peu)
+    const refreshAttendanceBackground = async () => {
+        if (!navigator.onLine) return;
+        try {
+            const attRes = await api.get(`/attendance?date=${date}&sessionType=${type}`);
+            setAttendance(attRes.data);
+            safeSetOfflineData(`offline_attendance_${date}_${type}`, attRes.data);
+        } catch (e) {
+            // Silence en arrière-plan
+        }
+    };
+
     useEffect(() => { 
         let isMounted = true;
         let timeoutId;
-        const loop = async () => {
+        
+        // On charge tout la première fois
+        loadInitialData().then(() => {
             if (!isMounted) return;
-            await loadData();
-            const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
-            if (navigator.onLine && queue.length > 0) {
-                await syncOfflineActions();
-            } else {
-                setPendingSync(queue.length);
-            }
-            timeoutId = setTimeout(loop, 5000);
-        };
-        loop();
+            
+            // Puis on lance la boucle allégée toutes les 20 secondes
+            const loop = async () => {
+                if (!isMounted) return;
+                
+                const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
+                if (navigator.onLine && queue.length > 0) {
+                    await syncOfflineActions();
+                } else if (navigator.onLine) {
+                    await refreshAttendanceBackground();
+                } else {
+                    setPendingSync(queue.length);
+                }
+                
+                timeoutId = setTimeout(loop, 20000); // 20 secondes au lieu de 5
+            };
+            
+            timeoutId = setTimeout(loop, 20000);
+        });
 
         const handleOnline = () => { setIsOnline(true); syncOfflineActions(); };
         const handleOffline = () => { setIsOnline(false); };
@@ -246,7 +261,7 @@ const SessionView = () => {
     const handleRemoveLate = async (id) => {
         if(window.confirm("Supprimer le supplément de retard ?")) {
             await api.put(`/attendance/remove-late/${id}`);
-            loadData();
+            refreshAttendanceBackground();
         }
     };
 
@@ -513,7 +528,7 @@ const SessionView = () => {
                         <div className="space-y-3">
                             <button onClick={() => { 
                                 handleCheckOut(readNoteModal.attendanceId); 
-                                api.put(`/children/${readNoteModal.childId}`, { persistentNote: "" }).then(() => loadData());
+                                api.put(`/children/${readNoteModal.childId}`, { persistentNote: "" }).then(() => loadInitialData());
                                 setReadNoteModal({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' }); 
                             }} className="w-full bg-white text-car-dark font-black p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl flex justify-center items-center gap-2">
                                 <CheckCircle size={24}/> J'AI TRANSMIS, DÉPART
@@ -521,7 +536,7 @@ const SessionView = () => {
                             
                             <button onClick={() => { 
                                 handleCheckOut(readNoteModal.attendanceId); 
-                                api.put(`/children/${readNoteModal.childId}`, { persistentNote: readNoteModal.textToSave }).then(() => loadData());
+                                api.put(`/children/${readNoteModal.childId}`, { persistentNote: readNoteModal.textToSave }).then(() => loadInitialData());
                                 setReadNoteModal({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' }); 
                             }} className="w-full bg-black/20 text-white font-black p-4 rounded-2xl hover:bg-black/30 transition-all flex justify-center items-center gap-2 border border-white/30">
                                 <AlertTriangle size={20}/> NON TRANSMIS (REPORTER)
