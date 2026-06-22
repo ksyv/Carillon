@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Newspaper, Plus, Trash2, Save, GripVertical, Image as ImageIcon, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Eye, EyeOff, Link } from 'lucide-react';
 import api from '../api';
 
-// --- COMPOSANT : ÉDITEUR WYSIWYG REPENSI (SÉLECTEURS ET IMAGES FLUIDES) ---
+// --- COMPOSANT : ÉDITEUR WYSIWYG ULTRA-STABLE (ANTI-TAILWIND OVERRIDES) ---
 const RichTextEditor = ({ content, onChange }) => {
     const editorRef = useRef(null);
     const savedRangeRef = useRef(null);
@@ -23,7 +23,6 @@ const RichTextEditor = ({ content, onChange }) => {
             sel.removeAllRanges();
             sel.addRange(savedRangeRef.current);
         } else {
-            // Sécurité : si la sélection a été perdue, on se place à la fin de l'éditeur
             const range = document.createRange();
             range.selectNodeContents(editorRef.current);
             range.collapse(false);
@@ -32,12 +31,57 @@ const RichTextEditor = ({ content, onChange }) => {
         }
     };
 
+    // Nettoie et convertit les vieilles balises <font> en <span style="..."> pour écraser Tailwind
+    const cleanAndSync = () => {
+        if (!editorRef.current) return;
+
+        const fontTags = editorRef.current.getElementsByTagName('font');
+        if (fontTags.length > 0) {
+            // Correspondance des tailles natives en pixels réels indispensables pour contourner Tailwind
+            const sizeMap = {
+                '1': '12px', '2': '14px', '3': '16px', 
+                '4': '20px', '5': '24px', '6': '32px', '7': '48px'
+            };
+
+            // On fige la sélection pendant qu'on transmute le DOM
+            const sel = window.getSelection();
+            let backupRange = null;
+            if (sel.rangeCount > 0) backupRange = sel.getRangeAt(0).cloneRange();
+
+            Array.from(fontTags).forEach(font => {
+                const span = document.createElement('span');
+                
+                // Si la balise a déjà des styles, on les préserve
+                if (font.style.cssText) span.style.cssText = font.style.cssText;
+
+                // Conversion magique anti-Tailwind
+                if (font.hasAttribute('face')) span.style.fontFamily = font.getAttribute('face');
+                if (font.hasAttribute('size')) span.style.fontSize = sizeMap[font.getAttribute('size')] || '16px';
+                if (font.hasAttribute('color')) span.style.color = font.getAttribute('color');
+                
+                while (font.firstChild) {
+                    span.appendChild(font.firstChild);
+                }
+                font.parentNode.replaceChild(span, font);
+            });
+
+            // On remet le curseur exactement là où il était
+            if (backupRange) {
+                sel.removeAllRanges();
+                sel.addRange(backupRange);
+            }
+        }
+        
+        // On envoie le HTML propre à l'état React
+        onChange(editorRef.current.innerHTML);
+    };
+
     const format = (command, value = null) => {
         restoreSelection();
         document.execCommand(command, false, value);
         editorRef.current.focus();
         saveSelection();
-        onChange(editorRef.current.innerHTML);
+        cleanAndSync(); // Nettoyage immédiat au clic ou changement de liste
     };
 
     const handleImageUpload = (e) => {
@@ -48,13 +92,10 @@ const RichTextEditor = ({ content, onChange }) => {
         reader.onloadend = () => {
             editorRef.current.focus();
             restoreSelection();
-            
-            // Insertion forcée et propre de l'image HTML
             document.execCommand('insertImage', false, reader.result);
-            
             saveSelection();
-            onChange(editorRef.current.innerHTML);
-            e.target.value = ''; // Reset de l'input
+            cleanAndSync();
+            e.target.value = ''; 
         };
         reader.readAsDataURL(file);
     };
@@ -66,41 +107,42 @@ const RichTextEditor = ({ content, onChange }) => {
 
     return (
         <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white flex flex-col shadow-sm">
-            {/* BARRE D'OUTILS NETTOYÉE */}
+            {/* BARRE D'OUTILS SÉCURISÉE */}
             <div className="bg-slate-50 border-b border-slate-200 p-3 flex flex-wrap gap-2 items-center shrink-0 select-none">
                 
-                {/* Sélecteur de Police (onMouseDown retiré pour permettre l'ouverture) */}
+                {/* Sélecteur de Police */}
                 <select 
                     onChange={(e) => format('fontName', e.target.value)}
                     className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer hover:border-slate-300"
                     title="Police de caractères"
                 >
-                    <option value="Arial">Arial</option>
-                    <option value="Montserrat">Montserrat</option>
-                    <option value="Comic Sans MS">Comic Sans</option>
-                    <option value="Courier New">Courier</option>
-                    <option value="Georgia">Georgia</option>
-                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Montserrat', sans-serif">Montserrat</option>
+                    <option value="'Comic Sans MS', cursive">Comic Sans</option>
+                    <option value="'Courier New', monospace">Courier</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="Impact, Haettenschweiler, sans-serif">Impact</option>
                 </select>
 
-                {/* Sélecteur de Taille (onMouseDown retiré également) */}
+                {/* Sélecteur de Taille */}
                 <select 
                     onChange={(e) => format('fontSize', e.target.value)}
                     className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer hover:border-slate-300"
                     title="Taille du texte"
                     defaultValue="3"
                 >
-                    <option value="2">Petit</option>
-                    <option value="3">Normal</option>
-                    <option value="4">Grand (Titre H3)</option>
-                    <option value="5">Très Grand (Titre H2)</option>
-                    <option value="6">Énorme (Titre H1)</option>
-                    <option value="7">Géant</option>
+                    <option value="2">Petit (14px)</option>
+                    <option value="3">Normal (16px)</option>
+                    <option value="4">Grand (20px)</option>
+                    <option value="5">Très Grand (24px)</option>
+                    <option value="6">Énorme (32px)</option>
+                    <option value="7">Géant (48px)</option>
                 </select>
 
                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
 
-                {/* Boutons de style */}
+                {/* Styles de base */}
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('bold'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Gras"><Bold size={16}/></button>
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('italic'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Italique"><Italic size={16}/></button>
                 <button type="button" onMouseDown={(e) => { e.preventDefault(); format('underline'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Souligné"><Underline size={16}/></button>
@@ -136,14 +178,14 @@ const RichTextEditor = ({ content, onChange }) => {
                 </label>
             </div>
 
-            {/* ZONE D'ÉCRITURE */}
+            {/* ZONE D'ÉCRITURE PRINCIPALE */}
             <div 
                 ref={editorRef}
-                className="p-6 min-h-[400px] outline-none max-w-full overflow-x-hidden prose prose-slate focus:prose-blue bg-white"
+                className="p-6 min-h-[400px] outline-none max-w-full overflow-x-auto prose prose-slate focus:prose-blue bg-white"
                 contentEditable={true}
-                onKeyUp={saveSelection}
-                onMouseUp={saveSelection}
-                onBlur={() => { saveSelection(); onChange(editorRef.current.innerHTML); }}
+                onKeyUp={() => { saveSelection(); cleanAndSync(); }}
+                onMouseUp={() => { saveSelection(); cleanAndSync(); }}
+                onBlur={() => { saveSelection(); cleanAndSync(); }}
                 dangerouslySetInnerHTML={{ __html: content }} 
             />
         </div>
@@ -200,7 +242,7 @@ const NewsManager = () => {
         }
     };
 
-    // DRAG & DROP
+    // DRAG & DROP LOGIQUE
     const [draggedItemIndex, setDraggedItemIndex] = useState(null);
 
     const onDragStart = (e, index) => {
@@ -246,7 +288,7 @@ const NewsManager = () => {
                         <div className="bg-car-blue/10 p-4 rounded-2xl"><Newspaper className="text-car-blue w-8 h-8"/></div>
                         <div>
                             <h1 className="text-3xl font-black text-car-dark">Page d'accueil Parents</h1>
-                            <p className="text-slate-500 font-medium">Gérez l'ordre et le contenu textuel enrichi</p>
+                            <p className="text-slate-500 font-medium">Gerez l'ordre et le contenu textuel enrichi</p>
                         </div>
                     </div>
                     <button onClick={handleCreateNew} className="bg-car-blue text-white px-5 py-3 rounded-xl font-black tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg shadow-car-blue/20 text-xs">
