@@ -205,23 +205,31 @@ router.post('/generate', auth(['admin']), async (req, res) => {
         });
 
         // --- ACCUEIL PÉRISCOLAIRE (APS MATIN & SOIR) ---
-        attendances.forEach(att => {
+       attendances.forEach(att => {
             if (att.sessionType === 'MIDI' || att.sessionType === 'MIDI_ADULTE' || closedDays.includes(att.date)) return;
             
-            const child = children.find(c => c._id.toString() === att.child.toString());
+            // SÉCURITÉ 1 : On force l'ID de l'enfant en texte pur immédiat
+            const childIdStr = att.child.toString();
+            const child = children.find(c => c._id.toString() === childIdStr);
             if (!child || child.category === 'Adulte' || !child.families || child.families.length === 0) return;
 
-            const alt = alternateBillings.find(b => b.child.toString() === child._id.toString() && b.dates.includes(att.date));
+            const alt = alternateBillings.find(b => b.child.toString() === childIdStr && b.dates.includes(att.date));
+            
             let billedFamilyId = child.families[0].toString();
             if (alt && alt.billToFamily) billedFamilyId = alt.billToFamily.toString();
+            
             const targetFamily = families.find(f => f._id.toString() === billedFamilyId);
             if (!targetFamily) return;
 
-            const fratrieCount = childrenInFamily[targetFamily._id.toString()] || 1;
+            // SÉCURITÉ 2 : On force l'ID de la famille en texte pur
+            const famIdStr = targetFamily._id.toString(); 
+            const fratrieCount = childrenInFamily[famIdStr] || 1;
             const qf = targetFamily.quotientFamilial || 0;
+            
             let pNom = targetFamily.name;
             if (alt) pNom = `Garde Alternée : ${targetFamily.name} (Enfant: ${child.firstName})`;
-            initInvoice(targetFamily._id.toString(), pNom);
+            
+            initInvoice(famIdStr, pNom);
 
             let activitiesToBill = [];
             if (att.sessionType === 'MATIN') {
@@ -238,11 +246,14 @@ router.post('/generate', auth(['admin']), async (req, res) => {
                 if (!rule) return;
 
                 const price = calculateUnitPrice(rule, fratrieCount, qf);
-                const itemKey = `${child._id.toString()}_${act.code}`; 
+                
+                // SÉCURITÉ 3 : Une clé 100% texte, sans aucune date, ni objet
+                const itemKey = `${childIdStr}_${act.code}`; 
                 const formattedDate = att.date.split('-')[2] + '/' + att.date.split('-')[1];
 
-                if (!invoiceDrafts[targetFamily._id].items[itemKey]) {
-                    invoiceDrafts[targetFamily._id].items[itemKey] = { 
+                // Si cette combinaison Enfant + Prestation n'existe pas encore, on la crée
+                if (!invoiceDrafts[famIdStr].items[itemKey]) {
+                    invoiceDrafts[famIdStr].items[itemKey] = { 
                         childName: `${child.firstName} ${child.lastName.toUpperCase()}`,
                         code: act.code, 
                         label: act.label, 
@@ -253,13 +264,12 @@ router.post('/generate', auth(['admin']), async (req, res) => {
                     };
                 }
                 
-                // VÉRIFICATION CRUCIALE : On ne compte l'acte et n'ajoute la date QUE si elle n'est pas déjà présente
-                // (Cela évite les doublons de pointages multiples sur une même session)
-                if (!invoiceDrafts[targetFamily._id].items[itemKey].dates.includes(formattedDate)) {
-                    invoiceDrafts[targetFamily._id].items[itemKey].count += 1;
-                    invoiceDrafts[targetFamily._id].items[itemKey].total += price;
-                    invoiceDrafts[targetFamily._id].items[itemKey].dates.push(formattedDate);
-                    invoiceDrafts[targetFamily._id].totalGlobal += price;
+                // On ajoute le pointage SEULEMENT si la date n'y est pas déjà
+                if (!invoiceDrafts[famIdStr].items[itemKey].dates.includes(formattedDate)) {
+                    invoiceDrafts[famIdStr].items[itemKey].count += 1;
+                    invoiceDrafts[famIdStr].items[itemKey].total += price;
+                    invoiceDrafts[famIdStr].items[itemKey].dates.push(formattedDate);
+                    invoiceDrafts[famIdStr].totalGlobal += price;
                 }
             });
         });
