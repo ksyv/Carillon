@@ -243,7 +243,7 @@ const Dashboard = () => {
                             </div>
                         </button>
                         <button 
-                            onClick={() => navigate('/news')} 
+                            onClick={() => navigate('/admin/news')} 
                             className="bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex items-center gap-4 text-left group"
                         >
                             <div className="bg-car-blue/10 p-4 rounded-2xl group-hover:scale-110 transition-transform">
