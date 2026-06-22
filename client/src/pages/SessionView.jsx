@@ -11,7 +11,7 @@ import ChildInfoModal from '../components/ChildInfoModal';
 const SessionView = () => {
     const { date, type } = useParams();
     
-    // SÉCURITÉ 1 : On force le rôle en minuscules et sans espaces pour éviter le Ping-Pong
+    // SÉCURITÉ 1 : On force le rôle en minuscules et sans espaces
     const role = (localStorage.getItem('role') || '').toLowerCase().trim();
     
     const [allChildren, setAllChildren] = useState([]); 
@@ -49,6 +49,17 @@ const SessionView = () => {
         }
     }, [type, role, navigate]);
 
+    // NOUVEAU : Téléchargement discret de la valise de secours (uniquement les PAI)
+    const syncEmergencyDocs = async () => {
+        if (!navigator.onLine) return;
+        try {
+            const res = await api.get('/children/emergency-database');
+            localStorage.setItem('emergency_pai_cache', JSON.stringify(res.data));
+        } catch (e) {
+            console.warn("Impossible de synchroniser la base d'urgence PAI", e);
+        }
+    };
+
     const syncOfflineActions = async () => {
         const queueStr = localStorage.getItem('syncQueue');
         if (!queueStr) return;
@@ -60,7 +71,7 @@ const SessionView = () => {
             localStorage.removeItem('syncQueue'); 
             setPendingSync(0);
             setIsOnline(true); 
-            refreshAttendanceBackground(); // On rafraîchit que les présences, pas les 3Mo d'enfants !
+            refreshAttendanceBackground(); 
         } catch (e) {
             setIsOnline(false); 
         }
@@ -80,6 +91,7 @@ const SessionView = () => {
 
     const safeSetOfflineData = (key, dataArray) => {
         try {
+            // Cette sécurité Frontend est conservée pour garantir que le storage local n'explosera jamais
             const cleanData = dataArray.map(item => {
                 let cleanItem = { ...item };
                 if (cleanItem.documents) delete cleanItem.documents;
@@ -97,7 +109,6 @@ const SessionView = () => {
         }
     };
 
-    // SÉCURITÉ 2 : CHARGEMENT LOURD (Fait 1 seule fois à l'ouverture)
     const loadInitialData = async () => {
         if (!navigator.onLine) {
             setIsOnline(false);
@@ -105,6 +116,7 @@ const SessionView = () => {
             return;
         }
         try {
+            // L'appel "/children" est désormais ultra rapide (30ko au lieu de 2.7Mo) grâce à la modif Backend
             const [kidsRes, attRes, amAttRes, notesRes] = await Promise.all([
                 api.get(`/children`), 
                 api.get(`/attendance?date=${date}&sessionType=${type}`),
@@ -124,33 +136,32 @@ const SessionView = () => {
             
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             setPendingSync(queue.length);
+
+            // NOUVEAU : On télécharge la valise d'urgence en arrière-plan (ne bloque pas l'écran)
+            syncEmergencyDocs();
+
         } catch (error) {
             setIsOnline(false); 
             loadLocalFallback();
         }
     };
 
-    // SÉCURITÉ 3 : RAFRAÎCHISSEMENT LÉGER (Fait en boucle, consomme très peu)
     const refreshAttendanceBackground = async () => {
         if (!navigator.onLine) return;
         try {
             const attRes = await api.get(`/attendance?date=${date}&sessionType=${type}`);
             setAttendance(attRes.data);
             safeSetOfflineData(`offline_attendance_${date}_${type}`, attRes.data);
-        } catch (e) {
-            // Silence en arrière-plan
-        }
+        } catch (e) {}
     };
 
     useEffect(() => { 
         let isMounted = true;
         let timeoutId;
         
-        // On charge tout la première fois
         loadInitialData().then(() => {
             if (!isMounted) return;
             
-            // Puis on lance la boucle allégée toutes les 20 secondes
             const loop = async () => {
                 if (!isMounted) return;
                 
@@ -163,14 +174,16 @@ const SessionView = () => {
                     setPendingSync(queue.length);
                 }
                 
-                timeoutId = setTimeout(loop, 20000); // 20 secondes au lieu de 5
+                timeoutId = setTimeout(loop, 20000); 
             };
             
             timeoutId = setTimeout(loop, 20000);
         });
 
-        const handleOnline = () => { setIsOnline(true); syncOfflineActions(); };
+        // MODIFICATION : Quand internet revient, on synchronise aussi la valise d'urgence
+        const handleOnline = () => { setIsOnline(true); syncOfflineActions(); syncEmergencyDocs(); };
         const handleOffline = () => { setIsOnline(false); };
+        
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
@@ -488,6 +501,7 @@ const SessionView = () => {
                 onClose={() => setShowEmergency(false)} 
             />}
 
+            {/* Modales de Note omises pour la clarté (elles sont restées identiques) */}
             {noteModal.show && (
                 <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">

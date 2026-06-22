@@ -1,18 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../api'; // NOUVEAU : Ajout de l'API pour faire la requête
 import { Download, X, FolderHeart, AlertTriangle, Phone, Users, Info, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const ChildInfoModal = ({ child, onClose }) => {
-    if (!child) return null;
+    // NOUVEAU : On crée un état local qui va contenir les données de l'enfant
+    const [displayChild, setDisplayChild] = useState(child);
+
+    // NOUVEAU : Dès qu'on ouvre la modale, on va chercher les documents manquants
+    useEffect(() => {
+        if (!child) return;
+        
+        // On affiche d'abord la donnée allégée pour que ça soit instantané
+        setDisplayChild(child);
+
+        const fetchFullData = async () => {
+            if (navigator.onLine) {
+                try {
+                    // En ligne : On récupère la fiche complète avec les PDF (PAI, Vaccins)
+                    const res = await api.get(`/children/${child._id}`);
+                    setDisplayChild(res.data);
+                } catch (e) {
+                    console.error("Erreur récupération fiche complète", e);
+                }
+            } else {
+                // Hors ligne : On regarde dans la valise d'urgence si on a le PAI
+                try {
+                    const cache = JSON.parse(localStorage.getItem('emergency_pai_cache') || '[]');
+                    const emergencyData = cache.find(c => c._id === child._id);
+                    if (emergencyData) {
+                        // On fusionne les infos de base avec les documents d'urgence trouvés
+                        setDisplayChild(prev => ({ ...prev, ...emergencyData }));
+                    }
+                } catch (e) {
+                    console.error("Erreur lecture cache urgence", e);
+                }
+            }
+        };
+
+        fetchFullData();
+    }, [child]);
+
+    if (!displayChild) return null;
 
     // --- SUPPORT MULTI-FAMILLES ---
-    const responsables = child.families?.reduce((acc, fam) => {
+    const responsables = displayChild.families?.reduce((acc, fam) => {
         return fam.responsables ? [...acc, ...fam.responsables] : acc;
     }, []) || [];
     
-    const formattedBirthDate = child.birthDate 
-        ? new Date(child.birthDate).toLocaleDateString('fr-FR') 
+    const formattedBirthDate = displayChild.birthDate 
+        ? new Date(displayChild.birthDate).toLocaleDateString('fr-FR') 
         : 'Non renseignée';
 
     const appendDocumentToPDF = (doc, fileUrl, title) => {
@@ -43,29 +81,28 @@ const ChildInfoModal = ({ child, onClose }) => {
         let yPos = 20;
 
         doc.setFontSize(18);
-        doc.text(`FICHE ENFANT : ${child.lastName.toUpperCase()} ${child.firstName}`, 14, yPos);
+        doc.text(`FICHE ENFANT : ${displayChild.lastName.toUpperCase()} ${displayChild.firstName}`, 14, yPos);
         yPos += 10;
 
         const mainInfo = [
-            ['Codes Portail Ecole', child.families?.map(f => f.portalCode).filter(Boolean).join(', ') || 'Non renseigné'],
-            ['Catégorie', child.category || 'Maternelle'],
+            ['Codes Portail Ecole', displayChild.families?.map(f => f.portalCode).filter(Boolean).join(', ') || 'Non renseigné'],
+            ['Catégorie', displayChild.category || 'Maternelle'],
             ['Date de naissance', formattedBirthDate],
-            ['Régime Alimentaire', child.regimeAlimentaire],
-            ['Droit à l\'image', child.droitImage ? 'OUI' : 'NON'],
-            ['Autorisé à sortir seul', child.autorisationSortieSeul ? 'OUI' : 'NON']
+            ['Régime Alimentaire', displayChild.regimeAlimentaire],
+            ['Droit à l\'image', displayChild.droitImage ? 'OUI' : 'NON'],
+            ['Autorisé à sortir seul', displayChild.autorisationSortieSeul ? 'OUI' : 'NON']
         ];
         autoTable(doc, { startY: yPos, head: [['Informations Générales', '']], body: mainInfo, theme: 'grid', headStyles: { fillColor: [84, 132, 164] } });
         yPos = doc.lastAutoTable.finalY + 10;
 
         const medicalInfo = [
-            ['Médecin', `${child.medical?.medecinNom || '-'} (${child.medical?.medecinPhone || '-'})`],
-            ['Autres infos', child.medical?.autresInfos || '-'],
-            ['Carnet de Vaccins', `${child.documents?.vaccins?.status || 'Manquant'}`]
-            // SÉCURITÉ : La RC a été retirée du PDF pour le staff non autorisé
+            ['Médecin', `${displayChild.medical?.medecinNom || '-'} (${displayChild.medical?.medecinPhone || '-'})`],
+            ['Autres infos', displayChild.medical?.autresInfos || '-'],
+            ['Carnet de Vaccins', `${displayChild.documents?.vaccins?.status || 'Manquant'}`]
         ];
-        if (child.hasPAI) {
-            medicalInfo.push(['PAI ACTIF', child.isPAIAlimentaire ? 'Alimentaire' : 'Médical']);
-            medicalInfo.push(['Motif PAI', child.paiDetails || '-']);
+        if (displayChild.hasPAI) {
+            medicalInfo.push(['PAI ACTIF', displayChild.isPAIAlimentaire ? 'Alimentaire' : 'Médical']);
+            medicalInfo.push(['Motif PAI', displayChild.paiDetails || '-']);
         }
         autoTable(doc, { startY: yPos, head: [['Santé & Documents', '']], body: medicalInfo, theme: 'grid', headStyles: { fillColor: [244, 63, 94] } });
         yPos = doc.lastAutoTable.finalY + 10;
@@ -76,15 +113,15 @@ const ChildInfoModal = ({ child, onClose }) => {
             yPos = doc.lastAutoTable.finalY + 10;
         }
 
-        if (child.personnesAutorisees && child.personnesAutorisees.length > 0) {
-            const authData = child.personnesAutorisees.map(p => [`${p.lastName?.toUpperCase()} ${p.firstName}`, p.phone || '-', p.isEmergency ? 'OUI' : 'NON']);
+        if (displayChild.personnesAutorisees && displayChild.personnesAutorisees.length > 0) {
+            const authData = displayChild.personnesAutorisees.map(p => [`${p.lastName?.toUpperCase()} ${p.firstName}`, p.phone || '-', p.isEmergency ? 'OUI' : 'NON']);
             autoTable(doc, { startY: yPos, head: [['Personnes Autorisées', 'Téléphone', 'Urgence']], body: authData, theme: 'grid', headStyles: { fillColor: [156, 163, 175] } });
         }
 
-        if (child.paiDocument) appendDocumentToPDF(doc, child.paiDocument, "Protocole PAI");
-        if (child.documents?.vaccins?.fileUrl) appendDocumentToPDF(doc, child.documents.vaccins.fileUrl, "Carnet de Vaccination");
+        if (displayChild.paiDocument) appendDocumentToPDF(doc, displayChild.paiDocument, "Protocole PAI");
+        if (displayChild.documents?.vaccins?.fileUrl) appendDocumentToPDF(doc, displayChild.documents.vaccins.fileUrl, "Carnet de Vaccination");
 
-        doc.save(`Fiche_${child.lastName.toUpperCase()}_${child.firstName}.pdf`);
+        doc.save(`Fiche_${displayChild.lastName.toUpperCase()}_${displayChild.firstName}.pdf`);
     };
 
     const openDoc = (fileUrl) => {
@@ -101,15 +138,15 @@ const ChildInfoModal = ({ child, onClose }) => {
                 </div>
                 
                 <div className="mb-6 pr-24">
-                    <h2 className="text-3xl font-black text-car-dark leading-tight">{child.lastName} <span className="font-medium text-slate-500 capitalize">{child.firstName}</span></h2>
+                    <h2 className="text-3xl font-black text-car-dark leading-tight">{displayChild.lastName} <span className="font-medium text-slate-500 capitalize">{displayChild.firstName}</span></h2>
 
                     <div className="flex flex-wrap gap-2 mt-3">
-                        <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest ${child.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
-                            {child.category || 'Maternelle'}
+                        <span className={`text-xs font-black px-3 py-1 rounded-lg tracking-widest ${displayChild.category === 'Élémentaire' ? 'bg-car-blue/10 text-car-blue' : 'bg-car-yellow/10 text-car-yellow'}`}>
+                            {displayChild.category || 'Maternelle'}
                         </span>
-                        {child.active === false && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
+                        {displayChild.active === false && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
                         
-                        {child.families && child.families.length > 0 && child.families.map((fam, idx) => (
+                        {displayChild.families && displayChild.families.length > 0 && displayChild.families.map((fam, idx) => (
                             <React.Fragment key={idx}>
                                 <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest inline-flex items-center gap-1 bg-car-purple/10 text-car-purple mt-2 sm:mt-0">
                                     <FolderHeart size={14}/> DOSSIER : {fam.name?.toUpperCase()}
@@ -139,26 +176,26 @@ const ChildInfoModal = ({ child, onClose }) => {
 
                             <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col">
                                 <span className="text-[10px] font-bold text-slate-400 uppercase">Cantine</span>
-                                <span className={`text-sm font-black ${child.regimeAlimentaire !== 'Standard' ? 'text-car-yellow' : 'text-car-dark'}`}>{child.regimeAlimentaire || 'Standard'}</span>
+                                <span className={`text-sm font-black ${displayChild.regimeAlimentaire !== 'Standard' ? 'text-car-yellow' : 'text-car-dark'}`}>{displayChild.regimeAlimentaire || 'Standard'}</span>
                             </div>
                             
                             <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col">
                                 <span className="text-[10px] font-bold text-slate-400 uppercase">Droit à l'image</span>
-                                <span className={`text-sm font-black ${child.droitImage ? 'text-car-green' : 'text-car-pink'}`}>{child.droitImage ? 'OUI' : 'NON'}</span>
+                                <span className={`text-sm font-black ${displayChild.droitImage ? 'text-car-green' : 'text-car-pink'}`}>{displayChild.droitImage ? 'OUI' : 'NON'}</span>
                             </div>
 
-                            {child.category === 'Élémentaire' && (
+                            {displayChild.category === 'Élémentaire' && (
                                 <div className="bg-white p-3 rounded-xl shadow-sm flex flex-col">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">Sortie seul</span>
-                                    <span className={`text-sm font-black ${child.autorisationSortieSeul ? 'text-car-blue' : 'text-car-pink'}`}>{child.autorisationSortieSeul ? 'OUI' : 'NON'}</span>
+                                    <span className={`text-sm font-black ${displayChild.autorisationSortieSeul ? 'text-car-blue' : 'text-car-pink'}`}>{displayChild.autorisationSortieSeul ? 'OUI' : 'NON'}</span>
                                 </div>
                             )}
                         </div>
 
-                        {child.medical?.autresInfos && (
+                        {displayChild.medical?.autresInfos && (
                             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-4">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Autres informations / Particularités</span>
-                                <p className="text-car-dark font-medium text-sm whitespace-pre-wrap">{child.medical.autresInfos}</p>
+                                <p className="text-car-dark font-medium text-sm whitespace-pre-wrap">{displayChild.medical.autresInfos}</p>
                             </div>
                         )}
 
@@ -166,13 +203,13 @@ const ChildInfoModal = ({ child, onClose }) => {
                         <div className="mt-4 border-t border-slate-200 pt-4">
                             <div className="flex justify-between items-center mb-2">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><FileText size={12}/> Carnet de Vaccins</span>
-                                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${child.documents?.vaccins?.status === 'Valide' ? 'bg-car-green/10 text-car-green' : child.documents?.vaccins?.status === 'Expiré' ? 'bg-car-pink/10 text-car-pink' : 'bg-slate-100 text-slate-500'}`}>
-                                    {child.documents?.vaccins?.status || 'Manquant'}
+                                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${displayChild.documents?.vaccins?.status === 'Valide' ? 'bg-car-green/10 text-car-green' : displayChild.documents?.vaccins?.status === 'Expiré' ? 'bg-car-pink/10 text-car-pink' : 'bg-slate-100 text-slate-500'}`}>
+                                    {displayChild.documents?.vaccins?.status || 'Manquant'}
                                 </span>
                             </div>
-                            {child.documents?.vaccins?.fileUrl ? (
+                            {displayChild.documents?.vaccins?.fileUrl ? (
                                 <button 
-                                    onClick={() => openDoc(child.documents.vaccins.fileUrl)} 
+                                    onClick={() => openDoc(displayChild.documents.vaccins.fileUrl)} 
                                     className="w-full bg-car-blue/10 text-car-blue hover:bg-car-blue hover:text-white px-3 py-2 rounded-xl text-xs font-black transition-colors flex items-center justify-center gap-2"
                                 >
                                     👀 VOIR LE CARNET DE VACCINS
@@ -184,15 +221,15 @@ const ChildInfoModal = ({ child, onClose }) => {
                             )}
                         </div>
                         
-                        {child.hasPAI && (
+                        {displayChild.hasPAI && (
                             <div className="bg-car-pink/10 border border-car-pink/30 p-4 rounded-xl mt-4 mb-4">
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="text-car-pink font-black uppercase tracking-widest flex items-center gap-2"><AlertTriangle size={16}/> PAI ACTIF</div>
-                                    {child.paiDocument && (
-                                        <button onClick={() => openDoc(child.paiDocument)} className="bg-car-pink text-white text-[10px] font-bold px-2 py-1 rounded-md hover:bg-red-600 transition-colors">VOIR DOC</button>
+                                    {displayChild.paiDocument && (
+                                        <button onClick={() => openDoc(displayChild.paiDocument)} className="bg-car-pink text-white text-[10px] font-bold px-2 py-1 rounded-md hover:bg-red-600 transition-colors">VOIR DOC</button>
                                     )}
                                 </div>
-                                <p className="text-car-dark font-medium text-sm">{child.paiDetails}</p>
+                                <p className="text-car-dark font-medium text-sm">{displayChild.paiDetails}</p>
                             </div>
                         )}
                     </div>
@@ -229,9 +266,9 @@ const ChildInfoModal = ({ child, onClose }) => {
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-3 uppercase tracking-widest text-sm">
                             <Users size={18}/> PERSONNES AUTORISÉES
                         </div>
-                        {Array.isArray(child.personnesAutorisees) && child.personnesAutorisees.length > 0 ? (
+                        {Array.isArray(displayChild.personnesAutorisees) && displayChild.personnesAutorisees.length > 0 ? (
                             <div className="space-y-2">
-                                {child.personnesAutorisees.map((c, i) => (
+                                {displayChild.personnesAutorisees.map((c, i) => (
                                     <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                                         <div className="flex flex-col">
                                             <span className="font-bold text-car-dark">{c.lastName?.toUpperCase()} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
