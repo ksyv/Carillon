@@ -5,7 +5,7 @@ import LogoTexte from '../components/LogoTexte';
 import api from '../api';
 
 // ==========================================
-// NOUVEAU : MODAL DE LECTURE COMPLÈTE D'UNE NEWS
+// MODAL DE LECTURE COMPLÈTE D'UNE NEWS
 // ==========================================
 const NewsViewModal = ({ news, onClose, onImageClick }) => {
     if (!news) return null;
@@ -18,7 +18,6 @@ const NewsViewModal = ({ news, onClose, onImageClick }) => {
                         <h2 className="text-2xl sm:text-3xl font-black text-car-dark">{news.title}</h2>
                         <button onClick={onClose} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink transition-colors shrink-0"><X size={24}/></button>
                     </div>
-                    {/* Intercepteur au clic sur le conteneur prose pour le zoom d'image */}
                     <div 
                         onClick={(e) => {
                             if (e.target.tagName === 'IMG') {
@@ -35,7 +34,7 @@ const NewsViewModal = ({ news, onClose, onImageClick }) => {
 };
 
 // ==========================================
-// NOUVEAU : LIGHTBOX PLEIN ÉCRAN POUR ZOOMER SUR LES IMAGES
+// LIGHTBOX PLEIN ÉCRAN POUR ZOOMER SUR LES IMAGES
 // ==========================================
 const ImageLightbox = ({ src, onClose }) => {
     if (!src) return null;
@@ -378,7 +377,6 @@ const FamilyPortal = () => {
     const [editFamily, setEditFamily] = useState(null);
     const [childToEdit, setChildToEdit] = useState(null);
 
-    // NOUVELLES OPTIONS DE COULOIRS FRONTEND : LECTURE ET LIGHTBOX ZOOM
     const [newsToView, setNewsToView] = useState(null);
     const [zoomedImage, setZoomedImage] = useState(null);
 
@@ -436,6 +434,23 @@ const FamilyPortal = () => {
             alert("Email ou mot de passe incorrect.");
         }
         setIsLoggingIn(false);
+    };
+
+    const handleActivation = async (e) => {
+        e.preventDefault();
+        if (newPassword !== confirmPassword) {
+            alert("Les mots de passe ne correspondent pas.");
+            return;
+        }
+        setIsActivating(true);
+        try {
+            await api.post('/parent/activate', { token: activationToken, password: newPassword });
+            setActivationSuccess(true);
+        } catch (error) {
+            alert("Erreur d'activation. Le lien a peut-être expiré.");
+        } finally {
+            setIsActivating(false);
+        }
     };
 
     const handleLogout = () => {
@@ -496,9 +511,6 @@ const FamilyPortal = () => {
         }
     };
 
-    // ==========================================================
-    // MODIFICATION DE L'ACCUEIL : RENDU EN GRILLE ET MODAL CLIQUE
-    // ==========================================================
     const TabHub = () => (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-car-blue text-white p-8 rounded-[2rem] shadow-lg relative overflow-hidden mb-6">
@@ -510,7 +522,6 @@ const FamilyPortal = () => {
                 <div className="absolute -right-10 -bottom-10 opacity-10 rotate-12 pointer-events-none"><Newspaper size={200} /></div>
             </div>
 
-            {/* CORRECTION : Rendu Grille responsive intelligente sur grands écrans */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {newsList.length > 0 ? (
                     newsList.map(news => (
@@ -523,14 +534,11 @@ const FamilyPortal = () => {
                             
                             <div className="p-6 flex flex-col flex-1 overflow-hidden">
                                 <h3 className="text-lg font-black text-car-dark mb-3 line-clamp-2 group-hover:text-car-blue transition-colors">{news.title}</h3>
-                                
-                                {/* pointer-events-none désactive l'interactivité dans la carte d'aperçu pour rendre le clic global fluide */}
                                 <div className="relative flex-1 overflow-hidden pointer-events-none text-xs text-slate-500">
                                     <div 
                                         className="prose prose-sm max-w-none text-slate-500 prose-headings:font-black prose-img:max-h-24 prose-img:object-cover prose-img:rounded-xl"
                                         dangerouslySetInnerHTML={{ __html: news.content }} 
                                     />
-                                    {/* Effet fondu blanc en bas de l'aperçu si le texte ou les images débordent */}
                                     <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-white via-white/80 to-transparent"></div>
                                 </div>
                                 <div className="mt-3 text-[10px] font-black uppercase text-car-blue tracking-wider flex items-center gap-1 shrink-0">
@@ -550,7 +558,6 @@ const FamilyPortal = () => {
 
     const TabDossier = () => (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            
             <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-100">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6 w-full mb-8">
                     <div className="space-y-2">
@@ -560,8 +567,8 @@ const FamilyPortal = () => {
                         </div>
                         <p className="text-sm font-medium text-slate-500">Visualisez et demandez la modification de vos informations.</p>
                     </div>
-                    <div className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${parentData.family.dossierComplet ? 'bg-car-green/10 text-car-green' : 'bg-car-pink/10 text-car-pink'}`}>
-                        {parentData.family.dossierComplet ? <><CheckCircle size={16}/> DOSSIER COMPLET</> : <><AlertTriangle size={16}/> DOSSIER INCOMPLET</>}
+                    <div className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${parentData?.family?.dossierComplet ? 'bg-car-green/10 text-car-green' : 'bg-car-pink/10 text-car-pink'}`}>
+                        {parentData?.family?.dossierComplet ? <><CheckCircle size={16}/> DOSSIER COMPLET</> : <><AlertTriangle size={16}/> DOSSIER INCOMPLET</>}
                     </div>
                 </div>
 
@@ -569,22 +576,22 @@ const FamilyPortal = () => {
                 <div className="bg-white border border-slate-200 p-6 rounded-3xl flex flex-col mb-8">
                     <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
                         <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation & QF (Géré par la mairie)</h3>
-                        <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-lg font-bold text-xs">Payeur : {parentData.family.payeur || 'Non assigné'}</span>
+                        <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-lg font-bold text-xs">Payeur : {parentData?.family?.payeur || 'Non assigné'}</span>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                         <div className="grid grid-cols-3 gap-3">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase">Revenu Réf. (€)</label>
-                                <div className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-slate-500 text-sm">{parentData.family.revenuReference || '-'}</div>
+                                <div className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-slate-500 text-sm">{parentData?.family?.revenuReference || '-'}</div>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase">Nb Parts</label>
-                                <div className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-slate-500 text-sm">{parentData.family.nombreParts || '-'}</div>
+                                <div className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-slate-500 text-sm">{parentData?.family?.nombreParts || '-'}</div>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold block mb-1 uppercase text-car-blue">QF Calculé</label>
-                                <div className="w-full bg-car-blue/10 border border-car-blue/20 p-3 rounded-xl font-black text-car-blue text-center text-sm">{parentData.family.quotientFamilial || '-'}</div>
+                                <div className="w-full bg-car-blue/10 border border-car-blue/20 p-3 rounded-xl font-black text-car-blue text-center text-sm">{parentData?.family?.quotientFamilial || '-'}</div>
                             </div>
                         </div>
                         
@@ -606,67 +613,41 @@ const FamilyPortal = () => {
                     </div>
                 </div>
 
-                {/* RESPONSABLE 1 */}
+                {/* RESPONSABLES */}
                 {editFamily && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                        <div className="bg-white border border-slate-200 p-6 rounded-3xl relative">
-                            <h3 className="font-black text-car-blue mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 1</h3>
-                            <div className="space-y-3">
-                                <div className="flex gap-2">
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-bold uppercase" placeholder="NOM" value={editFamily.responsables[0].lastName} onChange={e => handleRespChange(0, 'lastName', e.target.value.toUpperCase())}/>
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-bold capitalize" placeholder="Prénom" value={editFamily.responsables[0].firstName} onChange={e => handleRespChange(0, 'firstName', e.target.value)}/>
-                                </div>
-                                <div className="flex gap-2">
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[0].qualite} onChange={e => handleRespChange(0, 'qualite', e.target.value)}/>
-                                    <input type="date" title="Date de naissance" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium text-slate-600" value={editFamily.responsables[0].birthDate ? editFamily.responsables[0].birthDate.split('T')[0] : ''} onChange={e => handleRespChange(0, 'birthDate', e.target.value)}/>
-                                </div>
-                                <textarea className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium resize-none" rows="2" placeholder="Adresse postale complète..." value={editFamily.responsables[0].adressePostale || ''} onChange={e => handleRespChange(0, 'adressePostale', e.target.value)}></textarea>
-                                <div className="flex gap-2">
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[0].phoneMobile} onChange={e => handleRespChange(0, 'phoneMobile', e.target.value)}/>
-                                    <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Email" value={editFamily.responsables[0].email} onChange={e => handleRespChange(0, 'email', e.target.value)}/>
-                                </div>
-                                <div className="flex gap-2">
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Profession" value={editFamily.responsables[0].profession} onChange={e => handleRespChange(0, 'profession', e.target.value)}/>
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="Employeur" value={editFamily.responsables[0].employeur} onChange={e => handleRespChange(0, 'employeur', e.target.value)}/>
-                                </div>
-                                <div className="flex gap-2 pt-2 border-t border-slate-100">
-                                    <select className="w-1/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold text-slate-500" value={editFamily.responsables[0].couvertureSociale} onChange={e => handleRespChange(0, 'couvertureSociale', e.target.value)}>
-                                        <option value="CPAM">CPAM</option><option value="MSA">MSA</option><option value="AUTRE">Autre</option>
-                                    </select>
-                                    <input type="text" className="w-2/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-blue text-sm font-medium" placeholder="N° Allocataire" value={editFamily.responsables[0].numAllocataireCAF} onChange={e => handleRespChange(0, 'numAllocataireCAF', e.target.value)}/>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* RESPONSABLE 2 */}
-                        <div className="bg-white border border-slate-200 p-6 rounded-3xl">
-                            <h3 className="font-black text-car-teal mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2">Responsable 2</h3>
-                            <div className="space-y-3">
-                                <div className="flex gap-2">
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-bold uppercase" placeholder="NOM" value={editFamily.responsables[1].lastName} onChange={e => handleRespChange(1, 'lastName', e.target.value.toUpperCase())}/>
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-bold capitalize" placeholder="Prénom" value={editFamily.responsables[1].firstName} onChange={e => handleRespChange(1, 'firstName', e.target.value)}/>
-                                </div>
-                                <div className="flex gap-2">
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Qualité (Père, Mère...)" value={editFamily.responsables[1].qualite} onChange={e => handleRespChange(1, 'qualite', e.target.value)}/>
-                                    <input type="date" title="Date de naissance" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium text-slate-600" value={editFamily.responsables[1].birthDate ? editFamily.responsables[1].birthDate.split('T')[0] : ''} onChange={e => handleRespChange(1, 'birthDate', e.target.value)}/>
-                                </div>
-                                <textarea className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium resize-none" rows="2" placeholder="Adresse postale complète..." value={editFamily.responsables[1].adressePostale || ''} onChange={e => handleRespChange(1, 'adressePostale', e.target.value)}></textarea>
-                                <div className="flex gap-2">
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Téléphone" value={editFamily.responsables[1].phoneMobile} onChange={e => handleRespChange(1, 'phoneMobile', e.target.value)}/>
-                                    <input type="email" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Email" value={editFamily.responsables[1].email} onChange={e => handleRespChange(1, 'email', e.target.value)}/>
-                                </div>
-                                <div className="flex gap-2">
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Profession" value={editFamily.responsables[1].profession} onChange={e => handleRespChange(1, 'profession', e.target.value)}/>
-                                    <input type="text" className="w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="Employeur" value={editFamily.responsables[1].employeur} onChange={e => handleRespChange(1, 'employeur', e.target.value)}/>
-                                </div>
-                                <div className="flex gap-2 pt-2 border-t border-slate-100">
-                                    <select className="w-1/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold text-slate-500" value={editFamily.responsables[1].couvertureSociale} onChange={e => handleRespChange(1, 'couvertureSociale', e.target.value)}>
-                                        <option value="CPAM">CPAM</option><option value="MSA">MSA</option><option value="AUTRE">Autre</option>
-                                    </select>
-                                    <input type="text" className="w-2/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none focus:border-car-teal text-sm font-medium" placeholder="N° Allocataire" value={editFamily.responsables[1].numAllocataireCAF} onChange={e => handleRespChange(1, 'numAllocataireCAF', e.target.value)}/>
+                        {editFamily.responsables.map((resp, idx) => (
+                            <div key={idx} className="bg-white border border-slate-200 p-6 rounded-3xl relative">
+                                <h3 className={`font-black mb-4 text-sm tracking-widest uppercase border-b border-slate-100 pb-2 ${idx === 0 ? 'text-car-blue' : 'text-car-teal'}`}>
+                                    Responsable {idx + 1}
+                                </h3>
+                                <div className="space-y-3">
+                                    <div className="flex gap-2">
+                                        <input type="text" className={`w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold uppercase ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} placeholder="NOM" value={resp.lastName} onChange={e => handleRespChange(idx, 'lastName', e.target.value.toUpperCase())}/>
+                                        <input type="text" className={`w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold capitalize ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} placeholder="Prénom" value={resp.firstName} onChange={e => handleRespChange(idx, 'firstName', e.target.value)}/>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input type="text" className={`w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-medium ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} placeholder="Qualité" value={resp.qualite} onChange={e => handleRespChange(idx, 'qualite', e.target.value)}/>
+                                        <input type="date" className={`w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-medium text-slate-600 ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} value={resp.birthDate ? resp.birthDate.split('T')[0] : ''} onChange={e => handleRespChange(idx, 'birthDate', e.target.value)}/>
+                                    </div>
+                                    <textarea className={`w-full bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-medium resize-none ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} rows="2" placeholder="Adresse..." value={resp.adressePostale || ''} onChange={e => handleRespChange(idx, 'adressePostale', e.target.value)}></textarea>
+                                    <div className="flex gap-2">
+                                        <input type="text" className={`w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-medium ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} placeholder="Téléphone" value={resp.phoneMobile} onChange={e => handleRespChange(idx, 'phoneMobile', e.target.value)}/>
+                                        <input type="email" className={`w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-medium ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} placeholder="Email" value={resp.email} onChange={e => handleRespChange(idx, 'email', e.target.value)}/>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input type="text" className={`w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-medium ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} placeholder="Profession" value={resp.profession} onChange={e => handleRespChange(idx, 'profession', e.target.value)}/>
+                                        <input type="text" className={`w-1/2 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-medium ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} placeholder="Employeur" value={resp.employeur} onChange={e => handleRespChange(idx, 'employeur', e.target.value)}/>
+                                    </div>
+                                    <div className="flex gap-2 pt-2 border-t border-slate-100">
+                                        <select className="w-1/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-bold text-slate-500" value={resp.couvertureSociale} onChange={e => handleRespChange(idx, 'couvertureSociale', e.target.value)}>
+                                            <option value="CPAM">CPAM</option><option value="MSA">MSA</option><option value="AUTRE">Autre</option>
+                                        </select>
+                                        <input type="text" className={`w-2/3 bg-slate-50 border border-slate-100 p-3 rounded-xl outline-none text-sm font-medium ${idx === 0 ? 'focus:border-car-blue' : 'focus:border-car-teal'}`} placeholder="N° Allocataire" value={resp.numAllocataireCAF} onChange={e => handleRespChange(idx, 'numAllocataireCAF', e.target.value)}/>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        ))}
                     </div>
                 )}
 
@@ -676,13 +657,12 @@ const FamilyPortal = () => {
                     </button>
                 </div>
 
-                {/* LISTE DES ENFANTS */}
+                {/* ENFANTS */}
                 <div className="mt-12">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="h-2 w-2 rounded-full bg-car-blue"></div>
                         <h3 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Enfants rattachés</h3>
                     </div>
-
                     {parentData?.children && parentData.children.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {parentData.children.map(child => (
@@ -734,16 +714,123 @@ const FamilyPortal = () => {
         </div>
     );
 
+
+    // ===================================================================
+    // --- RENDUS CONDITIONNELS STRUCTURELS SÉCURISÉS (WALL ANTI-BYPASS) ---
+    // ===================================================================
+
+    // 1. Écran de chargement universel
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <Loader className="animate-spin text-car-blue" size={48} />
+            </div>
+        );
+    }
+
+    // 2. Écran d'Activation (si un token est présent dans l'URL et non connecté)
+    if (!parentData && activationToken) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+                <div className="mb-8 flex items-center justify-center gap-4 sm:gap-6">
+                    <img src="/logo-mairie.png" alt="Mairie" className="h-12 sm:h-16 object-contain" />
+                    <div className="w-px h-10 sm:h-12 bg-slate-300"></div>
+                    <LogoTexte className="text-3xl sm:text-4xl" />
+                </div>
+                <div className="bg-white p-8 md:p-10 rounded-[2rem] shadow-xl max-w-md w-full border border-slate-100 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-car-purple"></div>
+                    <h1 className="text-2xl font-black text-car-dark text-center mb-2">Activation de compte</h1>
+                    <p className="text-slate-500 font-medium text-center mb-8 text-sm">Définissez votre mot de passe pour activer votre espace parent Carillon.</p>
+                    
+                    {activationSuccess ? (
+                        <div className="text-center space-y-4">
+                            <div className="bg-car-green/10 p-4 rounded-full text-car-green w-16 h-16 mx-auto flex items-center justify-center">
+                                <CheckCircle size={32} />
+                            </div>
+                            <p className="font-bold text-car-dark">Compte activé avec succès !</p>
+                            <button onClick={() => window.location.href = '/parent/portal'} className="w-full bg-car-blue text-white font-black py-4 rounded-2xl shadow-lg mt-2">
+                                Se connecter
+                            </button>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleActivation} className="space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Nouveau mot de passe</label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                    <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-purple font-bold text-car-dark" required />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Confirmer le mot de passe</label>
+                                <div className="relative">
+                                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-purple font-bold text-car-dark" required />
+                                </div>
+                            </div>
+                            <button type="submit" disabled={isActivating || !newPassword || newPassword !== confirmPassword} className="w-full bg-car-purple text-white font-black py-4 rounded-2xl shadow-lg mt-4 flex justify-center items-center gap-2 disabled:opacity-50">
+                                {isActivating ? <Loader className="animate-spin" size={20}/> : "Activer mon compte"}
+                            </button>
+                        </form>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // 3. Écran de connexion classique (si non connecté)
+    if (!parentData) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+                <div className="mb-8 flex items-center justify-center gap-4 sm:gap-6">
+                    <img src="/logo-mairie.png" alt="Mairie de Carignan-de-Bordeaux" className="h-12 sm:h-16 object-contain" />
+                    <div className="w-px h-10 sm:h-12 bg-slate-300"></div>
+                    <LogoTexte className="text-3xl sm:text-4xl" />
+                </div>
+                <div className="bg-white p-8 md:p-10 rounded-[2rem] shadow-xl max-w-md w-full border border-slate-100 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-car-blue"></div>
+                    <h1 className="text-2xl font-black text-car-dark text-center mb-2">Espace Famille</h1>
+                    <p className="text-slate-500 font-medium text-center mb-8 text-sm">Connectez-vous pour gérer votre dossier.</p>
+
+                    <form onSubmit={handleLogin} className="space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Email parent</label>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-blue font-bold text-car-dark" required />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Mot de passe</label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 pl-10 rounded-2xl outline-none focus:border-car-blue font-bold text-car-dark" required />
+                            </div>
+                        </div>
+                        <button type="submit" disabled={isLoggingIn || !loginEmail || !loginPassword} className="w-full bg-car-blue text-white font-black py-4 rounded-2xl shadow-lg mt-4 flex justify-center items-center gap-2">
+                            {isLoggingIn ? <Loader className="animate-spin" size={20}/> : "Se connecter"}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
+
+    // 4. Écran connecté (Uniquement accessible si parentData est vérifié et présent)
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
-            <header className="bg-white px-6 py-4 shadow-sm flex justify-between items-center sticky top-0 z-20">
-                <LogoTexte className="text-xl md:text-2xl" />
-                <button onClick={handleLogout} className="flex items-center gap-2 text-slate-400 hover:text-car-pink transition-colors font-bold text-sm bg-slate-50 px-4 py-2 rounded-xl">
+            <header className="bg-white px-4 sm:px-6 py-3 sm:py-4 shadow-sm flex justify-between items-center sticky top-0 z-20">
+                <div className="flex items-center gap-3 sm:gap-5">
+                    <img src="/logo-mairie.png" alt="Mairie" className="h-8 sm:h-10 object-contain" />
+                    <div className="w-px h-6 sm:h-8 bg-slate-200"></div>
+                    <LogoTexte className="text-lg sm:text-xl md:text-2xl" />
+                </div>
+                <button onClick={handleLogout} className="flex items-center gap-2 text-slate-400 hover:text-car-pink transition-colors font-bold text-sm bg-slate-50 px-3 py-2 sm:px-4 rounded-xl shrink-0">
                     <span className="hidden sm:inline">Déconnexion</span><LogOut size={18} />
                 </button>
             </header>
 
-            <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-8 pb-40 md:pb-32">
+            <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8 pb-40 md:pb-32">
                 {activeTab === 'HUB' && <TabHub />}
                 {activeTab === 'DOSSIER' && <TabDossier />}
                 {activeTab === 'FACTURES' && <TabFactures />}
@@ -751,7 +838,6 @@ const FamilyPortal = () => {
 
             {childToEdit && <ChildRequestModal child={childToEdit} onClose={() => setChildToEdit(null)} onRefresh={loadParentData} />}
 
-            {/* RENDU SÉCURISÉ DES NOUVEAUX MODULES DE LECTURE ET LIGHTBOX ZOOM */}
             {newsToView && <NewsViewModal news={newsToView} onClose={() => setNewsToView(null)} onImageClick={(src) => setZoomedImage(src)} />}
             {zoomedImage && <ImageLightbox src={zoomedImage} onClose={() => setZoomedImage(null)} />}
 
