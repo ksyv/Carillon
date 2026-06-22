@@ -1,79 +1,159 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Newspaper, Plus, Trash2, Save, GripVertical, Image as ImageIcon, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Eye, EyeOff, Link } from 'lucide-react';
+import { Newspaper, Plus, Trash2, Save, GripVertical, Image as ImageIcon, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Eye, EyeOff, Link, Type } from 'lucide-react';
 import api from '../api';
 
-// --- COMPOSANT : MINI EDITEUR WYSIWYG ---
+// --- COMPOSANT : ÉDITEUR WYSIWYG AVANCÉ (ANTI-PERTE DE FOCUS) ---
 const RichTextEditor = ({ content, onChange }) => {
     const editorRef = useRef(null);
+    const savedRangeRef = useRef(null);
 
-    // Exécute une commande de formatage native du navigateur
+    // Sauvegarde la position exacte du curseur ou de la sélection
+    const saveSelection = () => {
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            savedRangeRef.current = sel.getRangeAt(0);
+        }
+    };
+
+    // Restaure la sélection pour forcer l'action au bon endroit
+    const restoreSelection = () => {
+        if (savedRangeRef.current) {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(savedRangeRef.current);
+        }
+    };
+
     const format = (command, value = null) => {
+        restoreSelection();
         document.execCommand(command, false, value);
         editorRef.current.focus();
+        saveSelection();
         onChange(editorRef.current.innerHTML);
     };
 
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
         const reader = new FileReader();
         reader.onloadend = () => {
-            format('insertImage', reader.result); // Insère l'image en Base64
+            restoreSelection();
+            editorRef.current.focus();
+            // Insertion propre de l'image HTML au niveau du curseur
+            document.execCommand('insertImage', false, reader.result);
+            saveSelection();
+            onChange(editorRef.current.innerHTML);
+            // On vide l'input pour pouvoir ré-uploader la même image si besoin
+            e.target.value = '';
         };
         reader.readAsDataURL(file);
     };
 
     const handleLinkImage = () => {
-        const url = window.prompt("Collez le lien (URL) de l'image :");
+        const url = window.prompt("Collez l'URL de l'image :");
         if (url) format('insertImage', url);
     };
 
     return (
-        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white flex flex-col">
-            {/* Barre d'outils */}
-            <div className="bg-slate-50 border-b border-slate-200 p-2 flex flex-wrap gap-1 items-center">
-                <button type="button" onClick={() => format('bold')} className="p-2 hover:bg-slate-200 rounded text-slate-700" title="Gras"><Bold size={16}/></button>
-                <button type="button" onClick={() => format('italic')} className="p-2 hover:bg-slate-200 rounded text-slate-700" title="Italique"><Italic size={16}/></button>
-                <button type="button" onClick={() => format('underline')} className="p-2 hover:bg-slate-200 rounded text-slate-700" title="Souligné"><Underline size={16}/></button>
-                <div className="w-px h-6 bg-slate-300 mx-1"></div>
-                <button type="button" onClick={() => format('justifyLeft')} className="p-2 hover:bg-slate-200 rounded text-slate-700" title="Aligner à gauche"><AlignLeft size={16}/></button>
-                <button type="button" onClick={() => format('justifyCenter')} className="p-2 hover:bg-slate-200 rounded text-slate-700" title="Centrer"><AlignCenter size={16}/></button>
-                <button type="button" onClick={() => format('justifyRight')} className="p-2 hover:bg-slate-200 rounded text-slate-700" title="Aligner à droite"><AlignRight size={16}/></button>
-                <div className="w-px h-6 bg-slate-300 mx-1"></div>
+        <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white flex flex-col shadow-sm">
+            {/* BARRE D'OUTILS ENRICHIE */}
+            {/* TRÈS IMPORTANT : Le onMouseDown={(e) => e.preventDefault()} empêche de perdre la sélection de texte */}
+            <div className="bg-slate-50 border-b border-slate-200 p-3 flex flex-wrap gap-2 items-center shrink-0 select-none">
                 
-                {/* Couleurs de texte */}
-                <input type="color" onChange={(e) => format('foreColor', e.target.value)} className="w-8 h-8 p-1 cursor-pointer bg-transparent" title="Couleur du texte" />
-                <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                {/* Choix de la police */}
+                <select 
+                    onChange={(e) => format('fontName', e.target.value)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer"
+                    title="Police"
+                >
+                    <option value="Arial">Arial</option>
+                    <option value="Montserrat">Montserrat</option>
+                    <option value="Comic Sans MS">Comic Sans</option>
+                    <option value="Courier New">Courier</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Impact">Impact</option>
+                </select>
 
-                {/* Insertion d'images */}
-                <button type="button" onClick={handleLinkImage} className="p-2 hover:bg-slate-200 rounded text-slate-700 flex items-center gap-1 text-xs font-bold" title="Insérer par URL"><Link size={16}/> URL</button>
-                <label className="p-2 hover:bg-slate-200 rounded text-slate-700 cursor-pointer flex items-center gap-1 text-xs font-bold" title="Importer une image">
-                    <ImageIcon size={16}/> Importer
+                {/* Choix de la taille */}
+                <select 
+                    onChange={(e) => format('fontSize', e.target.value)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer"
+                    title="Taille du texte"
+                >
+                    <option value="2">Petit</option>
+                    <option value="3">Normal</option>
+                    <option value="4">Moyen (Titre 3)</option>
+                    <option value="5">Grand (Titre 2)</option>
+                    <option value="6">Très Grand (Titre 1)</option>
+                    <option value="7">Énorme</option>
+                </select>
+
+                <div className="w-px h-6 bg-slate-200 mx-1"></div>
+
+                {/* Styles de base */}
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); format('bold'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Gras"><Bold size={16}/></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); format('italic'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Italique"><Italic size={16}/></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); format('underline'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Souligné"><Underline size={16}/></button>
+                
+                <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                
+                {/* Alignements */}
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); format('justifyLeft'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Aligner à gauche"><AlignLeft size={16}/></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); format('justifyCenter'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Centrer"><AlignCenter size={16}/></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); format('justifyRight'); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors" title="Aligner à droite"><AlignRight size={16}/></button>
+                
+                <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                
+                {/* Couleur de texte */}
+                <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1 rounded-xl" title="Couleur du texte">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Couleur</span>
+                    <input 
+                        type="color" 
+                        onChange={(e) => format('foreColor', e.target.value)} 
+                        onMouseDown={(e) => e.preventDefault()} 
+                        className="w-6 h-6 p-0 cursor-pointer bg-transparent border-none rounded" 
+                    />
+                </div>
+
+                <div className="w-px h-6 bg-slate-200 mx-1"></div>
+
+                {/* Médias (Images) */}
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); saveSelection(); handleLinkImage(); }} className="p-2 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors flex items-center gap-1 text-xs font-black uppercase tracking-wider" title="Image par lien Internet"><Link size={14}/> Image URL</button>
+                
+                <label onMouseDown={saveSelection} className="p-2 hover:bg-slate-200 rounded-xl text-slate-600 cursor-pointer flex items-center gap-1 text-xs font-black uppercase tracking-wider transition-colors" title="Téléverser une image locale">
+                    <ImageIcon size={14}/> Importer Fichier
                     <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/>
                 </label>
             </div>
 
-            {/* Zone de texte éditable */}
+            {/* ZONE DE TEXTE ÉDITABLE ENRICHI */}
             <div 
                 ref={editorRef}
-                className="p-4 min-h-[300px] outline-none max-w-full overflow-x-hidden prose prose-sm sm:prose-base"
+                className="p-6 min-h-[400px] outline-none max-w-full overflow-x-hidden prose prose-slate focus:prose-blue bg-white"
                 contentEditable={true}
-                onBlur={() => onChange(editorRef.current.innerHTML)}
-                dangerouslySetInnerHTML={{ __html: content }} // Injecte le contenu initial
+                onKeyUp={saveSelection}
+                onMouseUp={saveSelection}
+                onBlur={() => { saveSelection(); onChange(editorRef.current.innerHTML); }}
+                dangerouslySetInnerHTML={{ __html: content }} 
             />
         </div>
     );
 };
 
-// --- COMPOSANT PRINCIPAL ---
+
+// ==========================================
+// COMPOSANT PRINCIPAL : NEWS MANAGER
+// ==========================================
 const NewsManager = () => {
     const navigate = useNavigate();
     const [newsList, setNewsList] = useState([]);
     const [selectedCard, setSelectedCard] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Couleurs de bordure proposées
     const colorPresets = ['#0ea5e9', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#64748b', '#0f172a'];
 
     useEffect(() => { loadNews(); }, []);
@@ -114,28 +194,23 @@ const NewsManager = () => {
         }
     };
 
-    // --- LOGIQUE DRAG & DROP HTML5 ---
+    // DRAG & DROP
     const [draggedItemIndex, setDraggedItemIndex] = useState(null);
 
     const onDragStart = (e, index) => {
         setDraggedItemIndex(index);
         e.dataTransfer.effectAllowed = "move";
-        // Optionnel : change l'apparence de l'élément pendant le drag
-        e.target.style.opacity = '0.5';
+        e.currentTarget.style.opacity = '0.4';
     };
 
     const onDragOver = (e, index) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
     };
 
     const onDrop = async (e, targetIndex) => {
         e.preventDefault();
-        e.target.style.opacity = '1';
-        
         if (draggedItemIndex === null || draggedItemIndex === targetIndex) return;
 
-        // Réorganisation locale
         const newList = [...newsList];
         const draggedItem = newList[draggedItemIndex];
         newList.splice(draggedItemIndex, 1);
@@ -144,15 +219,14 @@ const NewsManager = () => {
         setNewsList(newList);
         setDraggedItemIndex(null);
 
-        // Sauvegarde de l'ordre en base de données
         const orderedIds = newList.map(n => n._id);
         try {
             await api.post('/news/reorder', { orderedIds });
-        } catch (error) { alert("Erreur lors de la sauvegarde de l'ordre."); }
+        } catch (error) { alert("Erreur de tri."); }
     };
 
     const onDragEnd = (e) => {
-        e.target.style.opacity = '1';
+        e.currentTarget.style.opacity = '1';
         setDraggedItemIndex(null);
     };
 
@@ -166,7 +240,7 @@ const NewsManager = () => {
                         <div className="bg-car-blue/10 p-4 rounded-2xl"><Newspaper className="text-car-blue w-8 h-8"/></div>
                         <div>
                             <h1 className="text-3xl font-black text-car-dark">Page d'accueil Parents</h1>
-                            <p className="text-slate-500 font-medium">Gérez les actualités et informations du Portail Famille</p>
+                            <p className="text-slate-500 font-medium">Gerez l'ordre et le contenu textuel enrichi</p>
                         </div>
                     </div>
                     <button onClick={handleCreateNew} className="bg-car-blue text-white px-5 py-3 rounded-xl font-black tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg shadow-car-blue/20 text-xs">
@@ -176,10 +250,10 @@ const NewsManager = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     
-                    {/* COLONNE GAUCHE : LISTE DES CARTES (DRAG & DROP) */}
+                    {/* CARTES DISPONIBLES */}
                     <div className="lg:col-span-1 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col h-[700px]">
                         <div className="p-5 border-b border-slate-100 bg-slate-50 font-black text-slate-400 text-xs tracking-widest uppercase flex justify-between rounded-t-3xl">
-                            <span>Ordre d'affichage</span>
+                            <span>Ordre d'affichage (Glisser)</span>
                             <span>{newsList.length} Carte(s)</span>
                         </div>
                         <div className="overflow-y-auto flex-1 p-3 space-y-2">
@@ -191,7 +265,7 @@ const NewsManager = () => {
                                     onDragOver={(e) => onDragOver(e, index)}
                                     onDrop={(e) => onDrop(e, index)}
                                     onDragEnd={onDragEnd}
-                                    className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${selectedCard?._id === news._id ? 'bg-slate-100 border-slate-300 shadow-inner' : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-sm'}`}
+                                    className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${selectedCard?._id === news._id ? 'bg-slate-100 border-slate-300 shadow-inner' : 'bg-white border-slate-100 hover:border-slate-300'}`}
                                     onClick={() => setSelectedCard(news)}
                                     style={{ borderLeftColor: news.borderColor, borderLeftWidth: '6px' }}
                                 >
@@ -200,20 +274,20 @@ const NewsManager = () => {
                                         <div className="font-bold text-car-dark truncate text-sm">{news.title || 'Sans titre'}</div>
                                         <div className="flex items-center gap-2 mt-1">
                                             {news.isActive ? (
-                                                <span className="text-[10px] font-black text-car-green flex items-center gap-1 uppercase tracking-widest"><Eye size={12}/> Publié</span>
+                                                <span className="text-[10px] font-black text-car-green flex items-center gap-1 uppercase tracking-widest"><Eye size={12}/> En Ligne</span>
                                             ) : (
-                                                <span className="text-[10px] font-black text-slate-400 flex items-center gap-1 uppercase tracking-widest"><EyeOff size={12}/> Masqué</span>
+                                                <span className="text-[10px] font-black text-slate-400 flex items-center gap-1 uppercase tracking-widest"><EyeOff size={12}/> Brouillon</span>
                                             )}
                                         </div>
                                     </div>
                                     <button onClick={(e) => { e.stopPropagation(); handleDeleteCard(news._id); }} className="text-slate-300 hover:text-car-pink p-2 transition-colors"><Trash2 size={16}/></button>
                                 </div>
                             ))}
-                            {newsList.length === 0 && <p className="text-center text-slate-400 text-sm font-bold mt-10">Aucune carte.</p>}
+                            {newsList.length === 0 && <p className="text-center text-slate-400 text-sm font-bold mt-10">Aucune carte active.</p>}
                         </div>
                     </div>
 
-                    {/* COLONNE DROITE : EDITEUR DE LA CARTE SELECTIONNEE */}
+                    {/* ÉDITEUR PRINCIPAL */}
                     <div className="lg:col-span-2">
                         {selectedCard ? (
                             <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 sm:p-8 flex flex-col min-h-[700px]">
@@ -221,7 +295,7 @@ const NewsManager = () => {
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-100 pb-6">
                                     <input 
                                         type="text" 
-                                        className="text-2xl sm:text-3xl font-black text-car-dark outline-none bg-transparent border-b-2 border-transparent focus:border-car-blue transition-colors w-full sm:w-2/3"
+                                        className="text-2xl sm:text-3xl font-black text-car-dark outline-none bg-transparent border-b-2 border-transparent focus:border-car-blue transition-colors w-full sm:w-2/3 uppercase tracking-tight"
                                         placeholder="Titre de la carte..."
                                         value={selectedCard.title}
                                         onChange={(e) => setSelectedCard({...selectedCard, title: e.target.value})}
@@ -236,7 +310,7 @@ const NewsManager = () => {
                                         <button 
                                             onClick={handleSaveCard} 
                                             disabled={isSaving}
-                                            className="bg-car-blue text-white px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                                            className="bg-car-blue text-white px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md flex items-center gap-2"
                                         >
                                             <Save size={16}/> {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
                                         </button>
@@ -244,31 +318,28 @@ const NewsManager = () => {
                                 </div>
 
                                 <div className="mb-6 flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                    <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Bordure de la carte :</span>
+                                    <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Bordure Thématique :</span>
                                     <div className="flex gap-2">
                                         {colorPresets.map(color => (
                                             <button 
                                                 key={color}
+                                                type="button"
                                                 onClick={() => setSelectedCard({...selectedCard, borderColor: color})}
                                                 className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${selectedCard.borderColor === color ? 'border-car-dark ring-2 ring-offset-2 ring-car-dark/20 scale-110' : 'border-transparent'}`}
                                                 style={{ backgroundColor: color }}
-                                                title={`Couleur ${color}`}
                                             />
                                         ))}
                                     </div>
                                 </div>
 
                                 <div className="flex-1 flex flex-col">
-                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Contenu (Texte et Images)</label>
-                                    
-                                    {/* NOTRE EDITEUR WYSIWYG MAISON */}
+                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Contenu de la publication</label>
                                     <div className="flex-1 overflow-hidden">
                                         <RichTextEditor 
                                             content={selectedCard.content} 
                                             onChange={(html) => setSelectedCard({...selectedCard, content: html})}
                                         />
                                     </div>
-
                                 </div>
                             </div>
                         ) : (
