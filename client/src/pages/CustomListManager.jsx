@@ -5,8 +5,6 @@ import { ListChecks, Plus, Search, CheckSquare, Square, Trash2, RotateCcw, X, Ed
 
 const CustomListManager = () => {
     const navigate = useNavigate();
-    const role = localStorage.getItem('role');
-    const isAdmin = role === 'admin';
 
     const [lists, setLists] = useState([]);
     const [children, setChildren] = useState([]);
@@ -116,11 +114,10 @@ const CustomListManager = () => {
                             <p className="text-slate-500 font-medium">Pointage informel pour les sorties et activités</p>
                         </div>
                     </div>
-                    {isAdmin && (
-                        <button onClick={() => setShowCreateModal(true)} className="bg-car-purple text-white px-5 py-3 rounded-xl font-black tracking-widest hover:bg-purple-700 transition-all flex items-center gap-2 shadow-lg shadow-car-purple/20 text-xs">
-                            <Plus size={18}/> CRÉER UNE LISTE
-                        </button>
-                    )}
+                    {/* LE BOUTON CRÉER EST MAINTENANT ACCESSIBLE À TOUT LE MONDE */}
+                    <button onClick={() => setShowCreateModal(true)} className="bg-car-purple text-white px-5 py-3 rounded-xl font-black tracking-widest hover:bg-purple-700 transition-all flex items-center gap-2 shadow-lg shadow-car-purple/20 text-xs">
+                        <Plus size={18}/> CRÉER UNE LISTE
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -169,7 +166,8 @@ const CustomListManager = () => {
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={handleResetChecks} title="Remettre à zéro" className="text-slate-400 hover:text-car-yellow bg-slate-50 p-3 rounded-xl transition-colors"><RotateCcw size={20}/></button>
-                                        {isAdmin && <button onClick={() => handleDeleteList(selectedList._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-3 rounded-xl transition-colors"><Trash2 size={20}/></button>}
+                                        {/* LE BOUTON SUPPRIMER EST MAINTENANT ACCESSIBLE À TOUT LE MONDE */}
+                                        <button onClick={() => handleDeleteList(selectedList._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-3 rounded-xl transition-colors"><Trash2 size={20}/></button>
                                     </div>
                                 </div>
 
@@ -189,34 +187,32 @@ const CustomListManager = () => {
                                     </div>
                                 </div>
 
-                                {/* ZONE ADMIN : AJOUT D'ENFANTS */}
-                                {isAdmin && (
-                                    <div className="p-4 border-b border-slate-100 bg-car-purple/5 shrink-0 relative">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Search className="text-car-purple" size={16}/>
-                                            <span className="text-xs font-bold text-car-purple uppercase">Ajouter des enfants à la liste :</span>
-                                        </div>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Chercher par nom ou prénom..." 
-                                            className="w-full bg-white border border-car-purple/20 p-3 rounded-xl outline-none focus:border-car-purple font-bold text-sm"
-                                            value={searchChild}
-                                            onChange={e => setSearchChild(e.target.value)}
-                                        />
-                                        
-                                        {searchChild.length >= 2 && (
-                                            <div className="absolute left-4 right-4 mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
-                                                {availableChildren.map(c => (
-                                                    <div key={c._id} className="p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                        <span className="font-bold text-car-dark uppercase text-sm">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
-                                                        <button onClick={() => handleAddChild(c._id)} className="bg-car-purple text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">+ Ajouter</button>
-                                                    </div>
-                                                ))}
-                                                {availableChildren.length === 0 && <div className="p-4 text-center text-slate-400 text-xs font-bold italic">Aucun enfant correspondant (ou déjà dans la liste).</div>}
-                                            </div>
-                                        )}
+                                {/* ZONE : AJOUT D'ENFANTS (ACCESSIBLE À TOUS) */}
+                                <div className="p-4 border-b border-slate-100 bg-car-purple/5 shrink-0 relative">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Search className="text-car-purple" size={16}/>
+                                        <span className="text-xs font-bold text-car-purple uppercase">Ajouter des enfants à la liste :</span>
                                     </div>
-                                )}
+                                    <input 
+                                        type="text" 
+                                        placeholder="Chercher par nom ou prénom..." 
+                                        className="w-full bg-white border border-car-purple/20 p-3 rounded-xl outline-none focus:border-car-purple font-bold text-sm"
+                                        value={searchChild}
+                                        onChange={e => setSearchChild(e.target.value)}
+                                    />
+                                    
+                                    {searchChild.length >= 2 && (
+                                        <div className="absolute left-4 right-4 mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
+                                            {availableChildren.map(c => (
+                                                <div key={c._id} className="p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                    <span className="font-bold text-car-dark uppercase text-sm">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
+                                                    <button onClick={() => handleAddChild(c._id)} className="bg-car-purple text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">+ Ajouter</button>
+                                                </div>
+                                            ))}
+                                            {availableChildren.length === 0 && <div className="p-4 text-center text-slate-400 text-xs font-bold italic">Aucun enfant correspondant (ou déjà dans la liste).</div>}
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* LISTE DES ENFANTS A POINTER */}
                                 <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -224,7 +220,7 @@ const CustomListManager = () => {
                                         <div className="h-full flex flex-col items-center justify-center text-slate-300">
                                             <Users size={48} className="mb-2"/>
                                             <p className="font-bold">Cette liste est vide.</p>
-                                            {isAdmin && <p className="text-sm">Cherchez un enfant ci-dessus pour l'ajouter.</p>}
+                                            <p className="text-sm">Cherchez un enfant ci-dessus pour l'ajouter.</p>
                                         </div>
                                     ) : (
                                         [...selectedList.items].sort((a, b) => a.child.lastName.localeCompare(b.child.lastName)).map(item => (
@@ -240,11 +236,10 @@ const CustomListManager = () => {
                                                     </div>
                                                 </div>
                                                 
-                                                {isAdmin && (
-                                                    <button onClick={() => handleRemoveChild(item.child._id)} className="text-slate-300 hover:text-car-pink p-2 bg-slate-50 hover:bg-red-50 rounded-xl transition-colors shrink-0">
-                                                        <X size={18}/>
-                                                    </button>
-                                                )}
+                                                {/* BOUTON RETIRER DE LA LISTE ACCESSIBLE A TOUS */}
+                                                <button onClick={() => handleRemoveChild(item.child._id)} className="text-slate-300 hover:text-car-pink p-2 bg-slate-50 hover:bg-red-50 rounded-xl transition-colors shrink-0">
+                                                    <X size={18}/>
+                                                </button>
                                             </div>
                                         ))
                                     )}
