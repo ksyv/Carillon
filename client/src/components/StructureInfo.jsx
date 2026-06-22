@@ -55,7 +55,6 @@ const StructureInfo = () => {
         setInfos(newInfos);
     };
 
-    // --- FONCTIONS DE RÉORGANISATION ---
     const moveUp = (index) => {
         if (index === 0) return;
         const newInfos = [...infos];
@@ -85,16 +84,15 @@ const StructureInfo = () => {
 
     return (
         <>
-            {/* BOUTON FLOTTANT GLOBAL */}
+            {/* LANGUETTE LATÉRALE DROITE - DISCRÈTE ET INVIOLABLE */}
             <button 
                 onClick={() => setIsOpen(true)}
-                // CORRECTION ICI: bottom-24 right-4 pour mobile, sm:bottom-6 sm:right-6 pour ordinateur
-                className="fixed bottom-24 right-4 sm:bottom-6 sm:right-6 z-[9000] bg-car-dark text-white p-4 rounded-full shadow-2xl hover:scale-110 hover:bg-black transition-all flex items-center justify-center group"
+                className="fixed right-0 top-1/2 -translate-y-1/2 z-[9000] bg-car-dark text-white pl-3 pr-2 py-4 rounded-l-2xl shadow-2xl hover:pl-4 transition-all flex items-center justify-center group border-l border-y border-white/10"
                 title="Informations de la structure"
             >
-                <Building2 size={28} />
-                <span className="absolute right-full mr-4 bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none hidden sm:block">
-                    Infos Structure
+                <Building2 size={22} />
+                <span className="absolute right-full mr-3 bg-black/80 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity honesty whitespace-nowrap pointer-events-none hidden sm:block">
+                    Infos Utiles
                 </span>
             </button>
 
@@ -145,12 +143,9 @@ const StructureInfo = () => {
                                     )}
                                 </div>
                             ) : (
-                                // MODE ÉDITION (ADMIN)
                                 <div className="space-y-4 pt-2">
                                     {infos.map((info, idx) => (
                                         <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col gap-3 relative group">
-                                            
-                                            {/* BOUTONS DE RÉORGANISATION ET SUPPRESSION */}
                                             <div className="absolute top-3 right-3 flex items-center gap-1">
                                                 <button type="button" onClick={() => moveUp(idx)} disabled={idx === 0} className="p-1.5 bg-white border border-slate-100 rounded-lg text-slate-400 hover:text-car-blue disabled:opacity-30 disabled:hover:text-slate-400 shadow-sm transition-all" title="Monter">
                                                     <ChevronUp size={14}/>
