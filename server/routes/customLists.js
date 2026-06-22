@@ -10,7 +10,7 @@ router.get('/', auth(), async (req, res) => {
     } catch (e) { res.status(500).send("Erreur"); }
 });
 
-router.post('/', auth(['admin']), async (req, res) => {
+router.post('/', auth(), async (req, res) => {
     try {
         const list = new CustomList(req.body);
         await list.save();
@@ -18,14 +18,14 @@ router.post('/', auth(['admin']), async (req, res) => {
     } catch (e) { res.status(500).send("Erreur"); }
 });
 
-router.put('/:id', auth(['admin']), async (req, res) => {
+router.put('/:id', auth(), async (req, res) => {
     try {
         const updated = await CustomList.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('items.child');
         res.json(updated);
     } catch (e) { res.status(500).send("Erreur"); }
 });
 
-router.delete('/:id', auth(['admin']), async (req, res) => {
+router.delete('/:id', auth(), async (req, res) => {
     try {
         await CustomList.findByIdAndDelete(req.params.id);
         res.json({ success: true });
