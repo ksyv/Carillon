@@ -88,11 +88,12 @@ const StructureInfo = () => {
             {/* BOUTON FLOTTANT GLOBAL */}
             <button 
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-6 right-6 z-[9000] bg-car-dark text-white p-4 rounded-full shadow-2xl hover:scale-110 hover:bg-black transition-all flex items-center justify-center group"
+                // CORRECTION ICI: bottom-24 right-4 pour mobile, sm:bottom-6 sm:right-6 pour ordinateur
+                className="fixed bottom-24 right-4 sm:bottom-6 sm:right-6 z-[9000] bg-car-dark text-white p-4 rounded-full shadow-2xl hover:scale-110 hover:bg-black transition-all flex items-center justify-center group"
                 title="Informations de la structure"
             >
                 <Building2 size={28} />
-                <span className="absolute right-full mr-4 bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <span className="absolute right-full mr-4 bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none hidden sm:block">
                     Infos Structure
                 </span>
             </button>
