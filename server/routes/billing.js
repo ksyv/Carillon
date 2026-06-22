@@ -242,7 +242,9 @@ router.post('/generate', auth(['admin']), async (req, res) => {
                 if (!rule) return;
 
                 const price = calculateUnitPrice(rule, fratrieCount, qf);
-                const itemKey = `${child._id.toString()}_${act.code}_${att.date}`; // Clé unique par date et par type
+                
+                // CORRECTION : On retire la date de la clé pour regrouper les prestations par Enfant + Type
+                const itemKey = `${child._id.toString()}_${act.code}`; 
                 const formattedDate = att.date.split('-')[2] + '/' + att.date.split('-')[1];
 
                 if (!invoiceDrafts[targetFamily._id].items[itemKey]) {
@@ -259,6 +261,8 @@ router.post('/generate', auth(['admin']), async (req, res) => {
                 
                 invoiceDrafts[targetFamily._id].items[itemKey].count += 1;
                 invoiceDrafts[targetFamily._id].items[itemKey].total += price;
+                
+                // On ajoute la date dans le tableau de l'item groupé
                 if (!invoiceDrafts[targetFamily._id].items[itemKey].dates.includes(formattedDate)) {
                     invoiceDrafts[targetFamily._id].items[itemKey].dates.push(formattedDate);
                 }
