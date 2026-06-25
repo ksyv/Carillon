@@ -399,11 +399,7 @@ const FamilyManager = () => {
         }
     };
 
-    // Le nouveau calcul correct des orphelins (inclus les bugs legacy "family: null")
-    const trueOrphans = children.filter(c => 
-        (c.families !== undefined && c.families.length === 0) || 
-        c.family === null
-    );
+    const trueOrphans = children.filter(c => !c.families || c.families.length === 0);
 
     const unattachedChildren = selectedFamily  
         ? children.filter(c => !c.families?.some(famId => famId === selectedFamily._id || famId._id === selectedFamily._id))
