@@ -52,6 +52,10 @@ const FamilyManager = () => {
                 api.get(`/families`),
                 api.get('/classes')
             ]);
+            
+            // --- LE RADAR ---
+            console.log("Voici la liste complète des enfants reçue :", kidsRes.data);
+            
             setChildren(kidsRes.data);
             setFamilies(famRes.data);
             setClasses(classRes.data);
