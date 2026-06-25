@@ -18,6 +18,7 @@ const FamilyManager = () => {
     
     const [childInfoToView, setChildInfoToView] = useState(null);
     const [editingChild, setEditingChild] = useState(null);
+    const [showOrphansModal, setShowOrphansModal] = useState(false); // NOUVEL ÉTAT POUR LA MODALE
 
     const [pendingRequests, setPendingRequests] = useState([]);
     const navigate = useNavigate();
@@ -52,9 +53,6 @@ const FamilyManager = () => {
                 api.get(`/families`),
                 api.get('/classes')
             ]);
-            
-            // --- LE RADAR ---
-            console.log("Voici la liste complète des enfants reçue :", kidsRes.data);
             
             setChildren(kidsRes.data);
             setFamilies(famRes.data);
@@ -118,7 +116,7 @@ const FamilyManager = () => {
             const wantsToCreateDuplicate = window.confirm(`⚠️ Une ou plusieurs familles nommées "${searchName}" existent déjà !\n\nVoulez-vous vraiment en créer une NOUVELLE ?\n\n(Cliquez sur "Annuler" pour simplement ouvrir le dossier existant)`);
             if (!wantsToCreateDuplicate) {
                 setSelectedFamily(existingFamilies[0]);
-                setSearchFamilyText('');
+                searchFamilyText('');
                 return;
             }
         }
@@ -401,10 +399,12 @@ const FamilyManager = () => {
         }
     };
 
-    const trueOrphans = children.filter(c => !c.families || c.families.length === 0);
-    if (trueOrphans.length > 0) {
-        console.log("🕵️ ORPHELINS À RATTACHER :", trueOrphans.map(c => `${c.firstName} ${c.lastName}`));
-    }
+    // Le nouveau calcul correct des orphelins (inclus les bugs legacy "family: null")
+    const trueOrphans = children.filter(c => 
+        (c.families !== undefined && c.families.length === 0) || 
+        c.family === null
+    );
+
     const unattachedChildren = selectedFamily  
         ? children.filter(c => !c.families?.some(famId => famId === selectedFamily._id || famId._id === selectedFamily._id))
         : [];
@@ -442,10 +442,14 @@ const FamilyManager = () => {
                         </div>
                     </div>
                     
-                    <div className={`px-6 py-4 rounded-2xl font-black text-lg flex items-center gap-3 shadow-sm ${trueOrphans.length > 0 ? 'bg-car-pink text-white animate-pulse' : 'bg-car-green text-white'}`}>
+                    {/* BOUTON D'ALERTE CLIQUABLE POUR OUVRIR LA MODALE */}
+                    <button 
+                        onClick={() => trueOrphans.length > 0 && setShowOrphansModal(true)}
+                        className={`px-6 py-4 rounded-2xl font-black text-lg flex items-center gap-3 shadow-sm transition-transform ${trueOrphans.length > 0 ? 'bg-car-pink text-white animate-pulse hover:scale-105 cursor-pointer' : 'bg-car-green text-white cursor-default'}`}
+                    >
                         {trueOrphans.length > 0 ? <AlertTriangle size={24}/> : <CheckCircle size={24}/>}
                         {trueOrphans.length} ENFANTS SANS DOSSIER
-                    </div>
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
@@ -902,6 +906,34 @@ const FamilyManager = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL LISTE DES ORPHELINS */}
+            {showOrphansModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] p-8 w-full max-w-lg shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-black text-car-pink flex items-center gap-2">
+                                <AlertTriangle /> Enfants sans dossier
+                            </h3>
+                            <button onClick={() => setShowOrphansModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                        </div>
+                        <div className="max-h-[60vh] overflow-y-auto space-y-2 pr-2">
+                            {trueOrphans.map(c => (
+                                <div key={c._id} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                    <div>
+                                        <span className="font-bold text-car-dark uppercase">{c.lastName}</span> <span className="capitalize text-slate-500 font-medium">{c.firstName}</span>
+                                        {c.active === false && <span className="ml-2 text-[10px] bg-slate-200 text-slate-500 px-2 py-1 rounded-md font-bold tracking-widest">INACTIF</span>}
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-400">{c.category}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="mt-6 text-xs text-slate-500 italic text-center">
+                            Pour rattacher un enfant, ouvrez le dossier de sa famille puis utilisez la barre de recherche en bas de l'écran. S'il s'agit d'un doublon, supprimez sa fiche.
+                        </p>
                     </div>
                 </div>
             )}
