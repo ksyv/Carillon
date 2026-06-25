@@ -402,7 +402,10 @@ const FamilyManager = () => {
     };
 
     const trueOrphans = children.filter(c => !c.families || c.families.length === 0);
-    const unattachedChildren = selectedFamily 
+    if (trueOrphans.length > 0) {
+        console.log("🕵️ ORPHELINS À RATTACHER :", trueOrphans.map(c => `${c.firstName} ${c.lastName}`));
+    }
+    const unattachedChildren = selectedFamily  
         ? children.filter(c => !c.families?.some(famId => famId === selectedFamily._id || famId._id === selectedFamily._id))
         : [];
     
