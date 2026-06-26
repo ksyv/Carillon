@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { FileText, Download, CheckCircle, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, Trash2, Plus, X } from 'lucide-react';
+import { FileText, Download, CheckCircle, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, Trash2, Plus, X, Search } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -38,6 +38,8 @@ const Report = () => {
     // --- ÉTATS POUR L'AJOUT MANUEL ---
     const [showAddModal, setShowAddModal] = useState(false);
     const [addForm, setAddForm] = useState({ childId: '', date: format(new Date(), 'yyyy-MM-dd'), sessionType: 'SOIR' });
+    const [searchChildText, setSearchChildText] = useState('');
+    const [selectedChildData, setSelectedChildData] = useState(null);
 
     // --- CHARGEMENT ---
     useEffect(() => { 
@@ -58,6 +60,26 @@ const Report = () => {
         }).catch(err => console.error(err));
     };
 
+    // On crée une liste unique d'enfants actifs pour la recherche (évite les doublons si l'enfant a pointé plusieurs fois)
+    const uniqueActiveChildren = useMemo(() => {
+        const map = new Map();
+        if (reportData.children) {
+            reportData.children.forEach(item => {
+                if (item.child && item.child.active !== false) {
+                    map.set(item.child._id, item.child);
+                }
+            });
+        }
+        return Array.from(map.values());
+    }, [reportData]);
+
+    const filteredChildrenForAdd = searchChildText.length >= 2
+        ? uniqueActiveChildren.filter(child => 
+            child.lastName.toLowerCase().includes(searchChildText.toLowerCase()) || 
+            child.firstName.toLowerCase().includes(searchChildText.toLowerCase())
+          )
+        : [];
+
     // --- AJOUT MANUEL D'UN POINTAGE OUBLIÉ ---
     const handleManualAdd = async (e) => {
         e.preventDefault();
@@ -76,6 +98,8 @@ const Report = () => {
 
             setShowAddModal(false);
             setAddForm({ ...addForm, childId: '' }); // On reset juste l'enfant
+            setSearchChildText('');
+            setSelectedChildData(null);
             loadReport();
             alert("Pointage ajouté avec succès !");
         } catch (e) {
@@ -576,12 +600,66 @@ const Report = () => {
                         <div className="space-y-4 mb-8">
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-400 block mb-1">Enfant</label>
-                                <select required className="w-full bg-slate-50 p-3 rounded-xl font-bold text-car-dark outline-none border border-slate-200" value={addForm.childId} onChange={e => setAddForm({...addForm, childId: e.target.value})}>
-                                    <option value="">-- Sélectionner un enfant --</option>
-                                    {reportData.children.filter(c => c.child.active !== false).map(c => (
-                                        <option key={c.child._id} value={c.child._id}>{c.child.lastName} {c.child.firstName} {c.child.classGroup ? `(${c.child.classGroup.name})` : ''}</option>
-                                    ))}
-                                </select>
+                                {!selectedChildData ? (
+                                    <div className="relative">
+                                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 focus-within:border-car-blue transition-colors">
+                                            <Search className="text-slate-400 mr-2" size={18} />
+                                            <input 
+                                                type="text" 
+                                                className="w-full bg-transparent p-3 font-bold text-car-dark outline-none placeholder:text-slate-300 placeholder:font-medium text-sm" 
+                                                placeholder="Rechercher par nom ou prénom..." 
+                                                value={searchChildText} 
+                                                onChange={e => setSearchChildText(e.target.value)} 
+                                                autoFocus
+                                            />
+                                        </div>
+                                        {searchChildText.length >= 2 && (
+                                            <div className="absolute w-full mt-2 bg-white border border-slate-100 shadow-2xl rounded-2xl max-h-60 overflow-y-auto z-50">
+                                                {filteredChildrenForAdd.length > 0 ? (
+                                                    filteredChildrenForAdd.map(child => (
+                                                        <button 
+                                                            type="button"
+                                                            key={child._id} 
+                                                            onClick={() => {
+                                                                setAddForm({ ...addForm, childId: child._id });
+                                                                setSelectedChildData(child);
+                                                                setSearchChildText('');
+                                                            }}
+                                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors flex items-center justify-between group"
+                                                        >
+                                                            <div>
+                                                                <span className="font-black text-car-dark uppercase group-hover:text-car-blue transition-colors">{child.lastName}</span> <span className="font-medium text-slate-600 capitalize">{child.firstName}</span>
+                                                            </div>
+                                                            {child.classGroup && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold">{child.classGroup.name || child.classGroup}</span>}
+                                                        </button>
+                                                    ))
+                                                ) : (
+                                                    <div className="p-4 text-center text-sm font-bold text-slate-400 italic">Aucun enfant trouvé</div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-between bg-car-blue/10 border border-car-blue/20 p-4 rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircle className="text-car-blue" size={20} />
+                                            <div>
+                                                <span className="font-black text-car-dark uppercase">{selectedChildData.lastName}</span> <span className="font-medium capitalize text-slate-600">{selectedChildData.firstName}</span>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                setAddForm({ ...addForm, childId: '' });
+                                                setSelectedChildData(null);
+                                            }} 
+                                            className="text-slate-400 hover:text-car-pink transition-colors p-1"
+                                            title="Changer d'enfant"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-400 block mb-1">Date</label>
@@ -597,7 +675,11 @@ const Report = () => {
                             </div>
                         </div>
 
-                        <button type="submit" className="w-full bg-car-blue text-white font-black p-4 rounded-2xl hover:bg-blue-600 transition-colors uppercase tracking-widest flex items-center justify-center gap-2">
+                        <button 
+                            type="submit" 
+                            disabled={!addForm.childId}
+                            className={`w-full text-white font-black p-4 rounded-2xl transition-all uppercase tracking-widest flex items-center justify-center gap-2 ${!addForm.childId ? 'bg-slate-300 cursor-not-allowed' : 'bg-car-blue hover:bg-blue-600 shadow-lg shadow-car-blue/20'}`}
+                        >
                             <CheckCircle size={20}/> Enregistrer le pointage
                         </button>
                     </form>
