@@ -132,8 +132,11 @@ const SessionView = () => {
             setAttendance(attRes.data);
             setAmAttendance(amAttRes.data);
             setPlannedNotes(notesRes.data);
-            // SÉCURITÉ : On s'assure que c'est bien un tableau
-            setEphemeralLists(Array.isArray(listsRes.data) ? listsRes.data : []); 
+
+            // SÉCURITÉ MAXIMALE : On extrait le tableau peu importe le format renvoyé par le backend
+            const listsData = listsRes.data;
+            const actualLists = Array.isArray(listsData) ? listsData : (Array.isArray(listsData?.lists) ? listsData.lists : (Array.isArray(listsData?.data) ? listsData.data : []));
+            setEphemeralLists(actualLists); 
 
             safeSetOfflineData('offline_children', kidsRes.data);
             safeSetOfflineData(`offline_attendance_${date}_${type}`, attRes.data);
@@ -177,7 +180,11 @@ const SessionView = () => {
                 } else if (navigator.onLine) {
                     await refreshAttendanceBackground();
                     // On rafraîchit aussi les listes en arrière-plan (SÉCURISÉ)
-                    api.get(`/lists`).then(res => setEphemeralLists(Array.isArray(res.data) ? res.data : [])).catch(()=>{});
+                    api.get(`/lists`).then(res => {
+                        const listsData = res.data;
+                        const actualLists = Array.isArray(listsData) ? listsData : (Array.isArray(listsData?.lists) ? listsData.lists : (Array.isArray(listsData?.data) ? listsData.data : []));
+                        setEphemeralLists(actualLists);
+                    }).catch(()=>{});
                 } else {
                     setPendingSync(queue.length);
                 }
@@ -433,9 +440,13 @@ const SessionView = () => {
                     const persistentNote = record.child.persistentNote || '';
                     const hasAnyNote = record.note || (type === 'SOIR' && amNote) || persistentNote;
 
-                    // --- NOUVEAU : Trouver dans quelles listes se trouve cet enfant (Sécurisé) ---
+                    // --- NOUVEAU : Trouver dans quelles listes se trouve cet enfant (Sécurisé & Puissant) ---
                     const safeEphemeralLists = Array.isArray(ephemeralLists) ? ephemeralLists : [];
-                    const childLists = safeEphemeralLists.filter(list => list.children && list.children.includes(record.child._id));
+                    const childLists = safeEphemeralLists.filter(list => {
+                        if (!Array.isArray(list.children)) return false;
+                        // Supporte les cas où list.children contient des IDs (string) OU des objets entiers
+                        return list.children.some(c => c === record.child._id || c._id === record.child._id);
+                    });
 
                     return (
                         <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-slate-50 opacity-70' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)]'}`}>
