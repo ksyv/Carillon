@@ -23,7 +23,7 @@ const TabDossier = ({ parentData, editFamily, handleRespChange, handleFamilyDocU
                 {/* FACTURATION / QF */}
                 <div className="bg-white border border-slate-200 p-6 rounded-3xl flex flex-col mb-8">
                     <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
-                        <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation & QF (Géré par la mairie)</h3>
+                        <h3 className="font-black text-sm tracking-widest text-car-dark uppercase flex items-center gap-2"><Banknote size={18} aria-hidden="true"/> Facturation & QF (Géré par la mairie)</h3>
                         <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-lg font-bold text-xs">Payeur : {parentData.family.payeur || 'Non assigné'}</span>
                     </div>
                     
@@ -107,7 +107,7 @@ const TabDossier = ({ parentData, editFamily, handleRespChange, handleFamilyDocU
                 <div className="mt-12">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="h-2 w-2 rounded-full bg-car-blue"></div>
-                        <h3 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Enfants rattachés</h3>
+                        <h3 className="text-car-dark uppercase text-xs font-black tracking-[0.2em]">Enfants rattachés</h3>
                     </div>
                     {parentData?.children && parentData.children.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -130,8 +130,8 @@ const TabDossier = ({ parentData, editFamily, handleRespChange, handleFamilyDocU
                                                 </div>
                                             </div>
                                         </div>
-                                        <button onClick={() => setChildToEdit(child)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 hover:bg-car-blue/10 rounded-xl transition-colors flex items-center gap-2">
-                                            <Pencil size={18}/> <span className="text-xs font-bold uppercase hidden sm:inline">Modifier</span>
+                                        <button onClick={() => setChildToEdit(child)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 hover:bg-car-blue/10 rounded-xl transition-colors flex items-center gap-2" aria-label={`Modifier la fiche de ${child.firstName} ${child.lastName}`}>
+                                            <Pencil size={18} aria-hidden="true"/> <span className="text-xs font-bold uppercase hidden sm:inline">Modifier</span>
                                         </button>
                                     </div>
                                 </div>
@@ -139,7 +139,7 @@ const TabDossier = ({ parentData, editFamily, handleRespChange, handleFamilyDocU
                         </div>
                     ) : (
                         <div className="bg-slate-100/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center py-12">
-                            <h4 className="font-black text-slate-400 text-lg mb-2">Aucun enfant trouvé</h4>
+                            <h4 className="font-black text-car-dark text-lg mb-2">Aucun enfant trouvé</h4>
                         </div>
                     )}
                 </div>

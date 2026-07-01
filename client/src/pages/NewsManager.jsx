@@ -150,7 +150,7 @@ const RichTextEditor = ({ content, cardId, onChange }) => {
                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
                 
                 <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1 rounded-xl" title="Couleur du texte">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Couleur</span>
+                    <span className="text-[10px] font-black text-car-dark uppercase tracking-wider">Couleur</span>
                     <input 
                         type="color" 
                         onChange={(e) => format('foreColor', e.target.value)} 
@@ -371,7 +371,7 @@ const NewsManager = () => {
                                 </div>
 
                                 <div className="flex-1 flex flex-col">
-                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Contenu de la publication</label>
+                                    <label className="text-xs font-black text-car-dark uppercase tracking-widest mb-2 block">Contenu de la publication</label>
                                     <div className="flex-1 overflow-hidden">
                                         {/* CORRECTION ICI : On passe cardId pour piloter la mise à jour sélective */}
                                         <RichTextEditor 

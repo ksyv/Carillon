@@ -553,7 +553,7 @@ const SessionView = () => {
                     <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-2xl font-black text-car-dark">Note / Info</h3>
-                            <button onClick={() => setNoteModal({...noteModal, show: false})} className="text-slate-400 hover:text-car-dark"><X size={24}/></button>
+                            <button onClick={() => setNoteModal({...noteModal, show: false})} className="text-slate-400 hover:text-car-dark" aria-label="Fermer la note"><X size={24} aria-hidden="true"/></button>
                         </div>
                         {noteModal.amNote && (
                             <div className="mb-4 p-4 bg-car-yellow/10 border border-car-yellow/30 rounded-2xl text-sm font-medium text-car-dark">

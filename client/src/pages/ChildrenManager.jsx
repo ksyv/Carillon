@@ -230,7 +230,7 @@ const ChildrenManager = () => {
                 <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 mb-6 flex items-center gap-4 relative">
                     <Search className="text-slate-400 ml-2" size={24} />
                     <input type="text" className="bg-transparent border-none outline-none font-bold text-car-dark placeholder:text-slate-400 w-full text-lg" placeholder="Rechercher un enfant, une classe..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                    {searchTerm && <button onClick={() => setSearchTerm('')} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-car-pink transition-colors"><X size={20}/></button>}
+                    {searchTerm && <button onClick={() => setSearchTerm('')} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-car-pink transition-colors" aria-label="Effacer la recherche"><X size={20} aria-hidden="true"/></button>}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -257,8 +257,8 @@ const ChildrenManager = () => {
                                 </div>
                                 {!isReadOnly && (
                                     <div className="flex items-center gap-2 self-end sm:self-auto">
-                                        <button onClick={() => startEditChild(child)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 rounded-xl transition-colors"><Pencil size={20}/></button>
-                                        <button onClick={() => handleDelete(child._id, `${child.firstName} ${child.lastName}`)} className="text-slate-400 hover:text-car-pink p-3 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
+                                        <button onClick={() => startEditChild(child)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 rounded-xl transition-colors" aria-label={`Modifier la fiche de ${child.firstName} ${child.lastName}`}><Pencil size={20} aria-hidden="true"/></button>
+                                        <button onClick={() => handleDelete(child._id, `${child.firstName} ${child.lastName}`)} className="text-slate-400 hover:text-car-pink p-3 bg-slate-50 rounded-xl transition-colors" aria-label={`Supprimer ${child.firstName} ${child.lastName}`}><Trash2 size={20} aria-hidden="true"/></button>
                                     </div>
                                 )}
                             </div>
@@ -280,7 +280,7 @@ const ChildrenManager = () => {
                                     <span className="font-bold text-sm">{editingChild.active !== false ? 'DOSSIER ACTIF' : 'DOSSIER INACTIF'}</span>
                                 </label>
                             </div>
-                            <button type="button" onClick={() => setEditingChild(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                            <button type="button" onClick={() => setEditingChild(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer le formulaire"><X size={24} aria-hidden="true"/></button>
                         </div>
                         
                         {editingChild.active === false && (

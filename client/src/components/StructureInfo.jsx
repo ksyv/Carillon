@@ -147,23 +147,23 @@ const StructureInfo = () => {
                                     {infos.map((info, idx) => (
                                         <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col gap-3 relative group">
                                             <div className="absolute top-3 right-3 flex items-center gap-1">
-                                                <button type="button" onClick={() => moveUp(idx)} disabled={idx === 0} className="p-1.5 bg-white border border-slate-100 rounded-lg text-slate-400 hover:text-car-blue disabled:opacity-30 disabled:hover:text-slate-400 shadow-sm transition-all" title="Monter">
-                                                    <ChevronUp size={14}/>
+                                                <button type="button" onClick={() => moveUp(idx)} disabled={idx === 0} className="p-1.5 bg-white border border-slate-100 rounded-lg text-slate-400 hover:text-car-blue disabled:opacity-30 disabled:hover:text-slate-400 shadow-sm transition-all" title="Monter" aria-label="Monter l'élément">
+                                                    <ChevronUp size={14} aria-hidden="true"/>
                                                 </button>
-                                                <button type="button" onClick={() => moveDown(idx)} disabled={idx === infos.length - 1} className="p-1.5 bg-white border border-slate-100 rounded-lg text-slate-400 hover:text-car-blue disabled:opacity-30 disabled:hover:text-slate-400 shadow-sm transition-all" title="Descendre">
-                                                    <ChevronDown size={14}/>
+                                                <button type="button" onClick={() => moveDown(idx)} disabled={idx === infos.length - 1} className="p-1.5 bg-white border border-slate-100 rounded-lg text-slate-400 hover:text-car-blue disabled:opacity-30 disabled:hover:text-slate-400 shadow-sm transition-all" title="Descendre" aria-label="Descendre l'élément">
+                                                    <ChevronDown size={14} aria-hidden="true"/>
                                                 </button>
-                                                <button type="button" onClick={() => handleRemove(idx)} className="p-1.5 bg-white border border-slate-100 rounded-lg text-slate-400 hover:text-car-pink shadow-sm transition-all" title="Supprimer">
-                                                    <Trash2 size={14}/>
+                                                <button type="button" onClick={() => handleRemove(idx)} className="p-1.5 bg-white border border-slate-100 rounded-lg text-slate-400 hover:text-car-pink shadow-sm transition-all" title="Supprimer" aria-label="Supprimer l'élément">
+                                                    <Trash2 size={14} aria-hidden="true"/>
                                                 </button>
                                             </div>
                                             
                                             <div className="pr-28">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Titre</label>
+                                                <label className="text-[10px] font-black uppercase text-car-dark block mb-1">Titre</label>
                                                 <input type="text" className="w-full bg-white border border-slate-200 p-2 rounded-xl outline-none font-bold text-car-dark focus:border-car-blue text-xs" value={info.label} onChange={e => handleChange(idx, 'label', e.target.value)} />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Contenu</label>
+                                                <label className="text-[10px] font-black uppercase text-car-dark block mb-1">Contenu</label>
                                                 <textarea className="w-full bg-white border border-slate-200 p-2 rounded-xl outline-none font-medium text-car-dark focus:border-car-blue text-xs resize-y min-h-[60px]" value={info.value} onChange={e => handleChange(idx, 'value', e.target.value)} />
                                             </div>
                                         </div>

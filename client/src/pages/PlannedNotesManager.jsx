@@ -136,14 +136,14 @@ const PlannedNotesManager = () => {
                             <div className="bg-car-pink/10 p-3 rounded-xl text-car-pink"><Users size={24}/></div>
                             <div>
                                 <h2 className="text-2xl font-black text-car-dark">{selectedChild.lastName} {selectedChild.firstName}</h2>
-                                <span className="text-xs font-bold text-slate-400 uppercase">{selectedChild.category || 'Maternelle'}</span>
+                                <span className="text-xs font-bold text-car-dark uppercase">{selectedChild.category || 'Maternelle'}</span>
                             </div>
                         </div>
 
                         {/* Liste des notes existantes */}
                         {plannedNotes.length > 0 && (
                             <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
-                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Notes enregistrées</h3>
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest uppercase">Notes enregistrées</h3>
                                 <div className="space-y-3">
                                     {plannedNotes.map(pn => (
                                         <div key={pn._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -165,7 +165,7 @@ const PlannedNotesManager = () => {
                         {/* Formulaire d'ajout + Calendrier */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <form onSubmit={handleAddNote} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
-                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Nouvelle info</h3>
+                                <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest uppercase">Nouvelle info</h3>
                                 <textarea 
                                     className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-pink/20 outline-none font-medium text-car-dark resize-none flex-1 mb-4" 
                                     placeholder="Ex: Part avec Mamie à 16h30..." 

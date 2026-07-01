@@ -543,13 +543,13 @@ const BillingManager = () => {
                                 <div className="bg-car-blue/10 p-3 rounded-xl text-car-blue"><Users size={24}/></div>
                                 <div>
                                     <h2 className="text-2xl font-black text-car-dark">{selectedChild.lastName} {selectedChild.firstName}</h2>
-                                    <span className="text-xs font-bold text-slate-400 uppercase">{selectedChild.category || 'Maternelle'}</span>
+                                    <span className="text-xs font-bold text-car-dark uppercase">{selectedChild.category || 'Maternelle'}</span>
                                 </div>
                             </div>
 
                             {billings.length > 0 && (
                                 <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 mb-2">
-                                    <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Règles actives</h3>
+                                    <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest uppercase">Règles actives</h3>
                                     <div className="space-y-3">
                                         {billings.map(b => (
                                             <div key={b._id} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -568,7 +568,7 @@ const BillingManager = () => {
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 <form onSubmit={handleAddBilling} className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-200 flex flex-col">
-                                    <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase">Nouvelle Règle</h3>
+                                    <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest uppercase">Nouvelle Règle</h3>
                                     <div className="mb-4">
                                         <label className="text-xs font-bold text-slate-500 mb-2 block">Détourner la facturation sur :</label>
                                         <select className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-4 focus:ring-car-blue/20 outline-none font-bold text-car-dark cursor-pointer" value={billToFamilyId} onChange={e => setBillToFamilyId(e.target.value)} required>

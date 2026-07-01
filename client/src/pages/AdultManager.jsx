@@ -147,7 +147,7 @@ const AdultManager = () => {
                     <form onSubmit={handleCreateAdult} className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
                         <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                             <h3 className="text-2xl font-black text-car-dark flex items-center gap-2"><Users size={24}/> Nouveau convive</h3>
-                            <button type="button" onClick={() => setShowAddModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                            <button type="button" onClick={() => setShowAddModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer la fenêtre"><X size={24} aria-hidden="true"/></button>
                         </div>
                         
                         <div className="space-y-4 mb-8">

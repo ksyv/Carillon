@@ -95,14 +95,14 @@ const UserManager = () => {
                                         <div>
                                             <span className="font-black text-car-dark text-xl block leading-tight">{u.username}</span>
                                             <div className="flex flex-wrap gap-2 mt-2">
-                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{u.role}</span>
+                                                <span className="text-xs font-bold text-car-dark uppercase tracking-widest">{u.role}</span>
                                                 <span className="text-xs font-bold text-car-teal bg-car-teal/10 px-2 py-0.5 rounded-md uppercase tracking-widest">{u.categoryAccess || 'Tous'}</span>
                                             </div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 self-end sm:self-auto">
-                                        <button onClick={() => startEdit(u)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 rounded-xl transition-colors"><Pencil size={20}/></button>
-                                        <button onClick={async () => { if(window.confirm("Supprimer cet utilisateur ?")) { await api.delete(`/users/${u._id}`); loadUsers(); } }} className="text-slate-400 hover:text-car-pink p-3 bg-slate-50 rounded-xl transition-colors"><Trash2 size={20}/></button>
+                                        <button onClick={() => startEdit(u)} className="text-slate-400 hover:text-car-blue p-3 bg-slate-50 rounded-xl transition-colors" aria-label={`Modifier l'utilisateur ${u.username || u.name || u.role}`}><Pencil size={20} aria-hidden="true"/></button>
+                                        <button onClick={async () => { if(window.confirm("Supprimer cet utilisateur ?")) { await api.delete(`/users/${u._id}`); loadUsers(); } }} className="text-slate-400 hover:text-car-pink p-3 bg-slate-50 rounded-xl transition-colors" aria-label={`Supprimer l'utilisateur ${u.username || u.name || u.role}`}><Trash2 size={20} aria-hidden="true"/></button>
                                     </div>
                                 </div>
                             )}

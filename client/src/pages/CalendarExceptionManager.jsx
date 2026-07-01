@@ -159,7 +159,7 @@ const CalendarExceptionManager = () => {
 
                             {/* COMPTEUR COMPACT DE SÉCURITÉ */}
                             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Statut du moteur</h4>
+                                <h4 className="text-xs font-black text-car-dark uppercase tracking-wider mb-2">Statut du moteur</h4>
                                 <p className="text-sm font-bold text-car-dark">
                                     <span className="text-2xl font-black text-car-pink">{closedDates.length}</span> jours de fermeture enregistrés au total pour la commune.
                                 </p>

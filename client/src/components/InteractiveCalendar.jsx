@@ -113,7 +113,7 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
             <div className="space-y-1 sm:space-y-2">
                 {weeks.map((week, index) => (
                     <div key={index} className="grid grid-cols-8 gap-1 sm:gap-2">
-                        <button type="button" onClick={() => toggleWeek(week[0])} className="aspect-square flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-colors">W</button>
+                        <button type="button" onClick={() => toggleWeek(week[0])} className="aspect-square flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-colors" aria-label={`Sélectionner toute la semaine du ${format(week[0], 'd MMMM')}`}>W</button>
                         {week.map(day => {
                             const dateStr = format(day, 'yyyy-MM-dd');
                             const isSelected = selectedDates.includes(dateStr);
@@ -130,7 +130,7 @@ const InteractiveCalendar = ({ selectedDates, onChange }) => {
             </div>
             
             <div className="mt-4 text-center">
-                <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">{selectedDates.length} date(s) sélectionnée(s) au total</span>
+                <span className="text-xs font-bold text-car-dark bg-slate-100 px-3 py-1.5 rounded-lg">{selectedDates.length} date(s) sélectionnée(s) au total</span>
             </div>
         </div>
     );

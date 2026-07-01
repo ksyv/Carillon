@@ -88,7 +88,14 @@ const Dashboard = () => {
         <div className="flex items-center gap-4">
             {access !== 'Tous' && <span className="text-xs font-black text-car-teal bg-car-teal/10 px-4 py-1.5 rounded-full uppercase tracking-widest">{access}</span>}
             <span className="text-xs font-black text-car-purple bg-car-purple/10 px-4 py-1.5 rounded-full uppercase tracking-widest">{role}</span>
-            <button onClick={handleLogout} className="text-slate-400 hover:text-car-pink transition-colors p-2"><LogOut size={22} /></button>
+                        <button
+                            onClick={handleLogout}
+                            aria-label="Déconnexion"
+                            title="Déconnexion"
+                            className="text-slate-400 hover:text-car-pink transition-colors p-2"
+                        >
+                            <LogOut size={22} aria-hidden="true" />
+                        </button>
         </div>
       </header>
       
@@ -114,7 +121,7 @@ const Dashboard = () => {
         <section className="mb-10">
             <div className="flex items-center gap-3 mb-6 ml-2">
                 <div className="h-2 w-2 rounded-full bg-car-teal"></div>
-                <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Pointage en cours</h2>
+                <h2 className="text-car-dark uppercase text-xs font-black tracking-[0.2em]">Pointage en cours</h2>
                 <span className="ml-auto text-sm font-bold text-car-dark">{format(new Date(), 'EEEE d MMMM', { locale: fr })}</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -128,7 +135,7 @@ const Dashboard = () => {
         <section>
             <div className="flex items-center gap-3 mb-6 ml-2">
                 <div className="h-2 w-2 rounded-full bg-car-purple"></div>
-                <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Outils & listes spécifiques</h2>
+                <h2 className="text-car-dark uppercase text-xs font-black tracking-[0.2em]">Outils & listes spécifiques</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -149,7 +156,7 @@ const Dashboard = () => {
           <section className="pt-6 border-t border-slate-200 border-dashed">
             <div className="flex items-center gap-3 mb-6 ml-2">
                 <div className="h-2 w-2 rounded-full bg-car-purple"></div>
-                <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Administration</h2>
+                <h2 className="text-car-dark uppercase text-xs font-black tracking-[0.2em]">Administration</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 

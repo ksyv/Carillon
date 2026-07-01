@@ -454,7 +454,7 @@ const FamilyManager = () => {
                         <form onSubmit={handleSearchOrCreateFamily} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex gap-2 items-center">
                             <Search className="text-slate-400 ml-2" size={20} />
                             <input className="bg-transparent border-none p-2 outline-none font-black text-car-dark placeholder:text-slate-300 flex-1 uppercase text-[10px]" placeholder="CHERCHER (FAMILLE, RESP, ENFANT)..." value={searchFamilyText} onChange={e => setSearchFamilyText(e.target.value)} />
-                            <button type="submit" title="Créer un nouveau dossier" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors shrink-0"><Plus size={20}/></button>
+                            <button type="submit" title="Créer un nouveau dossier" aria-label="Créer un nouveau dossier" className="bg-car-dark text-white p-3 rounded-xl hover:bg-black transition-colors shrink-0"><Plus size={20} aria-hidden="true"/></button>
                         </form>
 
                         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[400px]">
@@ -516,8 +516,8 @@ const FamilyManager = () => {
                                     </div>
                                     
                                     <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-start md:justify-end">
-                                        <button type="button" onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille"><Trash2 size={24}/></button>
-                                        <button type="button" onClick={exportFamilyPDF} className="text-slate-400 hover:text-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet"><Download size={24}/></button>
+                                        <button type="button" onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille" aria-label="Supprimer la famille"><Trash2 size={24} aria-hidden="true"/></button>
+                                        <button type="button" onClick={exportFamilyPDF} className="text-slate-400 hover:text-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet" aria-label="Télécharger le dossier complet"><Download size={24} aria-hidden="true"/></button>
                                         <button type="button" onClick={handleSendParentInvite} className="bg-car-blue text-white px-5 py-4 rounded-2xl font-black tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg shadow-car-blue/15 text-xs"><Mail size={18}/> INVITER PARENT</button>
                                         <button type="button" onClick={handleSaveFamily} className="bg-car-green text-white px-5 py-4 rounded-2xl font-black tracking-widest hover:bg-green-600 transition-all flex items-center gap-2 shadow-lg shadow-car-green/15 text-xs"><Save size={18}/> SAUVEGARDER</button>
                                     </div>
@@ -525,7 +525,7 @@ const FamilyManager = () => {
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col h-full">
-                                        <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Users size={18}/> Enfants du foyer</h3>
+                                        <h3 className="font-black text-car-dark mb-4 text-sm tracking-widest uppercase flex items-center gap-2"><Users size={18} aria-hidden="true"/> Enfants du foyer</h3>
                                         
                                         {attachedChildren.length > 0 ? (
                                             <div className="space-y-2 mb-6">
@@ -537,8 +537,8 @@ const FamilyManager = () => {
                                                                 <span className="font-bold text-car-dark uppercase group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
                                                             </div>
                                                             <div className="flex items-center gap-1">
-                                                                <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier la fiche enfant"><Pencil size={18}/></button>
-                                                                <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher l'enfant de CE dossier"><X size={18}/></button>
+                                                                <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier la fiche enfant" aria-label={`Modifier la fiche de ${c.firstName} ${c.lastName}`}><Pencil size={18} aria-hidden="true"/></button>
+                                                                <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher l'enfant de CE dossier" aria-label={`Détacher ${c.firstName} ${c.lastName} du dossier` }><X size={18} aria-hidden="true"/></button>
                                                             </div>
                                                         </div>
                                                         {childRequestsById && childRequestsById[c._id] && childRequestsById[c._id].map(renderPendingRequest)}
@@ -578,7 +578,7 @@ const FamilyManager = () => {
 
                                     <div className="bg-white border border-slate-200 p-6 rounded-3xl flex flex-col">
                                         <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
-                                            <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2"><Banknote size={18}/> Facturation & QF</h3>
+                                            <h3 className="font-black text-car-dark text-sm tracking-widest uppercase flex items-center gap-2"><Banknote size={18} aria-hidden="true"/> Facturation & QF</h3>
                                             <select className="bg-slate-50 border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-xs" value={editFamily.payeur} onChange={e => setEditFamily({...editFamily, payeur: e.target.value})}>
                                                 <option value="Responsable 1">Facture à Resp. 1</option>
                                                 <option value="Responsable 2">Facture à Resp. 2</option>
@@ -707,7 +707,7 @@ const FamilyManager = () => {
                                     <span className="font-bold text-sm">{editingChild.active !== false ? 'DOSSIER ACTIF' : 'DOSSIER INACTIF'}</span>
                                 </label>
                             </div>
-                            <button type="button" onClick={() => setEditingChild(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                            <button type="button" onClick={() => setEditingChild(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer le formulaire enfant"><X size={24} aria-hidden="true"/></button>
                         </div>
                         
                         {editingChild.active === false && (
@@ -914,7 +914,7 @@ const FamilyManager = () => {
                             <h3 className="text-2xl font-black text-car-pink flex items-center gap-2">
                                 <AlertTriangle /> Enfants sans dossier
                             </h3>
-                            <button onClick={() => setShowOrphansModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                            <button onClick={() => setShowOrphansModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer la fenêtre"><X size={24} aria-hidden="true"/></button>
                         </div>
                         <div className="max-h-[60vh] overflow-y-auto space-y-2 pr-2">
                             {trueOrphans.map(c => (

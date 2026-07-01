@@ -115,7 +115,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
             <div className="bg-white rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                     <h3 className="text-3xl font-black text-car-dark">Fiche Enfant : {editingChild.firstName}</h3>
-                    <button type="button" onClick={onClose} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                    <button type="button" onClick={onClose} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer la fenêtre"><X size={24} aria-hidden="true"/></button>
                 </div>
 
                 <div className="bg-blue-50 text-blue-800 p-4 rounded-xl mb-6 text-sm font-bold flex gap-3 items-center">
@@ -126,7 +126,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                 <form onSubmit={submitRequest} className="space-y-8">
                     {/* IDENTITÉ */}
                     <div>
-                        <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Identité & Scolarité</h4>
+                        <h4 className="text-sm font-black text-car-dark tracking-widest uppercase mb-3">Identité & Scolarité</h4>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-black uppercase text-car-dark" placeholder="NOM" value={editingChild.lastName} onChange={e => setEditingChild({...editingChild, lastName: e.target.value.toUpperCase()})} required/>
                             <input className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-car-yellow font-bold text-car-dark capitalize" placeholder="Prénom" value={editingChild.firstName} onChange={e => setEditingChild({...editingChild, firstName: e.target.value})} required/>
@@ -143,7 +143,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
 
                     {/* DOCUMENTS ENFANTS */}
                     <div>
-                        <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Documents Administratifs</h4>
+                        <h4 className="text-sm font-black text-car-dark tracking-widest uppercase mb-3">Documents Administratifs</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
                                 <div>
@@ -182,7 +182,7 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                     {/* CONTACTS AUTORISÉS */}
                     <div>
                         <div className="flex justify-between items-center mb-3">
-                            <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase">Personnes Autorisées</h4>
+                            <h4 className="text-sm font-black text-car-dark tracking-widest uppercase">Personnes Autorisées</h4>
                             <button type="button" onClick={() => setEditingChild({...editingChild, personnesAutorisees: [...editingChild.personnesAutorisees, {firstName:'', lastName:'', phone:'', isEmergency: false}]})} className="text-xs font-bold text-car-blue bg-car-blue/10 px-3 py-1.5 rounded-lg">+ AJOUTER</button>
                         </div>
                         <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">

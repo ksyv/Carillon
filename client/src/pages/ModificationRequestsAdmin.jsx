@@ -154,7 +154,7 @@ const ModificationRequestsAdmin = () => {
         <div className="max-w-6xl mx-auto p-4 md:p-8 min-h-screen">
             <div className="flex items-center gap-3 mb-8 ml-2">
                 <div className="h-2 w-2 rounded-full bg-orange-500"></div>
-                <h2 className="text-slate-400 uppercase text-xs font-black tracking-[0.2em]">Sas de validation : Demandes des familles</h2>
+                <h2 className="text-car-dark uppercase text-xs font-black tracking-[0.2em]">Sas de validation : Demandes des familles</h2>
             </div>
             
             {requests.length === 0 ? (

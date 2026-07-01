@@ -166,7 +166,7 @@ const CafStats = () => {
                     </div>
                     
                     <div className="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex-wrap sm:flex-nowrap">
-                        <span className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-2">Période :</span>
+                        <span className="text-sm font-bold text-car-dark uppercase tracking-widest pl-2">Période :</span>
                         <div className="flex items-center gap-2">
                             <input type="date" className="bg-slate-50 p-3 rounded-xl outline-none font-black text-car-dark cursor-pointer text-sm hover:bg-slate-100 transition-colors" value={startDate} onChange={e => setStartDate(e.target.value)} />
                             <span className="text-slate-300 font-bold">au</span>

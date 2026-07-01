@@ -63,7 +63,7 @@ const ClassManager = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Colonne Maternelle */}
                     <div>
-                        <h2 className="font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-200 pb-2">Maternelle</h2>
+                        <h2 className="font-black text-car-dark uppercase tracking-widest mb-4 border-b border-slate-200 pb-2">Maternelle</h2>
                         <div className="space-y-3">
                             {classes.filter(c => c.category === 'Maternelle').map(cls => (
                                 <div key={cls._id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center group">
@@ -72,8 +72,8 @@ const ClassManager = () => {
                                         <p className="text-sm font-bold text-slate-400">{cls.teacher || 'Enseignant non renseigné'}</p>
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => startEdit(cls)} className="p-2 text-slate-400 hover:text-car-yellow bg-slate-50 rounded-lg"><Pencil size={18}/></button>
-                                        <button onClick={() => deleteClass(cls._id, cls.name)} className="p-2 text-slate-400 hover:text-car-pink bg-slate-50 rounded-lg"><Trash2 size={18}/></button>
+                                        <button onClick={() => startEdit(cls)} className="p-2 text-slate-400 hover:text-car-yellow bg-slate-50 rounded-lg" aria-label={`Modifier la classe ${cls.name}`}><Pencil size={18} aria-hidden="true"/></button>
+                                        <button onClick={() => deleteClass(cls._id, cls.name)} className="p-2 text-slate-400 hover:text-car-pink bg-slate-50 rounded-lg" aria-label={`Supprimer la classe ${cls.name}`}><Trash2 size={18} aria-hidden="true"/></button>
                                     </div>
                                 </div>
                             ))}
@@ -82,7 +82,7 @@ const ClassManager = () => {
 
                     {/* Colonne Élémentaire */}
                     <div>
-                        <h2 className="font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-200 pb-2">Élémentaire</h2>
+                        <h2 className="font-black text-car-dark uppercase tracking-widest mb-4 border-b border-slate-200 pb-2">Élémentaire</h2>
                         <div className="space-y-3">
                             {classes.filter(c => c.category === 'Élémentaire').map(cls => (
                                 <div key={cls._id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center group">
@@ -91,8 +91,8 @@ const ClassManager = () => {
                                         <p className="text-sm font-bold text-slate-400">{cls.teacher || 'Enseignant non renseigné'}</p>
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => startEdit(cls)} className="p-2 text-slate-400 hover:text-car-yellow bg-slate-50 rounded-lg"><Pencil size={18}/></button>
-                                        <button onClick={() => deleteClass(cls._id, cls.name)} className="p-2 text-slate-400 hover:text-car-pink bg-slate-50 rounded-lg"><Trash2 size={18}/></button>
+                                        <button onClick={() => startEdit(cls)} className="p-2 text-slate-400 hover:text-car-yellow bg-slate-50 rounded-lg" aria-label={`Modifier la classe ${cls.name}`}><Pencil size={18} aria-hidden="true"/></button>
+                                        <button onClick={() => deleteClass(cls._id, cls.name)} className="p-2 text-slate-400 hover:text-car-pink bg-slate-50 rounded-lg" aria-label={`Supprimer la classe ${cls.name}`}><Trash2 size={18} aria-hidden="true"/></button>
                                     </div>
                                 </div>
                             ))}
@@ -107,7 +107,7 @@ const ClassManager = () => {
                     <form onSubmit={saveClass} className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
                         <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                             <h3 className="text-2xl font-black text-car-dark">{editingClass._id ? 'Modifier' : 'Créer'} la classe</h3>
-                            <button type="button" onClick={() => setEditingClass(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                            <button type="button" onClick={() => setEditingClass(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer le formulaire"><X size={24} aria-hidden="true"/></button>
                         </div>
                         
                         <div className="space-y-4 mb-8">

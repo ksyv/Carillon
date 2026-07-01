@@ -354,17 +354,17 @@ const Report = () => {
                     
                     {(activeTab === 'PERISCO' || activeTab === 'CANTINE') && (
                         <div className="flex flex-col gap-2 border-r border-slate-100 pr-6">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Période :</span>
+                            <span className="text-[10px] font-bold text-car-dark uppercase">Période :</span>
                             <div className="flex items-center gap-2">
                                 <input type="date" className="bg-slate-50 border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-sm w-32" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                                <span className="text-[10px] font-bold text-slate-400 uppercase">Au</span>
+                                <span className="text-[10px] font-bold text-car-dark uppercase">Au</span>
                                 <input type="date" className="bg-slate-50 border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-sm w-32" value={endDate} onChange={e => setEndDate(e.target.value)} />
                             </div>
                         </div>
                     )}
                     
                     <div className="flex flex-col gap-2 border-r border-slate-100 pr-6">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Catégories (Cumulables) :</span>
+                        <span className="text-[10px] font-bold text-car-dark uppercase">Catégories (Cumulables) :</span>
                         <div className="flex gap-2">
                             <label className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 select-none transition-all ${categories.Maternelle ? 'bg-car-yellow border-car-yellow text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
                                 <input type="checkbox" className="hidden" checked={categories.Maternelle} onChange={() => setCategories({...categories, Maternelle: !categories.Maternelle})} disabled={access === 'Élémentaire'} />
@@ -378,7 +378,7 @@ const Report = () => {
                     </div>
 
                     <div className={`flex flex-col gap-2 ${activeTab === 'REGIMES' ? 'border-r border-slate-100 pr-6' : ''}`}>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Filtrer par Classe :</span>
+                        <span className="text-[10px] font-bold text-car-dark uppercase">Filtrer par Classe :</span>
                         <select 
                             className="bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-bold text-car-dark text-sm h-full"
                             value={selectedClassId}
@@ -393,7 +393,7 @@ const Report = () => {
 
                     {activeTab === 'REGIMES' && (
                         <div className="flex flex-col gap-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Types de Régimes (Cumulables) :</span>
+                            <span className="text-[10px] font-bold text-car-dark uppercase">Types de Régimes (Cumulables) :</span>
                             <div className="flex flex-wrap gap-2">
                                 {['Sans-porc', 'Végétarien', 'PAI'].map(reg => (
                                     <label key={reg} className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 select-none transition-all ${regimes[reg] ? 'bg-car-dark text-white border-car-dark shadow-md' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
@@ -489,7 +489,7 @@ const Report = () => {
                                                 {row.matin ? (
                                                     <div className="flex flex-col items-center gap-1">
                                                         <CheckCircle className="text-car-yellow" size={24}/>
-                                                        <button onClick={() => handleDeleteAttendance(row.matinId, 'Matin')} className="opacity-0 group-hover:opacity-100 text-[10px] text-slate-400 hover:text-car-pink transition-all flex items-center gap-1"><Trash2 size={10}/> Annuler</button>
+                                                        <button onClick={() => handleDeleteAttendance(row.matinId, 'Matin')} className="opacity-0 group-hover:opacity-100 text-[10px] text-slate-400 hover:text-car-pink transition-all flex items-center gap-1" aria-label={`Annuler la présence du matin pour ${row.name || 'cet enfant'}`}><Trash2 size={10} aria-hidden="true"/> Annuler</button>
                                                     </div>
                                                 ) : <span className="text-slate-300 font-bold">-</span>}
                                             </td>
@@ -498,7 +498,7 @@ const Report = () => {
                                                 {(row.checkOut || row.soir) ? (
                                                     <div className="flex flex-col items-center gap-1">
                                                         <CheckCircle className="text-car-blue" size={24}/>
-                                                        <button onClick={() => handleDeleteAttendance(row.pmId, 'Soir')} className="opacity-0 group-hover:opacity-100 text-[10px] text-slate-400 hover:text-car-pink transition-all flex items-center gap-1"><Trash2 size={10}/> Annuler</button>
+                                                        <button onClick={() => handleDeleteAttendance(row.pmId, 'Soir')} className="opacity-0 group-hover:opacity-100 text-[10px] text-slate-400 hover:text-car-pink transition-all flex items-center gap-1" aria-label={`Annuler la présence du soir pour ${row.name || 'cet enfant'}`}><Trash2 size={10} aria-hidden="true"/> Annuler</button>
                                                     </div>
                                                 ) : <span className="text-slate-300 font-bold">-</span>}
                                             </td>
@@ -514,7 +514,7 @@ const Report = () => {
                                             <td className="p-5 border-b border-slate-100 text-center"><span className="text-sm font-bold text-car-dark">{c.regimeAlimentaire}</span></td>
                                             <td className="p-5 border-b border-slate-100 text-center">{c.isPAIAlimentaire ? <AlertTriangle className="text-car-pink mx-auto" size={20}/> : <span className="text-slate-300">-</span>}</td>
                                             <td className="p-5 border-b border-slate-100 text-center">
-                                                <button onClick={() => handleDeleteAttendance(row.midiId, 'Midi (Absence)')} className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-car-pink transition-all flex items-center justify-center gap-1 mx-auto"><Trash2 size={16}/></button>
+                                                <button onClick={() => handleDeleteAttendance(row.midiId, 'Midi (Absence)')} className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-car-pink transition-all flex items-center justify-center gap-1 mx-auto" aria-label={`Annuler l'absence du midi pour ${row.name || 'cet enfant'}`}><Trash2 size={16} aria-hidden="true"/></button>
                                             </td>
                                         </>
                                     )}
@@ -604,7 +604,7 @@ const Report = () => {
                     <form onSubmit={handleManualAdd} className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
                         <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                             <h3 className="text-2xl font-black text-car-dark">Ajout Manuel</h3>
-                            <button type="button" onClick={() => setShowAddModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                            <button type="button" onClick={() => setShowAddModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer le formulaire"><X size={24} aria-hidden="true"/></button>
                         </div>
                         
                         <div className="space-y-4 mb-8">

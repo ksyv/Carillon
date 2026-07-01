@@ -165,9 +165,9 @@ const CustomListManager = () => {
                                         <p className="text-sm font-medium text-slate-500">{selectedList.description}</p>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={handleResetChecks} title="Remettre à zéro" className="text-slate-400 hover:text-car-yellow bg-slate-50 p-3 rounded-xl transition-colors"><RotateCcw size={20}/></button>
+                                        <button onClick={handleResetChecks} title="Remettre à zéro" aria-label="Remettre les coches à zéro" className="text-slate-400 hover:text-car-yellow bg-slate-50 p-3 rounded-xl transition-colors"><RotateCcw size={20} aria-hidden="true"/></button>
                                         {/* LE BOUTON SUPPRIMER EST MAINTENANT ACCESSIBLE À TOUT LE MONDE */}
-                                        <button onClick={() => handleDeleteList(selectedList._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-3 rounded-xl transition-colors"><Trash2 size={20}/></button>
+                                        <button onClick={() => handleDeleteList(selectedList._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-3 rounded-xl transition-colors" aria-label="Supprimer la liste"><Trash2 size={20} aria-hidden="true"/></button>
                                     </div>
                                 </div>
 
@@ -261,7 +261,7 @@ const CustomListManager = () => {
                     <form onSubmit={handleCreateList} className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
                         <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                             <h3 className="text-2xl font-black text-car-dark">Nouvelle Liste</h3>
-                            <button type="button" onClick={() => setShowCreateModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink"><X size={24}/></button>
+                            <button type="button" onClick={() => setShowCreateModal(false)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer le formulaire"><X size={24} aria-hidden="true"/></button>
                         </div>
                         
                         <div className="space-y-4 mb-8">

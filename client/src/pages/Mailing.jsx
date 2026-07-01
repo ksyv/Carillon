@@ -240,7 +240,7 @@ const Mailing = () => {
                         
                         {/* 1. BARRE DE RECHERCHE */}
                         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Search size={18}/> Recherche ciblée</h2>
+                            <h2 className="text-sm font-black text-car-dark uppercase tracking-widest mb-4 flex items-center gap-2"><Search size={18} aria-hidden="true"/> Recherche ciblée</h2>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                                 <input 
@@ -255,7 +255,7 @@ const Mailing = () => {
 
                         {/* 2. FILTRE PAR CLASSE */}
                         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><GraduationCap size={18}/> Filtre par Classe</h2>
+                            <h2 className="text-sm font-black text-car-dark uppercase tracking-widest mb-4 flex items-center gap-2"><GraduationCap size={18} aria-hidden="true"/> Filtre par Classe</h2>
                             <select 
                                 className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-sm font-bold outline-none focus:border-car-blue text-slate-600"
                                 value={selectedClassId}
@@ -270,7 +270,7 @@ const Mailing = () => {
 
                         {/* 3. FILTRES PRINCIPAUX */}
                         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Filter size={18}/> Ciblage global</h2>
+                            <h2 className="text-sm font-black text-car-dark uppercase tracking-widest mb-4 flex items-center gap-2"><Filter size={18} aria-hidden="true"/> Ciblage global</h2>
                             <div className="space-y-2">
                                 {['TOUS', 'MATERNELLE', 'ELEMENTAIRE', 'INCOMPLET', 'PAI'].map(f => (
                                     <button 
@@ -293,7 +293,7 @@ const Mailing = () => {
                         
                         {/* 4. MODÈLES & SIGNATURE */}
                         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Bookmark size={18}/> Modèles rapides</h2>
+                            <h2 className="text-sm font-black text-car-dark uppercase tracking-widest mb-4 flex items-center gap-2"><Bookmark size={18} aria-hidden="true"/> Modèles rapides</h2>
                             <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2 mb-4">
                                 {templates.map(t => (
                                     <button key={t._id} onClick={() => applyTemplate(t)} className="w-full text-left p-3 rounded-xl text-xs font-bold bg-slate-50 hover:bg-car-blue/10 transition-all truncate">📄 {t.name}</button>
@@ -328,7 +328,7 @@ const Mailing = () => {
 
                         <form onSubmit={handleSend} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest">Rédaction du message</h2>
+                                <h2 className="text-sm font-black text-car-dark uppercase tracking-widest">Rédaction du message</h2>
                                 <button type="button" onClick={saveAsTemplate} className="text-car-blue font-bold text-sm flex items-center gap-2 hover:underline"><Save size={18}/> Enregistrer comme modèle</button>
                             </div>
 

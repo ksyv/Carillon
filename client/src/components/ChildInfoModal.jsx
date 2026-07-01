@@ -137,8 +137,8 @@ const ChildInfoModal = ({ child, onClose }) => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-[2rem] p-8 w-full max-w-lg shadow-2xl relative overflow-y-auto max-h-[90vh]">
                 <div className="absolute top-6 right-6 flex gap-2">
-                    <button onClick={exportChildPDF} className="text-car-blue hover:text-white hover:bg-car-blue bg-car-blue/10 p-2 rounded-full transition-colors" title="Exporter Fiche + Documents"><Download size={24}/></button>
-                    <button onClick={onClose} className="text-slate-400 hover:text-car-pink bg-slate-100 p-2 rounded-full"><X size={24}/></button>
+                    <button onClick={exportChildPDF} className="text-car-blue hover:text-white hover:bg-car-blue bg-car-blue/10 p-2 rounded-full transition-colors" title="Exporter Fiche + Documents" aria-label="Exporter la fiche et les documents"><Download size={24} aria-hidden="true"/></button>
+                    <button onClick={onClose} className="text-slate-400 hover:text-car-pink bg-slate-100 p-2 rounded-full" aria-label="Fermer la fenêtre"><X size={24} aria-hidden="true"/></button>
                 </div>
                 
                 <div className="mb-6 pr-24">
