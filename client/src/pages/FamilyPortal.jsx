@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Home, FolderHeart, Banknote, LogOut, Loader, Mail, Lock, KeyRound, X, CheckCircle, Newspaper } from 'lucide-react';
+import { Home, FolderHeart, Banknote, LogOut, Loader, X, CheckCircle } from 'lucide-react';
 import LogoTexte from '../components/LogoTexte';
 import api from '../api';
 
@@ -226,11 +226,29 @@ const FamilyPortal = () => {
             {newsToView && <NewsViewModal news={newsToView} onClose={() => setNewsToView(null)} onImageClick={setZoomedImage} />}
             {zoomedImage && <ImageLightbox src={zoomedImage} onClose={() => setZoomedImage(null)} />}
 
+            {/* BARRE DE NAVIGATION OPTIMISÉE POUR LE CONTRASTE (ACCESSIBILITÉ WCAG) */}
             <nav className="fixed bottom-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-30 pb-safe">
                 <div className="max-w-md md:max-w-2xl mx-auto flex justify-around items-center px-4 py-3">
-                    <button onClick={() => setActiveTab('HUB')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'HUB' ? 'text-car-blue' : 'text-slate-500'}`}><div className={`p-2 rounded-xl ${activeTab === 'HUB' ? 'bg-car-blue/10' : ''}`}><Home size={22} /></div><span className="text-[10px] font-black uppercase">Accueil</span></button>
-                    <button onClick={() => setActiveTab('DOSSIER')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'DOSSIER' ? 'text-car-green' : 'text-slate-500'}`}><div className={`p-2 rounded-xl ${activeTab === 'DOSSIER' ? 'bg-car-green/10' : ''}`}><FolderHeart size={22} /></div><span className="text-[10px] font-black uppercase">Dossier</span></button>
-                    <button onClick={() => setActiveTab('FACTURES')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'FACTURES' ? 'text-car-dark' : 'text-slate-500'}`}><div className={`p-2 rounded-xl ${activeTab === 'FACTURES' ? 'bg-slate-100' : ''}`}><Banknote size={22} /></div><span className="text-[10px] font-black uppercase">Factures</span></button>
+                    <button onClick={() => setActiveTab('HUB')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'HUB' ? 'text-car-dark' : 'text-slate-500'}`}>
+                        <div className={`p-2 rounded-xl transition-colors ${activeTab === 'HUB' ? 'bg-car-blue/10 text-car-blue' : 'text-slate-400'}`}>
+                            <Home size={22} />
+                        </div>
+                        <span className="text-[10px] font-black uppercase">Accueil</span>
+                    </button>
+                    
+                    <button onClick={() => setActiveTab('DOSSIER')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'DOSSIER' ? 'text-car-dark' : 'text-slate-500'}`}>
+                        <div className={`p-2 rounded-xl transition-colors ${activeTab === 'DOSSIER' ? 'bg-car-green/10 text-car-green' : 'text-slate-400'}`}>
+                            <FolderHeart size={22} />
+                        </div>
+                        <span className="text-[10px] font-black uppercase">Dossier</span>
+                    </button>
+                    
+                    <button onClick={() => setActiveTab('FACTURES')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'FACTURES' ? 'text-car-dark' : 'text-slate-500'}`}>
+                        <div className={`p-2 rounded-xl transition-colors ${activeTab === 'FACTURES' ? 'bg-slate-100 text-car-dark' : 'text-slate-400'}`}>
+                            <Banknote size={22} />
+                        </div>
+                        <span className="text-[10px] font-black uppercase">Factures</span>
+                    </button>
                 </div>
             </nav>
         </div>
