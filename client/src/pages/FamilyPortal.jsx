@@ -159,7 +159,7 @@ const FamilyPortal = () => {
         return (
             <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
                 <div className="mb-8 flex items-center justify-center gap-4 sm:gap-6">
-                    <img src="/logo-mairie.png" alt="Mairie" className="h-12 sm:h-16 object-contain" />
+                    <img src="/logo-mairie.webp" alt="Mairie" className="h-12 sm:h-16 object-contain" />
                     <div className="w-px h-10 sm:h-12 bg-slate-300"></div>
                     <LogoTexte className="text-3xl sm:text-4xl" />
                 </div>
@@ -188,7 +188,7 @@ const FamilyPortal = () => {
         return (
             <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
                 <div className="mb-8 flex items-center justify-center gap-4 sm:gap-6">
-                    <img src="/logo-mairie.png" alt="Mairie" className="h-12 sm:h-16 object-contain" />
+                    <img src="/logo-mairie.webp" alt="Mairie" className="h-12 sm:h-16 object-contain" />
                     <div className="w-px h-10 sm:h-12 bg-slate-300"></div>
                     <LogoTexte className="text-3xl sm:text-4xl" />
                 </div>
@@ -209,7 +209,7 @@ const FamilyPortal = () => {
         <div className="min-h-screen bg-slate-50 flex flex-col">
             <header className="bg-white px-4 sm:px-6 py-3 sm:py-4 shadow-sm flex justify-between items-center sticky top-0 z-20">
                 <div className="flex items-center gap-3 sm:gap-5">
-                    <img src="/logo-mairie.png" alt="Mairie" className="h-8 sm:h-10 object-contain" />
+                    <img src="/logo-mairie.webp" alt="Mairie" className="h-8 sm:h-10 object-contain" />
                     <div className="w-px h-6 sm:h-8 bg-slate-200"></div>
                     <LogoTexte className="text-lg sm:text-xl md:text-2xl" />
                 </div>
