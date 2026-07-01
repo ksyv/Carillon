@@ -52,6 +52,7 @@ const SessionView = () => {
         }
     }, [type, role, navigate]);
 
+    // Téléchargement discret de la valise de secours (uniquement les PAI)
     const syncEmergencyDocs = async () => {
         if (!navigator.onLine) return;
         try {
@@ -117,29 +118,24 @@ const SessionView = () => {
             return;
         }
         try {
+            // CORRECTION DE L'URL : /custom-lists au lieu de /lists
             const [kidsRes, attRes, amAttRes, notesRes, listsRes] = await Promise.all([
                 api.get(`/children`), 
                 api.get(`/attendance?date=${date}&sessionType=${type}`),
                 type === 'SOIR' ? api.get(`/attendance?date=${date}&sessionType=MATIN`) : Promise.resolve({ data: [] }),
                 api.get(`/planned-notes/date?date=${date}`),
-                api.get(`/lists`).catch(e => {
-                    console.error("Erreur API /lists, route peut-être incorrecte :", e);
-                    return { data: [] }; // Sécurité pour ne pas casser le Promise.all
-                }) 
+                api.get(`/custom-lists`).catch(e => ({ data: [] })) 
             ]);
+            
             setIsOnline(true); 
             setAllChildren(kidsRes.data); 
             setAttendance(attRes.data);
             setAmAttendance(amAttRes.data);
             setPlannedNotes(notesRes.data);
-
-            // Extraction hyper-sécurisée des listes éphémères
-            const listsData = listsRes.data;
-            const actualLists = Array.isArray(listsData) ? listsData : (Array.isArray(listsData?.lists) ? listsData.lists : (Array.isArray(listsData?.data) ? listsData.data : []));
-            setEphemeralLists(actualLists); 
             
-            // Debug pour t'aider si ça ne s'affiche toujours pas :
-            console.log("Liste des groupes éphémères chargée :", actualLists);
+            // Sécurité : On s'assure que c'est bien un tableau
+            const safeLists = Array.isArray(listsRes.data) ? listsRes.data : [];
+            setEphemeralLists(safeLists);
 
             safeSetOfflineData('offline_children', kidsRes.data);
             safeSetOfflineData(`offline_attendance_${date}_${type}`, attRes.data);
@@ -181,14 +177,10 @@ const SessionView = () => {
                     await syncOfflineActions();
                 } else if (navigator.onLine) {
                     await refreshAttendanceBackground();
-                    
-                    // Rafraîchissement discret des listes
-                    api.get(`/lists`).then(res => {
-                        const listsData = res.data;
-                        const actualLists = Array.isArray(listsData) ? listsData : (Array.isArray(listsData?.lists) ? listsData.lists : (Array.isArray(listsData?.data) ? listsData.data : []));
-                        setEphemeralLists(actualLists);
+                    // CORRECTION DE L'URL pour le rafraîchissement
+                    api.get(`/custom-lists`).then(res => {
+                        if (Array.isArray(res.data)) setEphemeralLists(res.data);
                     }).catch(()=>{});
-
                 } else {
                     setPendingSync(queue.length);
                 }
@@ -356,18 +348,18 @@ const SessionView = () => {
         }
     };
 
-    // --- FONCTION UTILITAIRE POUR TROUVER LES LISTES D'UN ENFANT ---
-    // Cette fonction fouille les listes de manière blindée peu importe le format de l'ID renvoyé
+    // --- FONCTION UTILITAIRE CORRIGÉE ---
+    // Elle cherche bien dans `list.items` et non plus dans `list.children` !
     const getChildLists = (childId) => {
         const safeLists = Array.isArray(ephemeralLists) ? ephemeralLists : [];
         const childIdStr = String(childId);
         
         return safeLists.filter(list => {
-            if (!list || !Array.isArray(list.children)) return false;
-            return list.children.some(c => {
-                if (!c) return false;
-                // Si c est une string (ID), ou un objet {_id: "..."} ou un objet {child: {_id: "..."}}
-                const idToCompare = typeof c === 'string' ? c : String(c._id || c.child?._id || c.child || c.id || '');
+            if (!list || !Array.isArray(list.items)) return false; // <-- CORRECTION ICI
+            return list.items.some(item => {
+                if (!item) return false;
+                // item contient { child: ID, isChecked: Boolean }
+                const idToCompare = String(item.child?._id || item.child || '');
                 return idToCompare === childIdStr;
             });
         });
@@ -417,13 +409,14 @@ const SessionView = () => {
                             const isPresent = !!attendanceRecord;
                             const isGone = isPresent && !!attendanceRecord.checkOut;
                             
-                            // NOUVEAU : Récupération des badges pour la barre de recherche
+                            // Affiche aussi les badges dans la barre de recherche
                             const searchChildLists = getChildLists(child._id);
 
                             return (
                                 <div key={child._id} 
                                      onClick={(e) => {
                                          if(e.target.closest('button')) return;
+                                         
                                          if (!isPresent) handleCheckIn(child._id);
                                          else if (!isGone && !isMatin && !isMidi) handleDepartureClick(attendanceRecord);
                                      }}
@@ -438,8 +431,8 @@ const SessionView = () => {
                                         </button>
                                         <span className="font-black text-xl text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
                                         {child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
-                                        
-                                        {/* NOUVEAU : Affichage des badges dans la recherche */}
+
+                                        {/* NOUVEAU : Badges listes dans la recherche */}
                                         {searchChildLists.map(list => (
                                             <span key={list._id} className="text-[10px] font-bold bg-car-purple/10 text-car-purple px-2 py-1 rounded-md uppercase tracking-widest flex items-center gap-1 border border-car-purple/20 shadow-sm whitespace-nowrap">
                                                 📍 {list.name}
@@ -470,7 +463,7 @@ const SessionView = () => {
                     const persistentNote = record.child.persistentNote || '';
                     const hasAnyNote = record.note || (type === 'SOIR' && amNote) || persistentNote;
 
-                    // NOUVEAU : Récupération des badges pour la liste des présents
+                    // Affiche les badges sur la carte globale
                     const checkedInChildLists = getChildLists(record.child._id);
 
                     return (
@@ -490,7 +483,7 @@ const SessionView = () => {
                                     {record.child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
                                     {hasAnyNote && !isGone && !isMidi && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
                                     
-                                    {/* NOUVEAU : Affichage des badges sur la carte de pointage */}
+                                    {/* NOUVEAU : Badges listes sur la carte */}
                                     {!isGone && checkedInChildLists.map(list => (
                                         <span key={list._id} className="text-[10px] font-bold bg-car-purple/10 text-car-purple px-2 py-1 rounded-md uppercase tracking-widest flex items-center gap-1 border border-car-purple/20 shadow-sm whitespace-nowrap">
                                             📍 {list.name}
