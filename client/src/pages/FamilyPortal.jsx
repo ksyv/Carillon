@@ -20,7 +20,7 @@ const NewsViewModal = ({ news, onClose, onImageClick }) => {
                 <div className="p-6 sm:p-8 flex-1 overflow-y-auto">
                     <div className="flex justify-between items-start mb-6 gap-4">
                         <h2 className="text-2xl sm:text-3xl font-black text-car-dark">{news.title}</h2>
-                        <button onClick={onClose} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink transition-colors shrink-0"><X size={24}/></button>
+                        <button onClick={onClose} aria-label="Fermer l'actualité" className="bg-slate-100 p-2 rounded-full text-slate-500 hover:text-car-pink transition-colors shrink-0"><X size={24}/></button>
                     </div>
                     <div 
                         onClick={(e) => { if (e.target.tagName === 'IMG') onImageClick(e.target.src); }}
@@ -37,7 +37,7 @@ const ImageLightbox = ({ src, onClose }) => {
     if (!src) return null;
     return (
         <div onClick={onClose} className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200">
-            <button onClick={onClose} className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 p-3 rounded-full text-white"><X size={24}/></button>
+            <button onClick={onClose} aria-label="Fermer le zoom" className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 p-3 rounded-full text-white"><X size={24}/></button>
             <img src={src} alt="Zoom" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()} />
         </div>
     );
@@ -174,8 +174,8 @@ const FamilyPortal = () => {
                         </div>
                     ) : (
                         <form onSubmit={handleActivation} className="space-y-4 mt-4">
-                            <input type="password" placeholder="Nouveau mot de passe" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none font-bold" required />
-                            <input type="password" placeholder="Confirmer mot de passe" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none font-bold" required />
+                            <input type="password" aria-label="Nouveau mot de passe" placeholder="Nouveau mot de passe" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none font-bold" required />
+                            <input type="password" aria-label="Confirmer mot de passe" placeholder="Confirmer mot de passe" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none font-bold" required />
                             <button type="submit" className="w-full bg-car-purple text-white font-black py-4 rounded-2xl shadow-lg">Activer mon compte</button>
                         </form>
                     )}
@@ -196,8 +196,8 @@ const FamilyPortal = () => {
                     <div className="absolute top-0 left-0 w-full h-2 bg-car-blue"></div>
                     <h1 className="text-2xl font-black text-car-dark text-center mb-6">Espace Famille</h1>
                     <form onSubmit={handleLogin} className="space-y-4">
-                        <input type="email" placeholder="Email parent" value={loginEmail} onChange={e => loginEmail === '' ? setLoginEmail(e.target.value) : setLoginEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none font-bold text-car-dark" required />
-                        <input type="password" placeholder="Mot de passe" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none font-bold text-car-dark" required />
+                        <input type="email" aria-label="Email parent" placeholder="Email parent" value={loginEmail} onChange={e => loginEmail === '' ? setLoginEmail(e.target.value) : setLoginEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none font-bold text-car-dark" required />
+                        <input type="password" aria-label="Mot de passe" placeholder="Mot de passe" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none font-bold text-car-dark" required />
                         <button type="submit" className="w-full bg-car-blue text-white font-black py-4 rounded-2xl shadow-lg">Se connecter</button>
                     </form>
                 </div>
@@ -213,7 +213,7 @@ const FamilyPortal = () => {
                     <div className="w-px h-6 sm:h-8 bg-slate-200"></div>
                     <LogoTexte className="text-lg sm:text-xl md:text-2xl" />
                 </div>
-                <button onClick={handleLogout} className="flex items-center gap-2 text-slate-400 hover:text-car-pink transition-colors font-bold text-sm bg-slate-50 px-3 py-2 rounded-xl"><LogOut size={18} /></button>
+                <button onClick={handleLogout} aria-label="Déconnexion" className="flex items-center gap-2 text-slate-500 hover:text-car-pink transition-colors font-bold text-sm bg-slate-50 px-3 py-2 rounded-xl"><LogOut size={18} /></button>
             </header>
 
             <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8 pb-40 md:pb-32">
@@ -228,9 +228,9 @@ const FamilyPortal = () => {
 
             <nav className="fixed bottom-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-30 pb-safe">
                 <div className="max-w-md md:max-w-2xl mx-auto flex justify-around items-center px-4 py-3">
-                    <button onClick={() => setActiveTab('HUB')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'HUB' ? 'text-car-blue' : 'text-slate-400'}`}><div className={`p-2 rounded-xl ${activeTab === 'HUB' ? 'bg-car-blue/10' : ''}`}><Home size={22} /></div><span className="text-[10px] font-black uppercase">Accueil</span></button>
-                    <button onClick={() => setActiveTab('DOSSIER')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'DOSSIER' ? 'text-car-green' : 'text-slate-400'}`}><div className={`p-2 rounded-xl ${activeTab === 'DOSSIER' ? 'bg-car-green/10' : ''}`}><FolderHeart size={22} /></div><span className="text-[10px] font-black uppercase">Dossier</span></button>
-                    <button onClick={() => setActiveTab('FACTURES')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'FACTURES' ? 'text-car-dark' : 'text-slate-400'}`}><div className={`p-2 rounded-xl ${activeTab === 'FACTURES' ? 'bg-slate-100' : ''}`}><Banknote size={22} /></div><span className="text-[10px] font-black uppercase">Factures</span></button>
+                    <button onClick={() => setActiveTab('HUB')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'HUB' ? 'text-car-blue' : 'text-slate-500'}`}><div className={`p-2 rounded-xl ${activeTab === 'HUB' ? 'bg-car-blue/10' : ''}`}><Home size={22} /></div><span className="text-[10px] font-black uppercase">Accueil</span></button>
+                    <button onClick={() => setActiveTab('DOSSIER')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'DOSSIER' ? 'text-car-green' : 'text-slate-500'}`}><div className={`p-2 rounded-xl ${activeTab === 'DOSSIER' ? 'bg-car-green/10' : ''}`}><FolderHeart size={22} /></div><span className="text-[10px] font-black uppercase">Dossier</span></button>
+                    <button onClick={() => setActiveTab('FACTURES')} className={`flex flex-col items-center gap-1 p-2 w-20 ${activeTab === 'FACTURES' ? 'text-car-dark' : 'text-slate-500'}`}><div className={`p-2 rounded-xl ${activeTab === 'FACTURES' ? 'bg-slate-100' : ''}`}><Banknote size={22} /></div><span className="text-[10px] font-black uppercase">Factures</span></button>
                 </div>
             </nav>
         </div>

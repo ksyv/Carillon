@@ -90,10 +90,21 @@ router.post('/login', async (req, res) => {
 router.get('/me', auth(), async (req, res) => {
     try {
         if (req.user.role !== 'parent') return res.status(403).send('Interdit');
-        const parent = await Parent.findById(req.user.id).populate('family');
+        
+        // OPTIMISATION PERFORMANCE MAJEURE : 
+        // On exclut les fichiers Base64 lourds (attestation CAF) de la requête avec `select: '-chemin...'`
+        const parent = await Parent.findById(req.user.id).populate({
+            path: 'family',
+            select: '-documents.attestationCAF.fileUrl' 
+        });
+        
         if (!parent || !parent.family) return res.status(404).send('Parent introuvable');
 
-        const children = await Child.find({ families: parent.family._id }).populate('classGroup');
+        // OPTIMISATION PERFORMANCE MAJEURE :
+        // On exclut le document PAI et les documents vaccins/assurance de la requête des enfants
+        const children = await Child.find({ families: parent.family._id })
+            .populate('classGroup')
+            .select('-paiDocument -documents.vaccins.fileUrl -documents.assurance.fileUrl');
 
         res.json({ 
             email: parent.email, 

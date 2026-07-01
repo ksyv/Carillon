@@ -6,9 +6,9 @@ const TabHub = ({ newsList, setNewsToView }) => {
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-car-blue text-white p-8 rounded-[2rem] shadow-lg relative overflow-hidden mb-6">
                 <div className="relative z-10">
-                    <h2 className="text-sm font-bold tracking-widest opacity-80 uppercase mb-2">Bienvenue sur votre espace</h2>
+                    <h2 className="text-sm font-bold tracking-widest opacity-90 uppercase mb-2">Bienvenue sur votre espace</h2>
                     <h1 className="text-3xl sm:text-4xl font-black mb-2">Service Périscolaire</h1>
-                    <p className="text-sm font-medium opacity-90 max-w-md">Retrouvez ici toutes les actualités de la structure et les informations importantes.</p>
+                    <p className="text-sm font-medium opacity-100 max-w-md">Retrouvez ici toutes les actualités de la structure et les informations importantes.</p>
                 </div>
                 <div className="absolute -right-10 -bottom-10 opacity-10 rotate-12 pointer-events-none"><Newspaper size={200} /></div>
             </div>
