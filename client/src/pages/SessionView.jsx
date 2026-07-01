@@ -25,7 +25,7 @@ const SessionView = () => {
     const [childInfoToView, setChildInfoToView] = useState(null); 
     const [showEmergency, setShowEmergency] = useState(false);
 
-    // --- NOUVEAU : État pour les listes éphémères ---
+    // --- ÉTAT POUR LES LISTES ÉPHÉMÈRES ---
     const [ephemeralLists, setEphemeralLists] = useState([]);
 
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -52,7 +52,6 @@ const SessionView = () => {
         }
     }, [type, role, navigate]);
 
-    // NOUVEAU : Téléchargement discret de la valise de secours (uniquement les PAI)
     const syncEmergencyDocs = async () => {
         if (!navigator.onLine) return;
         try {
@@ -94,7 +93,6 @@ const SessionView = () => {
 
     const safeSetOfflineData = (key, dataArray) => {
         try {
-            // Cette sécurité Frontend est conservée pour garantir que le storage local n'explosera jamais
             const cleanData = dataArray.map(item => {
                 let cleanItem = { ...item };
                 if (cleanItem.documents) delete cleanItem.documents;
@@ -119,13 +117,15 @@ const SessionView = () => {
             return;
         }
         try {
-            // L'appel "/children" est ultra rapide (30ko) et on récupère aussi les listes éphémères
             const [kidsRes, attRes, amAttRes, notesRes, listsRes] = await Promise.all([
                 api.get(`/children`), 
                 api.get(`/attendance?date=${date}&sessionType=${type}`),
                 type === 'SOIR' ? api.get(`/attendance?date=${date}&sessionType=MATIN`) : Promise.resolve({ data: [] }),
                 api.get(`/planned-notes/date?date=${date}`),
-                api.get(`/lists`) // On récupère les listes éphémères
+                api.get(`/lists`).catch(e => {
+                    console.error("Erreur API /lists, route peut-être incorrecte :", e);
+                    return { data: [] }; // Sécurité pour ne pas casser le Promise.all
+                }) 
             ]);
             setIsOnline(true); 
             setAllChildren(kidsRes.data); 
@@ -133,10 +133,13 @@ const SessionView = () => {
             setAmAttendance(amAttRes.data);
             setPlannedNotes(notesRes.data);
 
-            // SÉCURITÉ MAXIMALE : On extrait le tableau peu importe le format renvoyé par le backend
+            // Extraction hyper-sécurisée des listes éphémères
             const listsData = listsRes.data;
             const actualLists = Array.isArray(listsData) ? listsData : (Array.isArray(listsData?.lists) ? listsData.lists : (Array.isArray(listsData?.data) ? listsData.data : []));
             setEphemeralLists(actualLists); 
+            
+            // Debug pour t'aider si ça ne s'affiche toujours pas :
+            console.log("Liste des groupes éphémères chargée :", actualLists);
 
             safeSetOfflineData('offline_children', kidsRes.data);
             safeSetOfflineData(`offline_attendance_${date}_${type}`, attRes.data);
@@ -146,7 +149,6 @@ const SessionView = () => {
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             setPendingSync(queue.length);
 
-            // NOUVEAU : On télécharge la valise d'urgence en arrière-plan
             syncEmergencyDocs();
 
         } catch (error) {
@@ -179,12 +181,14 @@ const SessionView = () => {
                     await syncOfflineActions();
                 } else if (navigator.onLine) {
                     await refreshAttendanceBackground();
-                    // On rafraîchit aussi les listes en arrière-plan (SÉCURISÉ)
+                    
+                    // Rafraîchissement discret des listes
                     api.get(`/lists`).then(res => {
                         const listsData = res.data;
                         const actualLists = Array.isArray(listsData) ? listsData : (Array.isArray(listsData?.lists) ? listsData.lists : (Array.isArray(listsData?.data) ? listsData.data : []));
                         setEphemeralLists(actualLists);
                     }).catch(()=>{});
+
                 } else {
                     setPendingSync(queue.length);
                 }
@@ -352,6 +356,23 @@ const SessionView = () => {
         }
     };
 
+    // --- FONCTION UTILITAIRE POUR TROUVER LES LISTES D'UN ENFANT ---
+    // Cette fonction fouille les listes de manière blindée peu importe le format de l'ID renvoyé
+    const getChildLists = (childId) => {
+        const safeLists = Array.isArray(ephemeralLists) ? ephemeralLists : [];
+        const childIdStr = String(childId);
+        
+        return safeLists.filter(list => {
+            if (!list || !Array.isArray(list.children)) return false;
+            return list.children.some(c => {
+                if (!c) return false;
+                // Si c est une string (ID), ou un objet {_id: "..."} ou un objet {child: {_id: "..."}}
+                const idToCompare = typeof c === 'string' ? c : String(c._id || c.child?._id || c.child || c.id || '');
+                return idToCompare === childIdStr;
+            });
+        });
+    };
+
     return (
         <div className="h-screen flex flex-col bg-slate-50 relative">
             <div className="bg-white shadow-sm z-20">
@@ -395,18 +416,20 @@ const SessionView = () => {
                             const attendanceRecord = attendance.find(a => a.child._id === child._id);
                             const isPresent = !!attendanceRecord;
                             const isGone = isPresent && !!attendanceRecord.checkOut;
+                            
+                            // NOUVEAU : Récupération des badges pour la barre de recherche
+                            const searchChildLists = getChildLists(child._id);
 
                             return (
                                 <div key={child._id} 
                                      onClick={(e) => {
                                          if(e.target.closest('button')) return;
-                                         
                                          if (!isPresent) handleCheckIn(child._id);
                                          else if (!isGone && !isMatin && !isMidi) handleDepartureClick(attendanceRecord);
                                      }}
                                      className="p-5 flex justify-between items-center hover:bg-slate-100 transition-colors group rounded-2xl mb-1 cursor-pointer">
                                     
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex flex-wrap items-center gap-3">
                                         <button onClick={(e) => {
                                             e.stopPropagation(); 
                                             setChildInfoToView(child);
@@ -415,6 +438,13 @@ const SessionView = () => {
                                         </button>
                                         <span className="font-black text-xl text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
                                         {child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
+                                        
+                                        {/* NOUVEAU : Affichage des badges dans la recherche */}
+                                        {searchChildLists.map(list => (
+                                            <span key={list._id} className="text-[10px] font-bold bg-car-purple/10 text-car-purple px-2 py-1 rounded-md uppercase tracking-widest flex items-center gap-1 border border-car-purple/20 shadow-sm whitespace-nowrap">
+                                                📍 {list.name}
+                                            </span>
+                                        ))}
                                     </div>
                                     
                                     <div>
@@ -440,13 +470,8 @@ const SessionView = () => {
                     const persistentNote = record.child.persistentNote || '';
                     const hasAnyNote = record.note || (type === 'SOIR' && amNote) || persistentNote;
 
-                    // --- NOUVEAU : Trouver dans quelles listes se trouve cet enfant (Sécurisé & Puissant) ---
-                    const safeEphemeralLists = Array.isArray(ephemeralLists) ? ephemeralLists : [];
-                    const childLists = safeEphemeralLists.filter(list => {
-                        if (!Array.isArray(list.children)) return false;
-                        // Supporte les cas où list.children contient des IDs (string) OU des objets entiers
-                        return list.children.some(c => c === record.child._id || c._id === record.child._id);
-                    });
+                    // NOUVEAU : Récupération des badges pour la liste des présents
+                    const checkedInChildLists = getChildLists(record.child._id);
 
                     return (
                         <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-slate-50 opacity-70' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)]'}`}>
@@ -465,8 +490,8 @@ const SessionView = () => {
                                     {record.child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
                                     {hasAnyNote && !isGone && !isMidi && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
                                     
-                                    {/* --- NOUVEAU : Affichage des badges de listes éphémères --- */}
-                                    {!isGone && childLists.map(list => (
+                                    {/* NOUVEAU : Affichage des badges sur la carte de pointage */}
+                                    {!isGone && checkedInChildLists.map(list => (
                                         <span key={list._id} className="text-[10px] font-bold bg-car-purple/10 text-car-purple px-2 py-1 rounded-md uppercase tracking-widest flex items-center gap-1 border border-car-purple/20 shadow-sm whitespace-nowrap">
                                             📍 {list.name}
                                         </span>
