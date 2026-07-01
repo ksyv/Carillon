@@ -132,7 +132,8 @@ const SessionView = () => {
             setAttendance(attRes.data);
             setAmAttendance(amAttRes.data);
             setPlannedNotes(notesRes.data);
-            setEphemeralLists(listsRes.data); // On sauvegarde les listes
+            // SÉCURITÉ : On s'assure que c'est bien un tableau
+            setEphemeralLists(Array.isArray(listsRes.data) ? listsRes.data : []); 
 
             safeSetOfflineData('offline_children', kidsRes.data);
             safeSetOfflineData(`offline_attendance_${date}_${type}`, attRes.data);
@@ -175,8 +176,8 @@ const SessionView = () => {
                     await syncOfflineActions();
                 } else if (navigator.onLine) {
                     await refreshAttendanceBackground();
-                    // On rafraîchit aussi les listes en arrière-plan
-                    api.get(`/lists`).then(res => setEphemeralLists(res.data)).catch(()=>{});
+                    // On rafraîchit aussi les listes en arrière-plan (SÉCURISÉ)
+                    api.get(`/lists`).then(res => setEphemeralLists(Array.isArray(res.data) ? res.data : [])).catch(()=>{});
                 } else {
                     setPendingSync(queue.length);
                 }
@@ -432,8 +433,9 @@ const SessionView = () => {
                     const persistentNote = record.child.persistentNote || '';
                     const hasAnyNote = record.note || (type === 'SOIR' && amNote) || persistentNote;
 
-                    // --- NOUVEAU : Trouver dans quelles listes se trouve cet enfant ---
-                    const childLists = ephemeralLists.filter(list => list.children && list.children.includes(record.child._id));
+                    // --- NOUVEAU : Trouver dans quelles listes se trouve cet enfant (Sécurisé) ---
+                    const safeEphemeralLists = Array.isArray(ephemeralLists) ? ephemeralLists : [];
+                    const childLists = safeEphemeralLists.filter(list => list.children && list.children.includes(record.child._id));
 
                     return (
                         <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-slate-50 opacity-70' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)]'}`}>
