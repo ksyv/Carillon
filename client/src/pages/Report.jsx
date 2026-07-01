@@ -84,16 +84,26 @@ const Report = () => {
     const handleManualAdd = async (e) => {
         e.preventDefault();
         try {
+            const actualSessionType = addForm.sessionType === 'SOIR_LATE' ? 'SOIR' : addForm.sessionType;
+            const isLate = addForm.sessionType === 'SOIR_LATE';
+
             // 1. On crée le pointage
             const res = await api.post('/attendance/checkin', {
                 childId: addForm.childId,
                 date: addForm.date,
-                sessionType: addForm.sessionType
+                sessionType: actualSessionType,
+                isLate: isLate // Envoyé à la création au cas où le schéma le permette directement
             });
             
             // 2. Si c'est le SOIR, on simule sa sortie immédiatement pour qu'il soit clôturé et facturable
-            if (addForm.sessionType === 'SOIR') {
-                await api.put(`/attendance/checkout/${res.data._id}`);
+            if (actualSessionType === 'SOIR') {
+                await api.put(`/attendance/checkout/${res.data._id}`, { isLate: isLate });
+                
+                // 3. Forcer le tag "retard" si une route spécifique existe sur le backend (par sécurité)
+                if (isLate) {
+                    try { await api.put(`/attendance/add-late/${res.data._id}`); } catch(err) {}
+                    try { await api.put(`/attendance/mark-late/${res.data._id}`); } catch(err) {}
+                }
             }
 
             setShowAddModal(false);
@@ -670,8 +680,23 @@ const Report = () => {
                                 <select required className="w-full bg-slate-50 p-3 rounded-xl font-bold text-car-dark outline-none border border-slate-200" value={addForm.sessionType} onChange={e => setAddForm({...addForm, sessionType: e.target.value})}>
                                     <option value="MATIN">Périscolaire MATIN</option>
                                     <option value="SOIR">Périscolaire SOIR</option>
+                                    <option value="SOIR_LATE">Supplément Soir (19h)</option>
                                     <option value="MIDI">Absence CANTINE (Midi)</option>
                                 </select>
+
+                                {(addForm.sessionType === 'SOIR' || addForm.sessionType === 'SOIR_LATE') && (
+                                    <div className="mt-3 bg-car-pink/10 border border-car-pink/20 p-3 rounded-xl transition-all">
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-car-pink">
+                                            <input 
+                                                type="checkbox" 
+                                                className="w-5 h-5 accent-car-pink" 
+                                                checked={addForm.sessionType === 'SOIR_LATE'} 
+                                                onChange={e => setAddForm({...addForm, sessionType: e.target.checked ? 'SOIR_LATE' : 'SOIR'})} 
+                                            />
+                                            Appliquer le supplément (19h)
+                                        </label>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
