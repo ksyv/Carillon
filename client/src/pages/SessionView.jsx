@@ -25,6 +25,9 @@ const SessionView = () => {
     const [childInfoToView, setChildInfoToView] = useState(null); 
     const [showEmergency, setShowEmergency] = useState(false);
 
+    // --- NOUVEAU : État pour les listes éphémères ---
+    const [ephemeralLists, setEphemeralLists] = useState([]);
+
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [pendingSync, setPendingSync] = useState(0);
 
@@ -116,18 +119,20 @@ const SessionView = () => {
             return;
         }
         try {
-            // L'appel "/children" est désormais ultra rapide (30ko au lieu de 2.7Mo) grâce à la modif Backend
-            const [kidsRes, attRes, amAttRes, notesRes] = await Promise.all([
+            // L'appel "/children" est ultra rapide (30ko) et on récupère aussi les listes éphémères
+            const [kidsRes, attRes, amAttRes, notesRes, listsRes] = await Promise.all([
                 api.get(`/children`), 
                 api.get(`/attendance?date=${date}&sessionType=${type}`),
                 type === 'SOIR' ? api.get(`/attendance?date=${date}&sessionType=MATIN`) : Promise.resolve({ data: [] }),
-                api.get(`/planned-notes/date?date=${date}`)
+                api.get(`/planned-notes/date?date=${date}`),
+                api.get(`/lists`) // On récupère les listes éphémères
             ]);
             setIsOnline(true); 
             setAllChildren(kidsRes.data); 
             setAttendance(attRes.data);
             setAmAttendance(amAttRes.data);
             setPlannedNotes(notesRes.data);
+            setEphemeralLists(listsRes.data); // On sauvegarde les listes
 
             safeSetOfflineData('offline_children', kidsRes.data);
             safeSetOfflineData(`offline_attendance_${date}_${type}`, attRes.data);
@@ -137,7 +142,7 @@ const SessionView = () => {
             const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
             setPendingSync(queue.length);
 
-            // NOUVEAU : On télécharge la valise d'urgence en arrière-plan (ne bloque pas l'écran)
+            // NOUVEAU : On télécharge la valise d'urgence en arrière-plan
             syncEmergencyDocs();
 
         } catch (error) {
@@ -170,6 +175,8 @@ const SessionView = () => {
                     await syncOfflineActions();
                 } else if (navigator.onLine) {
                     await refreshAttendanceBackground();
+                    // On rafraîchit aussi les listes en arrière-plan
+                    api.get(`/lists`).then(res => setEphemeralLists(res.data)).catch(()=>{});
                 } else {
                     setPendingSync(queue.length);
                 }
@@ -180,7 +187,6 @@ const SessionView = () => {
             timeoutId = setTimeout(loop, 20000);
         });
 
-        // MODIFICATION : Quand internet revient, on synchronise aussi la valise d'urgence
         const handleOnline = () => { setIsOnline(true); syncOfflineActions(); syncEmergencyDocs(); };
         const handleOffline = () => { setIsOnline(false); };
         
@@ -426,10 +432,13 @@ const SessionView = () => {
                     const persistentNote = record.child.persistentNote || '';
                     const hasAnyNote = record.note || (type === 'SOIR' && amNote) || persistentNote;
 
+                    // --- NOUVEAU : Trouver dans quelles listes se trouve cet enfant ---
+                    const childLists = ephemeralLists.filter(list => list.children && list.children.includes(record.child._id));
+
                     return (
                         <div key={record._id} className={`p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isGone ? 'bg-slate-50 opacity-70' : 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)]'}`}>
                             <div className="w-full sm:w-auto">
-                                <div className={`font-black text-xl flex items-center gap-2 ${isGone ? 'text-slate-400 line-through decoration-slate-300' : 'text-car-dark'}`}>
+                                <div className={`font-black text-xl flex flex-wrap items-center gap-2 ${isGone ? 'text-slate-400 line-through decoration-slate-300' : 'text-car-dark'}`}>
                                     <button 
                                         onClick={() => {
                                             const fullChild = allChildren.find(c => c._id === record.child._id) || record.child;
@@ -442,6 +451,13 @@ const SessionView = () => {
                                     {record.child.lastName} <span className="font-medium">{record.child.firstName}</span>
                                     {record.child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
                                     {hasAnyNote && !isGone && !isMidi && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
+                                    
+                                    {/* --- NOUVEAU : Affichage des badges de listes éphémères --- */}
+                                    {!isGone && childLists.map(list => (
+                                        <span key={list._id} className="text-[10px] font-bold bg-car-purple/10 text-car-purple px-2 py-1 rounded-md uppercase tracking-widest flex items-center gap-1 border border-car-purple/20 shadow-sm whitespace-nowrap">
+                                            📍 {list.name}
+                                        </span>
+                                    ))}
                                 </div>
                                 
                                 {!isGone && childNotes.length > 0 && !isMidi && (
@@ -501,7 +517,6 @@ const SessionView = () => {
                 onClose={() => setShowEmergency(false)} 
             />}
 
-            {/* Modales de Note omises pour la clarté (elles sont restées identiques) */}
             {noteModal.show && (
                 <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
