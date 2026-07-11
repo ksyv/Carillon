@@ -31,7 +31,6 @@ jobs:
         username: ${{ secrets.VPS_USER }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: 22
-        # Remplace "/var/www/carillon" par le VRAI chemin de ton dossier sur ton VPS
         script: |
           cd /home/ksyv/Carillon
           git pull origin main
