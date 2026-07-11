@@ -11,7 +11,7 @@ jobs:
     
     steps:
     - name: 📥 Récupération du code (Checkout)
-      uses: actions/checkout@v5
+      uses: actions/checkout@v7
 
     - name: ⚙️ Configuration de Node.js
       uses: actions/setup-node@v5
