@@ -4,19 +4,16 @@ const mongoose = require('mongoose');
 const ParentSchema = new mongoose.Schema({
   firstName: { type: String, default: '' },
   lastName: { type: String, default: '' },
-  qualite: { type: String, default: '' }, // Père, Mère, Tuteur...
-  
-  // --- LES NOUVEAUX CHAMPS AJOUTÉS POUR LA TRÉSORERIE ---
+  qualite: { type: String, default: '' },
   birthDate: { type: Date, default: null }, 
   adressePostale: { type: String, default: '' },
-  
-  address: { type: String, default: '' }, // Ancien champ conservé au cas où
+  address: { type: String, default: '' },
   phoneMobile: { type: String, default: '' },
   phoneFixe: { type: String, default: '' },
   email: { type: String, default: '' },
   profession: { type: String, default: '' },
   employeur: { type: String, default: '' },
-  couvertureSociale: { type: String, default: 'CPAM' }, // CPAM, MSA, Autre
+  couvertureSociale: { type: String, default: 'CPAM' },
   numAllocataireCAF: { type: String, default: '' }
 });
 
@@ -26,7 +23,7 @@ const ContactSchema = new mongoose.Schema({
   lastName: { type: String, default: '' },
   phone: { type: String, default: '' },
   relation: { type: String, default: '' },
-  isEmergency: { type: Boolean, default: false } // Case "A contacter en cas d'urgence"
+  isEmergency: { type: Boolean, default: false } 
 });
 
 // Sous-schéma pour la gestion documentaire
@@ -37,7 +34,7 @@ const DocumentSchema = new mongoose.Schema({
 });
 
 const FamilySchema = new mongoose.Schema({
-  name: { type: String, required: true }, // Le nom de la famille (ex: DUPONT)
+  name: { type: String, required: true }, 
   
   responsables: [ParentSchema],
   personnesAutorisees: [ContactSchema],
