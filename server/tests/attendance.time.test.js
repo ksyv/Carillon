@@ -2,7 +2,7 @@
 const checkIfLate = (checkoutTimestamp) => {
     const checkoutDate = new Date(checkoutTimestamp);
     const limit = new Date(checkoutTimestamp);
-    limit.setHours(18, 35, 0, 0); // Limite de la Mairie : 18h35
+    limit.setHours(18, 35, 0, 0); 
     return checkoutDate > limit;
 };
 
