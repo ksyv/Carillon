@@ -15,6 +15,7 @@ const Login = ({ setAuth }) => {
       localStorage.setItem('token', data.token);
       localStorage.setItem('role', data.role);
       localStorage.setItem('categoryAccess', data.categoryAccess);
+      localStorage.setItem('carillon_username', creds.username);
       setAuth({ token: data.token, role: data.role, categoryAccess: data.categoryAccess });
     } catch (err) { setError('Identifiants incorrects'); }
   };

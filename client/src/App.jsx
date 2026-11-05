@@ -11,6 +11,7 @@ import StructureInfo from './components/StructureInfo';
 import SessionView from './pages/SessionView';
 import CustomListManager from './pages/CustomListManager';
 import ChildrenManager from './pages/ChildrenManager';
+import SessionGuard from './components/SessionGuard';
 
 // =========================================================================
 // 2. IMPORTS DYNAMIQUES / LAZY LOADING (LES PAGES "BUREAU" LOURDES)
@@ -51,6 +52,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="font-sans text-slate-800">
+        {auth.token && <SessionGuard />}
         <Suspense fallback={<LoadingScreen />}>
           <Routes>
             {/* ========================================================== */}
