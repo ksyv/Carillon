@@ -9,7 +9,7 @@ const auth = (roles = []) => (req, res, next) => {
         if (roles.length && !roles.includes(v.role)) return res.status(403).send('Interdit');
         next();
     } catch (e) { 
-        res.status(400).send('Token invalide'); 
+        res.status(401).send('Token invalide ou expiré'); 
     }
 };
 
