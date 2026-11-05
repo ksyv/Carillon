@@ -205,16 +205,18 @@ router.get('/cantine-1-euro', auth(['admin']), async (req, res) => {
 router.post('/advanced', auth(['admin']), async (req, res) => {
     try {
         const { startDate, endDate, filters } = req.body;
-        let attMatch = {};
+        let attMatch = {};// 1. Filtrage par index
         if (startDate && endDate) attMatch.date = { $gte: startDate, $lte: endDate };
         if (filters.sessions && filters.sessions.length > 0) attMatch.sessionType = { $in: filters.sessions };
 
         const pipeline = [
-            { $match: attMatch },
+            { $match: attMatch },// 1. Filtrage par index
+            // 2. Jointures inter-collections (Pointage -> Enfant -> Famille)
             { $lookup: { from: 'children', localField: 'child', foreignField: '_id', as: 'childDoc' } },
             { $unwind: '$childDoc' },
             { $lookup: { from: 'families', localField: 'childDoc.families', foreignField: '_id', as: 'familyDocs' } },
             { $addFields: { primaryFamily: { $arrayElemAt: ['$familyDocs', 0] } } },
+            // 3. Calculs mathématiques à la volée en BDD
             { $addFields: {
                 calcQf: {
                     $cond: {

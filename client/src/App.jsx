@@ -62,7 +62,6 @@ export default function App() {
             {/* ROUTES PRIVÉES : RÉSERVÉES AU STAFF (PROTÉGÉES)             */}
             {/* ========================================================== */}
             
-            {/* --- PAGES "TERRAIN" (Chargement instantané & Hors-ligne garanti) --- */}
             <Route 
               path="/" 
               element={auth.token ? <Dashboard /> : <Login setAuth={setAuth} />} 

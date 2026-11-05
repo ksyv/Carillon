@@ -209,7 +209,9 @@ const SessionView = () => {
         const timestamp = Date.now();
         const action = { ...actionDef, timestamp, date, sessionType: type };
 
+         // 1. Mise à jour Optimiste de l'UI (Instantané pour l'animateur)
         setAttendance(prev => optimisticUpdate(prev, timestamp));
+         // 2. Mise en file d'attente locale (Gestion du mode Hors-Ligne)
         const queue = JSON.parse(localStorage.getItem('syncQueue') || '[]');
         queue.push(action);
         
@@ -223,6 +225,7 @@ const SessionView = () => {
             safeSetOfflineData(`offline_attendance_${date}_${type}`, currentAtt);
             return currentAtt;
         });
+         // 3. Tentative de synchronisation (Si le réseau est revenu)
         if (navigator.onLine) syncOfflineActions();
     };
 

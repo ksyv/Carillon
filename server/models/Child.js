@@ -14,7 +14,6 @@ const ChildDocumentSchema = new mongoose.Schema({
 });
 
 const ChildSchema = new mongoose.Schema({
-  // --- PASSAGE AU MULTI-FAMILLES (Garde Alternée) ---
   families: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Family' }],
   family: { type: mongoose.Schema.Types.ObjectId, ref: 'Family' },
   classGroup: { type: mongoose.Schema.Types.ObjectId, ref: 'ClassGroup', default: null },

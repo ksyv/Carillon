@@ -54,7 +54,7 @@ const FamilySchema = new mongoose.Schema({
     retard: { type: Number, default: null }
   },
 
-  // Gestion des documents (pour tes futures alertes)
+  // Gestion des documents (pour les futures alertes)
   documents: {
     assuranceRC: { type: DocumentSchema, default: () => ({}) },
     vaccins: { type: DocumentSchema, default: () => ({}) },
