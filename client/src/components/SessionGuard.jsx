@@ -10,40 +10,41 @@ const SessionGuard = () => {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        // Récupère l'identifiant pour le pré-remplir (stocké lors du vrai login)
         const storedUser = localStorage.getItem('carillon_username') || '';
         if (storedUser) setUsername(storedUser);
 
         const checkTokenExpiration = () => {
             const token = localStorage.getItem('token');
-            if (!token) return; // Si pas de token, on est sur la page de login, on ne fait rien.
+            if (!token) return;
 
             try {
-                // Décodage du payload JWT sans librairie externe
                 const payloadStr = atob(token.split('.')[1]);
                 const payload = JSON.parse(payloadStr);
-                
-                // Le champ "exp" est en secondes, on le convertit en millisecondes
                 const expirationDate = payload.exp * 1000; 
                 const timeRemaining = expirationDate - Date.now();
 
-                // Si le token est expiré ou expire dans moins de 5 minutes (300 000 ms)
-                if (timeRemaining <= 300000) {
+                if (timeRemaining <= 300000) { // 5 minutes
                     setIsLocked(true);
                 } else {
                     setIsLocked(false);
                 }
             } catch (e) {
-                console.error("Erreur de vérification du token", e);
-                setIsLocked(true); // Par sécurité, on verrouille si le token est illisible
+                console.error("Erreur token");
+                setIsLocked(true);
             }
         };
 
-        // Vérification immédiate puis toutes les minutes
         checkTokenExpiration();
         const interval = setInterval(checkTokenExpiration, 60000);
 
-        return () => clearInterval(interval);
+        // 👉 NOUVEAU : On écoute l'alarme d'Axios pour verrouiller instantanément
+        const lockInstantly = () => setIsLocked(true);
+        window.addEventListener('session-expired', lockInstantly);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('session-expired', lockInstantly);
+        };
     }, []);
 
     const handleUnlock = async (e) => {

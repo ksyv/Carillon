@@ -12,4 +12,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Intercepteur de RÉPONSE (Surveille les erreurs 401)
+api.interceptors.response.use(
+  (response) => response, // Si tout va bien, on renvoie la réponse
+  (error) => {
+    // Si le serveur répond 401 (Non autorisé / Token expiré)
+    if (error.response && error.response.status === 401) {
+      // On tire la sonnette d'alarme pour réveiller le SessionGuard !
+      window.dispatchEvent(new Event('session-expired'));
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
