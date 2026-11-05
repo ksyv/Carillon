@@ -76,6 +76,13 @@ const SessionView = () => {
             setIsOnline(true); 
             refreshAttendanceBackground(); 
         } catch (e) {
+            // 👉 LA CORRECTION EST ICI :
+            // Si l'erreur est un 401 (Token invalide), on NE PASSE PAS en hors-ligne !
+            if (e.response && e.response.status === 401) {
+                return; // On arrête là, l'intercepteur Axios va lever le SessionGuard
+            }
+            
+            // Sinon (vrai problème réseau ou 500), on passe en mode PWA hors-ligne
             setIsOnline(false); 
         }
     };
@@ -148,6 +155,7 @@ const SessionView = () => {
             syncEmergencyDocs();
 
         } catch (error) {
+            if (error.response && error.response.status === 401) return;
             setIsOnline(false); 
             loadLocalFallback();
         }
