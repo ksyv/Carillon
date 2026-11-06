@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api'; // NOUVEAU : Ajout de l'API pour faire la requête
-import { Download, X, FolderHeart, AlertTriangle, Phone, Users, Info, FileText } from 'lucide-react';
+import { Download, X, FolderHeart, AlertTriangle, Phone, Users, Info, FileText, GraduationCap } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -149,6 +149,12 @@ const ChildInfoModal = ({ child, onClose }) => {
                             {displayChild.category || 'Maternelle'}
                         </span>
                         {displayChild.active === false && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
+                        
+                        {displayChild.classGroup && (
+                            <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-100 text-slate-600 flex items-center gap-1">
+                                <GraduationCap size={14}/> {displayChild.classGroup.name || displayChild.classGroup}
+                            </span>
+                        )}
                         
                         {displayChild.families && displayChild.families.length > 0 && displayChild.families.map((fam, idx) => (
                             <React.Fragment key={idx}>
