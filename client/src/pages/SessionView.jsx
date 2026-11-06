@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -25,6 +25,12 @@ const SessionView = () => {
     const [plannedNotes, setPlannedNotes] = useState([]);
     const [childInfoToView, setChildInfoToView] = useState(null); 
     const [showEmergency, setShowEmergency] = useState(false);
+    const isModalOpenRef = useRef(false);
+    
+    // On met à jour cette référence dès qu'une de tes 4 modales s'ouvre ou se ferme
+    useEffect(() => {
+        isModalOpenRef.current = noteModal.show || readNoteModal.show || classAbsenceModal.show || showEmergency;
+    }, [noteModal.show, readNoteModal.show, classAbsenceModal.show, showEmergency]);
 
     // --- ÉTAT POUR LES LISTES ÉPHÉMÈRES ---
     const [ephemeralLists, setEphemeralLists] = useState([]);
@@ -185,10 +191,10 @@ const SessionView = () => {
                 if (navigator.onLine && queue.length > 0) {
                     await syncOfflineActions();
                 } else if (navigator.onLine) {
-                    await refreshAttendanceBackground();
-                    // CORRECTION DE L'URL pour le rafraîchissement
-                    api.get(`/custom-lists`).then(res => {
-                        if (Array.isArray(res.data)) setEphemeralLists(res.data);
+                    if (!isModalOpenRef.current) {
+                        await refreshAttendanceBackground();
+                        api.get(`/custom-lists`).then(res => {
+                            if (Array.isArray(res.data)) setEphemeralLists(res.data);
                     }).catch(()=>{});
                 } else {
                     setPendingSync(queue.length);
