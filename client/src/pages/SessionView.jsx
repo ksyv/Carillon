@@ -3,7 +3,7 @@ import api from '../api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { AlertTriangle, Wifi, WifiOff, Search, Info, StickyNote, RotateCcw, Trash2, CheckCircle, X, Calendar as CalendarIcon } from 'lucide-react';
+import { AlertTriangle, Wifi, WifiOff, Search, Info, StickyNote, RotateCcw, Trash2, CheckCircle, X, Calendar as CalendarIcon, GraduationCap, Utensils  } from 'lucide-react';
 import CategoryFilter from '../components/CategoryFilter';
 import EmergencyModal from '../components/EmergencyModal';
 import ChildInfoModal from '../components/ChildInfoModal';
@@ -21,6 +21,7 @@ const SessionView = () => {
     
     const [noteModal, setNoteModal] = useState({ show: false, attendanceId: null, text: '', amNote: '' });
     const [readNoteModal, setReadNoteModal] = useState({ show: false, attendanceId: null, childId: null, text: '', textToSave: '', name: '', color: '' });
+    const [classAbsenceModal, setClassAbsenceModal] = useState({ show: false, classId: '' });
     const [plannedNotes, setPlannedNotes] = useState([]);
     const [childInfoToView, setChildInfoToView] = useState(null); 
     const [showEmergency, setShowEmergency] = useState(false);
@@ -239,6 +240,16 @@ const SessionView = () => {
 
     const activeChildren = useMemo(() => allChildren.filter(c => c.active !== false), [allChildren]);
 
+    const availableClasses = useMemo(() => {
+        const classMap = new Map();
+        activeChildren.forEach(c => {
+            if (c.classGroup && c.classGroup._id) {
+                classMap.set(c.classGroup._id, c.classGroup);
+            }
+        });
+        return Array.from(classMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [activeChildren]);
+
     const handleCheckIn = (childId) => {
         const childObj = activeChildren.find(c => c._id === childId);
         processAction(
@@ -404,10 +415,22 @@ const SessionView = () => {
                     </div>
                 </div>
                 <div className="p-4 bg-white border-b border-slate-100">
-                    <div className="relative max-w-4xl mx-auto">
-                        <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
-                        <input type="text" className={`w-full pl-14 p-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-${themeColor} outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg`}
-                            placeholder={isMidi ? "Rechercher un enfant pour le marquer ABSENT à la cantine..." : "Rechercher pour pointer une arrivée ou un départ..."} value={search} onChange={e => setSearch(e.target.value)} />
+                    {/* 👉 AJOUT DU BOUTON A COTE DE LA BARRE */}
+                    <div className="relative max-w-4xl mx-auto flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={24}/>
+                            <input type="text" className={`w-full pl-14 p-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-${themeColor} outline-none font-bold text-car-dark placeholder:text-slate-400 transition-all text-lg`}
+                                placeholder={isMidi ? "Rechercher un enfant pour le marquer ABSENT à la cantine..." : "Rechercher pour pointer une arrivée ou un départ..."} value={search} onChange={e => setSearch(e.target.value)} />
+                        </div>
+                        
+                        {isMidi && availableClasses.length > 0 && (
+                            <button 
+                                onClick={() => setClassAbsenceModal({ show: true, classId: '' })}
+                                className="bg-car-teal/10 text-car-teal hover:bg-car-teal hover:text-white px-6 py-4 rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shrink-0"
+                            >
+                                <GraduationCap size={20} /> Absence Classe
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -580,6 +603,65 @@ const SessionView = () => {
                         </textarea>
                         <p className="text-xs text-slate-400 font-bold mt-2 mb-6">Cette note apparaîtra au moment du départ et sera effacée ce soir.</p>
                         <button onClick={saveNote} className="w-full bg-car-yellow text-white font-black p-4 rounded-2xl hover:-translate-y-1 transition-all shadow-lg shadow-car-yellow/20">SAUVEGARDER</button>
+                    </div>
+                </div>
+            )}
+
+            {/* 👉 NOUVEAU : MODALE ABSENCE CLASSE */}
+            {classAbsenceModal.show && (
+                <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-black text-car-teal flex items-center gap-2">
+                                <Utensils size={24}/> Absence Classe
+                            </h3>
+                            <button onClick={() => setClassAbsenceModal({ show: false, classId: '' })} className="text-slate-400 hover:text-car-pink">
+                                <X size={24}/>
+                            </button>
+                        </div>
+                        
+                        <p className="text-sm font-medium text-slate-500 mb-6">
+                            Sélectionnez une classe pour marquer <strong className="text-car-teal">tous ses élèves</strong> comme absents à la cantine aujourd'hui (Sortie scolaire, grève...).
+                        </p>
+
+                        <div className="mb-6">
+                            <select 
+                                className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-car-teal font-bold text-car-dark"
+                                value={classAbsenceModal.classId}
+                                onChange={(e) => setClassAbsenceModal({ ...classAbsenceModal, classId: e.target.value })}
+                            >
+                                <option value="">-- Choisir une classe --</option>
+                                {availableClasses.map(cls => (
+                                    <option key={cls._id} value={cls._id}>{cls.name} {cls.teacher ? `(${cls.teacher})` : ''}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <button 
+                            onClick={() => {
+                                if (!classAbsenceModal.classId) return alert("Veuillez sélectionner une classe.");
+                                
+                                // On filtre les enfants de la classe sélectionnée
+                                const kidsInClass = activeChildren.filter(c => c.classGroup?._id === classAbsenceModal.classId);
+                                let count = 0;
+                                
+                                kidsInClass.forEach(kid => {
+                                    // Vérifie si l'enfant est DÉJÀ dans la liste des présences (déjà absent)
+                                    const isAlreadyAbsent = attendance.some(a => a.child._id === kid._id);
+                                    if (!isAlreadyAbsent) {
+                                        // On réutilise TA fonction qui gère le mode Optimiste et Hors-Ligne !
+                                        handleCheckIn(kid._id); 
+                                        count++;
+                                    }
+                                });
+                                
+                                alert(`${count} enfant(s) ajouté(s) aux absences de la cantine !`);
+                                setClassAbsenceModal({ show: false, classId: '' });
+                            }}
+                            className="w-full bg-car-teal text-white font-black p-4 rounded-2xl hover:bg-teal-600 transition-all shadow-lg shadow-car-teal/20 flex justify-center items-center gap-2"
+                        >
+                            <CheckCircle size={20}/> VALIDER L'ABSENCE
+                        </button>
                     </div>
                 </div>
             )}
