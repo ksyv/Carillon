@@ -204,6 +204,7 @@ const SessionView = () => {
             };
             
             timeoutId = setTimeout(loop, 20000);
+        }
         });
 
         const handleOnline = () => { setIsOnline(true); syncOfflineActions(); syncEmergencyDocs(); };
