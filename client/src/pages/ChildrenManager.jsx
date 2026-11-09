@@ -120,7 +120,7 @@ const ChildrenManager = () => {
             personnesAutorisees: child.personnesAutorisees || [],
             documents: child.documents || { vaccins: {}, assurance: {} },
             hasInterdiction: child.hasInterdiction || false, interdictionDetails: child.interdictionDetails || '',
-            family: child.family
+            families: child.families || []
         });
     };
 

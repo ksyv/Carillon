@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Info, CheckCircle, UploadCloud, Loader, Send, Copy } from 'lucide-react';
 import api from '../../api'; // On remonte de deux niveaux pour atteindre src/api
 
-const ChildRequestModal = ({ child, sibling, onClose, onRefresh }) => {
+const ChildRequestModal = ({ child, siblings, onClose, onRefresh }) => {
     const [editingChild, setEditingChild] = useState(null);
     const [isSending, setIsSending] = useState(false);
 
