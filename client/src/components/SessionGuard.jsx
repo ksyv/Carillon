@@ -8,10 +8,14 @@ const SessionGuard = () => {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [hasStoredUser, setHasStoredUser] = useState(false);
 
     useEffect(() => {
         const storedUser = localStorage.getItem('carillon_username') || '';
-        if (storedUser) setUsername(storedUser);
+        if (storedUser) {
+            setUsername(storedUser);
+            setHasStoredUser(true);
+        }
 
         const checkTokenExpiration = () => {
             const token = localStorage.getItem('token');
@@ -108,7 +112,7 @@ const SessionGuard = () => {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none font-bold text-slate-500"
-                        readOnly={username !== ''} // L'ID est bloqué pour éviter qu'il change de compte
+                        readOnly={hasStoredUser} // L'ID est bloqué pour éviter qu'il change de compte
                         required 
                     />
                     <input 
