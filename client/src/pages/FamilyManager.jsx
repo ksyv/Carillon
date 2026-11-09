@@ -324,10 +324,18 @@ const FamilyManager = () => {
     };
 
     const handleCopyContacts = () => {
+        // On cherche un autre enfant dans CE dossier qui a déjà des contacts
         const sibling = attachedChildren.find(c => c._id !== editingChild._id && c.personnesAutorisees?.length > 0);
+        
         if (sibling) {
-            setEditingChild({ ...editingChild, personnesAutorisees: [...sibling.personnesAutorisees] });
-        } else { alert("Aucun frère ou sœur n'a de personnes autorisées renseignées pour le moment !"); }
+            // JSON.parse(stringify) permet de faire une "copie propre" sans lier les deux enfants !
+            setEditingChild({ 
+                ...editingChild, 
+                personnesAutorisees: JSON.parse(JSON.stringify(sibling.personnesAutorisees)) 
+            });
+        } else { 
+            alert("Aucun frère ou sœur n'a de personnes autorisées renseignées dans ce dossier !"); 
+        }
     };
 
     const saveChild = async (e) => {
@@ -886,9 +894,14 @@ const FamilyManager = () => {
                                 <div className="flex justify-between items-center mb-3">
                                     <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase">Personnes Autorisées</h4>
                                     <div className="flex gap-2">
-                                        {editingChild.family && (
-                                            <button type="button" onClick={handleCopyContacts} className="text-xs font-bold text-car-purple bg-car-purple/10 px-3 py-1.5 rounded-lg flex items-center gap-1"><Copy size={14}/> Copier (Fratrie)</button>
+                                        
+                                        {/* 👉 CORRECTION ICI : Si on a déjà au moins un enfant dans la famille, on affiche le bouton ! */}
+                                        {attachedChildren.length > 0 && (
+                                            <button type="button" onClick={handleCopyContacts} className="text-xs font-bold text-car-purple bg-car-purple/10 px-3 py-1.5 rounded-lg flex items-center gap-1">
+                                                <Copy size={14}/> Copier (Fratrie)
+                                            </button>
                                         )}
+                                        
                                         <button type="button" onClick={() => setEditingChild({...editingChild, personnesAutorisees: [...editingChild.personnesAutorisees, {firstName:'', lastName:'', phone:'', isEmergency: false}]})} className="text-xs font-bold text-car-blue bg-car-blue/10 px-3 py-1.5 rounded-lg">+ AJOUTER</button>
                                     </div>
                                 </div>
