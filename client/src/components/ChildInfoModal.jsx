@@ -179,13 +179,16 @@ const ChildInfoModal = ({ child, onClose }) => {
 
                 <div className="space-y-6">
                     {displayChild.hasInterdiction && (
-                        <div className="bg-red-600 text-white p-5 rounded-2xl border-4 border-red-800 shadow-lg animate-pulse">
-                            <div className="flex items-center gap-2 font-black mb-2 uppercase tracking-widest text-lg">
-                                <UserX size={24}/> INTERDICTION DE RÉCUPÉRATION
-                            </div>
-                            <p className="font-medium text-sm whitespace-pre-wrap">{displayChild.interdictionDetails}</p>
-                        </div>
-                    )}
+                            <>
+                                <div className="w-full h-px bg-slate-200 my-4"></div>
+                                <div className="flex items-center gap-3 bg-red-50 border border-red-100 p-3 rounded-xl text-red-600">
+                                    <UserX size={20} className="shrink-0 stroke-[2.5px]" />
+                                    <span className="font-bold text-sm">
+                                        Interdit : <span className="font-medium text-red-900">{displayChild.interdictionDetails}</span>
+                                    </span>
+                                </div>
+                            </>
+                        )}
                     {/* PROFIL & SANTÉ */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-4 uppercase tracking-widest text-sm">
