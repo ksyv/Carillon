@@ -20,7 +20,7 @@ const ChildSchema = new mongoose.Schema({
 
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
-  category: { type: String, enum: ['Maternelle', 'Élémentaire'], default: 'Maternelle' },
+  category: { type: String, enum: ['Maternelle', 'Élémentaire', 'Adulte'], default: 'Maternelle' },
   active: { type: Boolean, default: true },
   
   sexe: { type: String, enum: ['Masculin', 'Féminin', ''], default: '' },
