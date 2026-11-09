@@ -558,9 +558,23 @@ const FamilyManager = () => {
                                                 {searchOrphan.length >= 2 && (
                                                     <div className="absolute w-full mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
                                                         {filteredUnattached.map(c => (
-                                                            <div key={c._id} className="p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                                <span className="font-bold text-car-dark uppercase">{c.lastName} <span className="font-medium capitalize text-slate-500">{c.firstName}</span></span>
-                                                                <button type="button" onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">+ Lier</button>
+                                                            // 👉 AJOUT : On baisse l'opacité globale de la ligne si l'enfant est inactif
+                                                            <div key={c._id} className={`p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors ${c.active === false ? 'opacity-60 bg-slate-50/50' : ''}`}>
+                                                                <div>
+                                                                    {/* 👉 AJOUT : On grise le texte si inactif */}
+                                                                    <span className={`font-bold uppercase ${c.active === false ? 'text-slate-400' : 'text-car-dark'}`}>
+                                                                        {c.lastName} <span className={`font-medium capitalize ${c.active === false ? 'text-slate-400' : 'text-slate-500'}`}>{c.firstName}</span>
+                                                                    </span>
+                                                                    {/* 👉 AJOUT : Le petit badge INACTIF */}
+                                                                    {c.active === false && (
+                                                                        <span className="ml-2 text-[10px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-md tracking-widest">
+                                                                            INACTIF
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <button type="button" onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">
+                                                                    + Lier
+                                                                </button>
                                                             </div>
                                                         ))}
                                                         {filteredUnattached.length === 0 && (
