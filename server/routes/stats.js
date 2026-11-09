@@ -27,8 +27,9 @@ router.get('/report', auth(['admin']), async (req, res) => {
         if (!attendanceMap[key]) {
             attendanceMap[key] = {
                 type: 'ATTENDANCE', date: a.date, child: childObj,
-                matin: false, midiAbsent: false, soir: false, checkOut: null, isLate: false, 
-                matinId: null, midiId: null, pmId: null, 
+                matin: false, midiAbsent: false, soir: false, checkOut: null, isLate: false,
+                midiAdulte: false,
+                matinId: null, midiId: null, pmId: null, midiAdulteId: null,
                 billTo: ''
             };
         }
@@ -45,6 +46,10 @@ router.get('/report', auth(['admin']), async (req, res) => {
             attendanceMap[key].checkOut = a.checkOut;
             attendanceMap[key].isLate = a.isLate; 
             attendanceMap[key].pmId = a._id;
+        }
+        if (a.sessionType === 'MIDI_ADULTE') {
+            attendanceMap[key].midiAdulte = true;
+            attendanceMap[key].midiAdulteId = a._id;
         }
     });
 

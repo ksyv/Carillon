@@ -143,14 +143,19 @@ const Report = () => {
 
     // --- FILTRAGE ET TRI DES DONNÉES ---
     const displayData = useMemo(() => {
-        const isAttendanceTab = activeTab === 'PERISCO' || activeTab === 'CANTINE';
+        const isAttendanceTab = activeTab === 'PERISCO' || activeTab === 'CANTINE' || activeTab === 'ADULTES';
         let list = isAttendanceTab ? [...reportData.attendances] : [...reportData.children];
 
-        // 1. Filtre par Catégorie (Maternelle/Élémentaire)
-        list = list.filter(r => {
-            const cat = r.child.category || 'Maternelle';
-            return categories[cat];
-        });
+        // 1. Filtre par Catégorie (Uniquement si on n'est pas sur l'onglet Adulte)
+        if (activeTab !== 'ADULTES') {
+            list = list.filter(r => {
+                const cat = r.child?.category || 'Maternelle';
+                return categories[cat];
+            });
+        } else {
+            // Si on est sur l'onglet adultes, on ne garde QUE les adultes
+            list = list.filter(r => r.child?.category === 'Adulte');
+        }
         
         // 2. Filtre par Classe
         if (selectedClassId !== '') {
@@ -163,6 +168,7 @@ const Report = () => {
         // 3. Filtres par onglet
         if (activeTab === 'PERISCO') list = list.filter(r => r.matin || r.soir || r.checkOut);
         if (activeTab === 'CANTINE') list = list.filter(r => r.midiAbsent);
+        if (activeTab === 'ADULTES') list = list.filter(r => r.midiAdulte);
         if (activeTab === 'PAI') list = list.filter(r => r.child.hasPAI);
         if (activeTab === 'REGIMES') {
             list = list.filter(r => {
@@ -173,6 +179,7 @@ const Report = () => {
         }
         if (activeTab === 'SORTIE_SEUL') list = list.filter(r => r.child.autorisationSortieSeul);
         if (activeTab === 'SANS_IMAGE') list = list.filter(r => !r.child.droitImage);
+        if (activeTab === 'INTERDICTIONS') list = list.filter(r => r.child?.hasInterdiction);
 
         // 4. Application du Tri
         return list.sort((a, b) => {
@@ -290,6 +297,29 @@ const Report = () => {
             ]);
             footData = [["TOTAL REFUSÉS", displayData.length.toString(), "", ""]];
         }
+        else if (activeTab === 'INTERDICTIONS') {
+            title = `Enfants avec Interdiction de Récupération`;
+            tableColumn = ["Nom", "Prénom", "Classe", "Détails Interdiction"];
+            tableRows = displayData.map(row => [
+                row.child.lastName, 
+                row.child.firstName, 
+                row.child.classGroup?.name || row.child.category, 
+                row.child.interdictionDetails
+            ]);
+            footData = [["TOTAL CONCERNÉS", displayData.length.toString(), "", ""]];
+        }
+        // 👉 NOUVEAU : PDF POUR LES ADULTES
+        else if (activeTab === 'ADULTES') {
+            title = `Rapport Repas Adultes (Personnel) - ${periodStr}`;
+            tableColumn = ["Date", "Nom", "Prénom", "Repas Consommé"];
+            tableRows = displayData.map(row => [
+                new Date(row.date).toLocaleDateString('fr-FR'), 
+                row.child.lastName, 
+                row.child.firstName, 
+                "OUI"
+            ]);
+            footData = [["TOTAL REPAS", "", "", displayData.length.toString()]];
+        }
         
         doc.text(title, 14, 22);
         autoTable(doc, {
@@ -347,6 +377,8 @@ const Report = () => {
                     <button onClick={() => setActiveTab('REGIMES')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'REGIMES' ? 'bg-car-yellow text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Régimes Spéciaux</button>
                     <button onClick={() => setActiveTab('SORTIE_SEUL')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'SORTIE_SEUL' ? 'bg-slate-700 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Sortie Seul</button>
                     <button onClick={() => setActiveTab('SANS_IMAGE')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'SANS_IMAGE' ? 'bg-slate-700 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Sans Image</button>
+                    <button onClick={() => setActiveTab('INTERDICTIONS')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-1 ${activeTab === 'INTERDICTIONS' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><UserX size={16}/> Interdictions</button>
+                    <button onClick={() => setActiveTab('ADULTES')} className={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-1 ${activeTab === 'ADULTES' ? 'bg-orange-500 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><Coffee size={16}/> Adultes</button>
                 </div>
 
                 {/* ZONE DE FILTRES CUMULATIFS */}
@@ -459,6 +491,12 @@ const Report = () => {
                                         <th className="p-5 border-b border-slate-100 text-center">Droit à l'image</th>
                                     </>
                                 )}
+                                {activeTab === 'INTERDICTIONS' && (
+                                    <th className="p-5 border-b border-slate-100 text-red-600">Détails de l'interdiction</th>
+                                )}
+                                {activeTab === 'ADULTES' && (
+                                    <th className="p-5 border-b border-slate-100 text-center text-orange-500">Repas Pointé</th>
+                                )}
                             </tr>
                         </thead>
                         <tbody>
@@ -543,6 +581,25 @@ const Report = () => {
                                             <td className="p-5 border-b border-slate-100 text-center"><span className="bg-car-pink/10 text-car-pink text-xs font-bold px-3 py-1 rounded-lg">SANS DROIT À L'IMAGE</span></td>
                                         </>
                                     )}
+
+                                    {activeTab === 'INTERDICTIONS' && (
+                                        <td className="p-5 border-b border-slate-100">
+                                            <span className="text-sm font-bold text-red-600 bg-red-50 px-3 py-2 rounded-xl block w-fit border border-red-200">
+                                                {c.interdictionDetails}
+                                            </span>
+                                        </td>
+                                    )}
+
+                                    {activeTab === 'ADULTES' && (
+                                        <td className="p-5 border-b border-slate-100 text-center">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <CheckCircle className="text-orange-500" size={24}/>
+                                                {/* Permet à l'admin de supprimer un repas adulte depuis le rapport */}
+                                                <button onClick={() => handleDeleteAttendance(row.midiAdulteId, 'Repas Adulte')} className="opacity-0 group-hover:opacity-100 text-[10px] text-slate-400 hover:text-car-pink transition-all flex items-center gap-1"><Trash2 size={10}/> Annuler</button>
+                                            </div>
+                                        </td>
+                                    )}
+
                                 </tr>
                             )})}
                             {displayData.length === 0 && (
@@ -682,6 +739,7 @@ const Report = () => {
                                     <option value="SOIR">Périscolaire SOIR</option>
                                     <option value="SOIR_LATE">Supplément Soir (19h)</option>
                                     <option value="MIDI">Absence CANTINE (Midi)</option>
+                                    <option value="MIDI_ADULTE">Présence CANTINE (Adulte)</option>
                                 </select>
 
                                 {(addForm.sessionType === 'SOIR' || addForm.sessionType === 'SOIR_LATE') && (
