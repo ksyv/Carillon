@@ -100,7 +100,8 @@ const ChildrenManager = () => {
             firstName: '', lastName: '', category: 'Maternelle', classGroup: '', sexe: '', birthDate: '', droitImage: false, autorisationSortieSeul: false,
             medical: { lunettes: false, appareilAuditif: false, appareilDentaire: false, activitesPhysiques: true, medecinNom: '', medecinPhone: '' },
             hasPAI: false, paiDetails: '', isPAIAlimentaire: false, paiDocument: '', regimeAlimentaire: 'Standard',
-            personnesAutorisees: [], documents: { vaccins: {}, assurance: {} }
+            personnesAutorisees: [], documents: { vaccins: {}, assurance: {} },
+            hasInterdiction: false, interdictionDetails: ''
         });
     };
 
@@ -118,6 +119,7 @@ const ChildrenManager = () => {
             hasPAI: child.hasPAI || false, paiDetails: child.paiDetails || '', isPAIAlimentaire: child.isPAIAlimentaire || false, paiDocument: child.paiDocument || '', regimeAlimentaire: child.regimeAlimentaire || 'Standard',
             personnesAutorisees: child.personnesAutorisees || [],
             documents: child.documents || { vaccins: {}, assurance: {} },
+            hasInterdiction: child.hasInterdiction || false, interdictionDetails: child.interdictionDetails || '',
             family: child.family
         });
     };
@@ -397,6 +399,25 @@ const ChildrenManager = () => {
                                         </div>
                                     ))}
                                     {editingChild.personnesAutorisees.length === 0 && <p className="text-xs text-slate-400 italic text-center">Aucune personne autorisée renseignée.</p>}
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Sécurité Juridique</h4>
+                                <div className="bg-red-50/50 border border-red-200 p-4 rounded-2xl flex flex-col gap-3">
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" className="w-5 h-5 accent-red-600" checked={editingChild.hasInterdiction} onChange={e => setEditingChild({...editingChild, hasInterdiction: e.target.checked})} />
+                                        <span className="font-black text-red-800">Signaler une interdiction de récupération (Décision de justice...)</span>
+                                    </label>
+                                    {editingChild.hasInterdiction && (
+                                        <input 
+                                            type="text" 
+                                            className="bg-white border border-red-200 p-3 rounded-xl outline-none focus:border-red-500 text-sm font-medium text-red-900 w-full" 
+                                            placeholder="Précisez : Ex: M. X (Père) interdiction d'approcher..." 
+                                            value={editingChild.interdictionDetails} 
+                                            onChange={e => setEditingChild({...editingChild, interdictionDetails: e.target.value})}
+                                        />
+                                    )}
                                 </div>
                             </div>
 

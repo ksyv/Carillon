@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api'; // NOUVEAU : Ajout de l'API pour faire la requête
-import { Download, X, FolderHeart, AlertTriangle, Phone, Users, Info, FileText, GraduationCap } from 'lucide-react';
+import { Download, X, FolderHeart, AlertTriangle, Phone, Users, Info, FileText, GraduationCap, UserX } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -150,6 +150,12 @@ const ChildInfoModal = ({ child, onClose }) => {
                         </span>
                         {displayChild.active === false && <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-200 text-slate-500">INACTIF</span>}
                         
+                        {displayChild.hasInterdiction && (
+                            <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest inline-flex items-center gap-1 bg-red-100 text-red-700 border border-red-200">
+                                <UserX size={14} className="stroke-[3px]"/> INTERDICTION
+                            </span>
+                        )}
+
                         {displayChild.classGroup && (
                             <span className="text-xs font-black px-3 py-1 rounded-lg tracking-widest bg-slate-100 text-slate-600 flex items-center gap-1">
                                 <GraduationCap size={14}/> {displayChild.classGroup.name || displayChild.classGroup}
@@ -172,6 +178,14 @@ const ChildInfoModal = ({ child, onClose }) => {
                 </div>
 
                 <div className="space-y-6">
+                    {displayChild.hasInterdiction && (
+                        <div className="bg-red-600 text-white p-5 rounded-2xl border-4 border-red-800 shadow-lg animate-pulse">
+                            <div className="flex items-center gap-2 font-black mb-2 uppercase tracking-widest text-lg">
+                                <UserX size={24}/> INTERDICTION DE RÉCUPÉRATION
+                            </div>
+                            <p className="font-medium text-sm whitespace-pre-wrap">{displayChild.interdictionDetails}</p>
+                        </div>
+                    )}
                     {/* PROFIL & SANTÉ */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-2 text-slate-500 font-black mb-4 uppercase tracking-widest text-sm">

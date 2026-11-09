@@ -30,6 +30,9 @@ const ChildSchema = new mongoose.Schema({
   
   persistentNote: { type: String, default: '' },
 
+  hasInterdiction: { type: Boolean, default: false },
+  interdictionDetails: { type: String, default: '' },
+
   medical: {
       lunettes: { type: Boolean, default: false },
       appareilAuditif: { type: Boolean, default: false },

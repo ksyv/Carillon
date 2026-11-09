@@ -3,7 +3,7 @@ import api from '../api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { AlertTriangle, Wifi, WifiOff, Search, Info, StickyNote, RotateCcw, Trash2, CheckCircle, X, Calendar as CalendarIcon, GraduationCap, Utensils  } from 'lucide-react';
+import { AlertTriangle, Wifi, WifiOff, Search, Info, StickyNote, RotateCcw, Trash2, CheckCircle, X, Calendar as CalendarIcon, GraduationCap, Utensils, UserX  } from 'lucide-react';
 import CategoryFilter from '../components/CategoryFilter';
 import EmergencyModal from '../components/EmergencyModal';
 import ChildInfoModal from '../components/ChildInfoModal';
@@ -472,6 +472,7 @@ const SessionView = () => {
                                         </button>
                                         <span className="font-black text-xl text-car-dark">{child.lastName} <span className="font-medium text-slate-500">{child.firstName}</span></span>
                                         {child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
+                                        {child.hasInterdiction && <UserX size={18} className="text-red-600 stroke-[3px]" title="Interdiction de sortie"/>}
 
                                         {/* NOUVEAU : Badges listes dans la recherche */}
                                         {searchChildLists.map(list => (
@@ -522,6 +523,7 @@ const SessionView = () => {
                                     </button>
                                     {record.child.lastName} <span className="font-medium">{record.child.firstName}</span>
                                     {record.child.hasPAI && <AlertTriangle size={18} className="text-car-pink fill-car-pink"/>}
+                                    {record.child.hasInterdiction && <UserX size={18} className="text-red-600 stroke-[3px]" title="Interdiction de sortie"/>}
                                     {hasAnyNote && !isGone && !isMidi && <StickyNote size={18} className="text-car-yellow fill-car-yellow animate-pulse"/>}
                                     
                                     {/* NOUVEAU : Badges listes sur la carte */}
