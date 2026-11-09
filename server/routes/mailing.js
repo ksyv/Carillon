@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const nodemailer = require('nodemailer');
 const EmailTemplate = require('../models/EmailTemplate');
+const MailingGroup = require('../models/MailingGroup'); 
 const auth = require('../middleware/auth');
+
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -37,6 +39,37 @@ router.post('/templates', auth(['admin', 'responsable']), async (req, res) => {
     const newTemplate = new EmailTemplate(req.body); 
     await newTemplate.save(); 
     res.json(newTemplate);
+});
+
+// --- GESTION DES GROUPES DE DIFFUSION (ADMIN ONLY) ---
+
+router.get('/groups', auth(['admin', 'responsable']), async (req, res) => {
+    try {
+        const groups = await MailingGroup.find().populate('children', 'firstName lastName active');
+        res.json(groups);
+    } catch (e) { res.status(500).send("Erreur"); }
+});
+
+router.post('/groups', auth(['admin', 'responsable']), async (req, res) => {
+    try {
+        const group = new MailingGroup(req.body);
+        await group.save();
+        res.status(201).json(group);
+    } catch (e) { res.status(500).send("Erreur"); }
+});
+
+router.put('/groups/:id', auth(['admin', 'responsable']), async (req, res) => {
+    try {
+        const group = await MailingGroup.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('children', 'firstName lastName active');
+        res.json(group);
+    } catch (e) { res.status(500).send("Erreur"); }
+});
+
+router.delete('/groups/:id', auth(['admin', 'responsable']), async (req, res) => {
+    try {
+        await MailingGroup.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (e) { res.status(500).send("Erreur"); }
 });
 
 module.exports = router;
