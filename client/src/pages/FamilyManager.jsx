@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { FolderHeart, AlertTriangle, CheckCircle, Search, Plus, Trash2, Download, Save, Users, Info, Pencil, X, Banknote, FileText, Phone, Check, Copy, CornerDownRight, Mail, GraduationCap } from 'lucide-react';
+import { FolderHeart, AlertTriangle, CheckCircle, Search, Plus, Trash2, Download, Save, Users, Info, Pencil, X, Banknote, FileText, Phone, Check, Copy, Mail, GraduationCap } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ChildInfoModal from '../components/ChildInfoModal';
@@ -18,10 +18,31 @@ const FamilyManager = () => {
     
     const [childInfoToView, setChildInfoToView] = useState(null);
     const [editingChild, setEditingChild] = useState(null);
-    const [showOrphansModal, setShowOrphansModal] = useState(false); // NOUVEL ÉTAT POUR LA MODALE
-
+    const [showOrphansModal, setShowOrphansModal] = useState(false);
     const [pendingRequests, setPendingRequests] = useState([]);
+    
+    // 👉 NOUVEAU : GESTION DU DIRTY STATE (Modifications non sauvegardées)
+    const [isDirty, setIsDirty] = useState(false);
+    const isDirtyRef = useRef(false); // Ref pour l'utiliser dans le useEffect sans créer de boucle
+    
     const navigate = useNavigate();
+
+    // Synchroniser la Ref avec le State
+    useEffect(() => {
+        isDirtyRef.current = isDirty;
+    }, [isDirty]);
+
+    // 👉 NOUVEAU : Bloquer le rafraichissement de la page (F5) ou la fermeture de l'onglet
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = ''; // Standard requis pour afficher l'alerte native du navigateur
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isDirty]);
 
     const summarizeRequest = (request) => {
         if (!request) return '';
@@ -65,14 +86,22 @@ const FamilyManager = () => {
         } catch(e) { console.error(e); }
     };
 
+    // 👉 CORRECTION MAJEURE : On ne détruit plus le formulaire s'il y a des modifs en cours !
     useEffect(() => {
         if (selectedFamily) {
-            const resps = [...(selectedFamily.responsables || [])];
-            while (resps.length < 2) resps.push({ 
-                firstName: '', lastName: '', qualite: '', birthDate: '', adressePostale: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' 
-            });
-            const docs = selectedFamily.documents || { attestationCAF: {} };
-            setEditFamily({ ...selectedFamily, responsables: resps, documents: docs });
+            // Si on a des modifs non sauvegardées ET qu'on est sur la MÊME famille, on ne fait rien ! (ex: on vient juste d'ajouter un enfant)
+            if (isDirtyRef.current && editFamily && editFamily._id === selectedFamily._id) {
+                // On laisse le formulaire tel quel.
+            } else {
+                // Sinon (nouvelle famille ou on vient de sauvegarder), on recharge proprement
+                const resps = [...(selectedFamily.responsables || [])];
+                while (resps.length < 2) resps.push({ 
+                    firstName: '', lastName: '', qualite: '', birthDate: '', adressePostale: '', phoneMobile: '', email: '', profession: '', employeur: '', couvertureSociale: 'CPAM', numAllocataireCAF: '' 
+                });
+                const docs = selectedFamily.documents || { attestationCAF: {} };
+                setEditFamily({ ...selectedFamily, responsables: resps, documents: docs });
+                setIsDirty(false); // On réinitialise l'état sale
+            }
             
             api.get(`/requests/family/${selectedFamily._id}`).then(res => {
                 setPendingRequests(Array.isArray(res.data) ? res.data : []);
@@ -80,10 +109,27 @@ const FamilyManager = () => {
         } else {
             setEditFamily(null);
             setPendingRequests([]);
+            setIsDirty(false);
         }
-    }, [selectedFamily]);
+    }, [selectedFamily]); // ⚠️ Surtout ne pas ajouter editFamily ou isDirty ici
 
-    // Validation rapide via le FamilyManager
+    // 👉 NOUVEAU : Fonction de navigation sécurisée pour "Retour Accueil"
+    const goHomeSafe = () => {
+        if (isDirty) {
+            if (!window.confirm("⚠️ Vous avez des modifications non enregistrées. Voulez-vous quitter SANS sauvegarder ?")) return;
+        }
+        navigate('/');
+    };
+
+    // 👉 NOUVEAU : Fonction de sélection de famille sécurisée
+    const handleSelectFamilySafe = (fam) => {
+        if (isDirty && selectedFamily?._id !== fam._id) {
+            if (!window.confirm("⚠️ Vous avez des modifications non enregistrées sur ce dossier. Voulez-vous les abandonner pour ouvrir une autre famille ?")) return;
+        }
+        setIsDirty(false); // On force le reset pour ouvrir la nouvelle
+        setSelectedFamily(fam);
+    };
+
     const handleApproveRequest = async (requestId) => {
         try {
             const { data } = await api.post(`/requests/${requestId}/approve`);
@@ -115,8 +161,8 @@ const FamilyManager = () => {
         if (existingFamilies.length > 0) {
             const wantsToCreateDuplicate = window.confirm(`⚠️ Une ou plusieurs familles nommées "${searchName}" existent déjà !\n\nVoulez-vous vraiment en créer une NOUVELLE ?\n\n(Cliquez sur "Annuler" pour simplement ouvrir le dossier existant)`);
             if (!wantsToCreateDuplicate) {
-                setSelectedFamily(existingFamilies[0]);
-                searchFamilyText('');
+                handleSelectFamilySafe(existingFamilies[0]);
+                setSearchFamilyText('');
                 return;
             }
         }
@@ -124,7 +170,7 @@ const FamilyManager = () => {
             const res = await api.post(`/families`, { name: searchName });
             setSearchFamilyText('');
             loadData();
-            setSelectedFamily(res.data);
+            handleSelectFamilySafe(res.data);
         } catch (e) { alert("Erreur à la création."); }
     };
 
@@ -132,6 +178,7 @@ const FamilyManager = () => {
         const confirmWord = window.prompt(`🛑 DANGER 🛑\n\nVous allez SUPPRIMER DÉFINITIVEMENT ce dossier famille.\nLes enfants ne seront pas effacés mais perdront leurs parents et deviendront "sans dossier".\n\nPour confirmer, tapez : SUPPRIMER`);
         if (confirmWord === "SUPPRIMER") {
             await api.delete(`/families/${id}`);
+            setIsDirty(false);
             setSelectedFamily(null);
             loadData();
         } else if (confirmWord !== null) {
@@ -142,7 +189,7 @@ const FamilyManager = () => {
     const handleAttachChild = async (childId, familyId) => {
         try {
             await api.post(`/children/${childId}/attach`, { familyId });
-            loadData();
+            loadData(); // Ne reset plus le formulaire en cours !
             setSearchOrphan('');
         } catch(e) {
             alert("Erreur lors du rattachement de l'enfant.");
@@ -163,16 +210,19 @@ const FamilyManager = () => {
     const handleSaveFamily = async () => {
         try {
             const res = await api.put(`/families/${selectedFamily._id}`, editFamily);
+            setIsDirty(false); // 👉 On marque comme "propre" juste avant d'update
             setSelectedFamily(res.data);
             setFamilies(families.map(f => f._id === res.data._id ? res.data : f));
             alert("Dossier sauvegardé avec succès !");
         } catch (e) { alert("Erreur lors de la sauvegarde."); }
     };
 
+    // 👉 On ajoute setIsDirty(true) dans tous les handlers
     const handleRespChange = (index, field, value) => {
         const newResps = [...editFamily.responsables];
         newResps[index] = { ...newResps[index], [field]: value };
         setEditFamily({ ...editFamily, responsables: newResps });
+        setIsDirty(true);
     };
 
     const handleQFChange = (field, value) => {
@@ -182,6 +232,7 @@ const FamilyManager = () => {
             updated.quotientFamilial = Math.round((updated.revenuReference / 12) / updated.nombreParts);
         } else { updated.quotientFamilial = null; }
         setEditFamily(updated);
+        setIsDirty(true);
     };
 
     const handleDocChange = (docType, field, value) => {
@@ -189,6 +240,7 @@ const FamilyManager = () => {
         if (!updatedDocs[docType]) updatedDocs[docType] = {};
         updatedDocs[docType][field] = value;
         setEditFamily({ ...editFamily, documents: updatedDocs });
+        setIsDirty(true);
     };
 
     const handleFileUpload = (docType, e) => {
@@ -289,12 +341,14 @@ const FamilyManager = () => {
                 await api.post(`/children`, { ...payload, families: [selectedFamily._id] });
             }
             setEditingChild(null);
-            loadData();
+            loadData(); // Ne resettera plus la famille en fond
         } catch (err) { alert("Erreur sauvegarde enfant."); }
     };
 
     const exportFamilyPDF = () => {
         if (!editFamily) return;
+        if (isDirty && !window.confirm("Vos dernières modifications non sauvegardées n'apparaîtront pas sur le PDF. Continuer ?")) return;
+        
         const doc = new jsPDF();
         let yPos = 20;
 
@@ -379,12 +433,13 @@ const FamilyManager = () => {
     };
 
     const handleSendParentInvite = async () => {
+        if (isDirty) return alert("⚠️ Veuillez sauvegarder vos modifications avant d'envoyer l'invitation.");
         const emailResp1 = editFamily.responsables[0]?.email;
         if (!emailResp1) {
-            return alert("⚠️ Veuillez d'abord renseigner une adresse email valide pour le Responsable 1 afin de lui envoyer son accès.");
+            return alert("⚠️ Veuillez d'abord renseigner et sauvegarder une adresse email pour le Responsable 1.");
         }
 
-        if (window.confirm(`Voulez-vous générer et envoyer un lien d'activation du Portail Famille à l'adresse : ${emailResp1} ?`)) {
+        if (window.confirm(`Générer et envoyer un lien d'activation du Portail Famille à l'adresse : ${emailResp1} ?`)) {
             try {
                 const { data } = await api.post('/parent/invite', {
                     email: emailResp1,
@@ -427,7 +482,8 @@ const FamilyManager = () => {
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10 relative">
             <div className="max-w-7xl mx-auto pb-20">
-                <button onClick={() => navigate('/')} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
+                {/* 👉 NOUVEAU : On utilise la navigation sécurisée ici */}
+                <button onClick={goHomeSafe} className="mb-8 text-slate-400 font-bold hover:text-car-dark transition-colors">← Retour Accueil</button>
                 
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-10 gap-4">
                     <div className="flex items-center gap-4">
@@ -438,7 +494,6 @@ const FamilyManager = () => {
                         </div>
                     </div>
                     
-                    {/* BOUTON D'ALERTE CLIQUABLE POUR OUVRIR LA MODALE */}
                     <button 
                         onClick={() => trueOrphans.length > 0 && setShowOrphansModal(true)}
                         className={`px-6 py-4 rounded-2xl font-black text-lg flex items-center gap-3 shadow-sm transition-transform ${trueOrphans.length > 0 ? 'bg-car-pink text-white animate-pulse hover:scale-105 cursor-pointer' : 'bg-car-green text-white cursor-default'}`}
@@ -449,7 +504,6 @@ const FamilyManager = () => {
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-                    {/* COLONNE DE GAUCHE : RECHERCHE FAMILLES */}
                     <div className="xl:col-span-1 space-y-4">
                         <form onSubmit={handleSearchOrCreateFamily} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex gap-2 items-center">
                             <Search className="text-slate-400 ml-2" size={20} />
@@ -466,7 +520,8 @@ const FamilyManager = () => {
                                 {filteredFamilies.map(fam => {
                                     const famChildrenCount = children.filter(c => c.families?.some(fId => fId === fam._id || fId._id === fam._id)).length;
                                     return (
-                                        <button key={fam._id} onClick={() => setSelectedFamily(fam)} className={`w-full text-left p-4 rounded-2xl mb-1 flex items-center justify-between transition-all ${selectedFamily?._id === fam._id ? 'bg-car-yellow text-white shadow-md' : 'hover:bg-slate-50 text-car-dark'}`}>
+                                        // 👉 NOUVEAU : On utilise la sélection sécurisée ici
+                                        <button key={fam._id} onClick={() => handleSelectFamilySafe(fam)} className={`w-full text-left p-4 rounded-2xl mb-1 flex items-center justify-between transition-all ${selectedFamily?._id === fam._id ? 'bg-car-yellow text-white shadow-md' : 'hover:bg-slate-50 text-car-dark'}`}>
                                             <div>
                                                 <span className="font-black block text-lg uppercase">{fam.name}</span>
                                                 <span className={`text-xs font-bold ${selectedFamily?._id === fam._id ? 'text-white/80' : 'text-slate-400'}`}>{famChildrenCount} enfant(s)</span>
@@ -479,14 +534,12 @@ const FamilyManager = () => {
                         </div>
                     </div>
 
-                    {/* COLONNE DE DROITE : DOSSIER SÉLECTIONNÉ */}
                     <div className="xl:col-span-3">
                         {selectedFamily && editFamily ? (
                             <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-100 min-h-[800px] flex flex-col">
                                 
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6 w-full mb-8">
                                     <div className="space-y-2 w-full md:w-auto">
-                                        
                                         <div className="flex items-center gap-3 flex-wrap">
                                             <h2 className="text-3xl font-black text-car-dark uppercase">Famille</h2>
                                             <div className="relative">
@@ -494,7 +547,7 @@ const FamilyManager = () => {
                                                     type="text" 
                                                     className="text-2xl font-black text-car-yellow uppercase bg-slate-50 hover:bg-slate-100 border border-slate-200 focus:bg-white focus:border-car-yellow outline-none rounded-xl px-4 py-1.5 w-full sm:w-64 transition-all pr-10"
                                                     value={editFamily.name} 
-                                                    onChange={e => setEditFamily({...editFamily, name: e.target.value.toUpperCase()})}
+                                                    onChange={e => { setEditFamily({...editFamily, name: e.target.value.toUpperCase()}); setIsDirty(true); }}
                                                     title="Modifier le nom du dossier"
                                                 />
                                                 <Pencil size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none"/>
@@ -504,10 +557,15 @@ const FamilyManager = () => {
                                         <div className="flex flex-wrap items-center gap-3 pt-1">
                                             <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
                                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">🔑 Code :</span>
-                                                <input type="text" className="bg-transparent border-none outline-none font-black text-car-dark text-sm w-24 uppercase placeholder:text-slate-300" value={editFamily.portalCode || ''} onChange={e => setEditFamily({...editFamily, portalCode: e.target.value.toUpperCase()})} placeholder="EX: 1234A" />
+                                                <input type="text" className="bg-transparent border-none outline-none font-black text-car-dark text-sm w-24 uppercase placeholder:text-slate-300" 
+                                                    value={editFamily.portalCode || ''} 
+                                                    onChange={e => { setEditFamily({...editFamily, portalCode: e.target.value.toUpperCase()}); setIsDirty(true); }} 
+                                                    placeholder="EX: 1234A" />
                                             </div>
                                             <label className="flex items-center gap-2 cursor-pointer group w-fit">
-                                                <input type="checkbox" className="w-5 h-5 accent-car-green" checked={editFamily.dossierComplet} onChange={e => setEditFamily({...editFamily, dossierComplet: e.target.checked})} />
+                                                <input type="checkbox" className="w-5 h-5 accent-car-green" 
+                                                    checked={editFamily.dossierComplet} 
+                                                    onChange={e => { setEditFamily({...editFamily, dossierComplet: e.target.checked}); setIsDirty(true); }} />
                                                 <span className={`font-bold text-sm ${editFamily.dossierComplet ? 'text-car-green' : 'text-car-pink group-hover:text-car-dark transition-colors'}`}>
                                                     {editFamily.dossierComplet ? 'Dossier complet' : 'Dossier incomplet'}
                                                 </span>
@@ -519,7 +577,11 @@ const FamilyManager = () => {
                                         <button type="button" onClick={() => handleDeleteFamily(selectedFamily._id)} className="text-slate-400 hover:text-car-pink bg-slate-50 p-4 rounded-2xl transition-colors" title="Supprimer la famille" aria-label="Supprimer la famille"><Trash2 size={24} aria-hidden="true"/></button>
                                         <button type="button" onClick={exportFamilyPDF} className="text-slate-400 hover:text-car-blue bg-slate-50 p-4 rounded-2xl transition-colors" title="Télécharger le dossier complet" aria-label="Télécharger le dossier complet"><Download size={24} aria-hidden="true"/></button>
                                         <button type="button" onClick={handleSendParentInvite} className="bg-car-blue text-white px-5 py-4 rounded-2xl font-black tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg shadow-car-blue/15 text-xs"><Mail size={18}/> INVITER PARENT</button>
-                                        <button type="button" onClick={handleSaveFamily} className="bg-car-green text-white px-5 py-4 rounded-2xl font-black tracking-widest hover:bg-green-600 transition-all flex items-center gap-2 shadow-lg shadow-car-green/15 text-xs"><Save size={18}/> SAUVEGARDER</button>
+                                        {/* 👉 NOUVEAU : LE BOUTON SAUVEGARDER INTELLIGENT */}
+                                        <button type="button" onClick={handleSaveFamily} 
+                                            className={`px-6 py-4 rounded-2xl font-black tracking-widest transition-all flex items-center gap-2 shadow-lg text-xs ${isDirty ? 'bg-car-yellow text-white hover:bg-yellow-500 shadow-car-yellow/30 animate-pulse' : 'bg-car-green text-white hover:bg-green-600 shadow-car-green/15'}`}>
+                                            <Save size={18}/> {isDirty ? 'ENREGISTRER LES MODIFICATIONS !' : 'SAUVEGARDER'}
+                                        </button>
                                     </div>
                                 </div>
 
@@ -530,15 +592,19 @@ const FamilyManager = () => {
                                         {attachedChildren.length > 0 ? (
                                             <div className="space-y-2 mb-6">
                                                 {attachedChildren.map(c => (
-                                                    <div key={c._id} className="flex flex-col gap-2 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 group">
+                                                    // 👉 ON LAISSE LES ENFANTS ARCHIVÉS GRISÉS (Ta précédente modification)
+                                                    <div key={c._id} className={`flex flex-col gap-2 p-3 rounded-2xl shadow-sm border transition-all group ${c.active === false ? 'bg-slate-50/50 border-slate-200 opacity-60' : 'bg-white border-slate-100'}`}>
                                                         <div className="flex justify-between items-center">
                                                             <div onClick={() => setChildInfoToView(c)} className="flex items-center gap-3 cursor-pointer flex-1" title="Voir la fiche">
                                                                 <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-car-blue transition-colors"><Info size={18}/></div>
-                                                                <span className="font-bold text-car-dark uppercase group-hover:text-car-blue transition-colors">{c.lastName} <span className="font-medium text-slate-500 capitalize">{c.firstName}</span></span>
+                                                                <span className={`font-bold uppercase group-hover:text-car-blue transition-colors ${c.active === false ? 'text-slate-400' : 'text-car-dark'}`}>
+                                                                    {c.lastName} <span className="font-medium capitalize">{c.firstName}</span>
+                                                                </span>
+                                                                {c.active === false && <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-md font-black tracking-widest">INACTIF</span>}
                                                             </div>
                                                             <div className="flex items-center gap-1">
-                                                                <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier la fiche enfant" aria-label={`Modifier la fiche de ${c.firstName} ${c.lastName}`}><Pencil size={18} aria-hidden="true"/></button>
-                                                                <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher l'enfant de CE dossier" aria-label={`Détacher ${c.firstName} ${c.lastName} du dossier` }><X size={18} aria-hidden="true"/></button>
+                                                                <button onClick={() => startEditChild(c)} className="text-slate-400 hover:text-car-yellow p-2 bg-slate-50 rounded-lg transition-colors" title="Modifier la fiche enfant"><Pencil size={18}/></button>
+                                                                <button onClick={() => handleDetachChild(c._id)} className="text-slate-400 hover:text-car-pink p-2 bg-slate-50 rounded-lg transition-colors" title="Détacher l'enfant de CE dossier"><X size={18}/></button>
                                                             </div>
                                                         </div>
                                                         {childRequestsById && childRequestsById[c._id] && childRequestsById[c._id].map(renderPendingRequest)}
@@ -558,23 +624,19 @@ const FamilyManager = () => {
                                                 {searchOrphan.length >= 2 && (
                                                     <div className="absolute w-full mt-2 bg-white shadow-2xl rounded-2xl border border-slate-100 max-h-60 overflow-y-auto z-20">
                                                         {filteredUnattached.map(c => (
-                                                            // 👉 AJOUT : On baisse l'opacité globale de la ligne si l'enfant est inactif
+                                                            // 👉 LA RECHERCHE AVEC LES ENFANTS ARCHIVÉS GRISÉS (Ta précédente modif conservée)
                                                             <div key={c._id} className={`p-4 flex justify-between items-center border-b border-slate-50 hover:bg-slate-50 transition-colors ${c.active === false ? 'opacity-60 bg-slate-50/50' : ''}`}>
                                                                 <div>
-                                                                    {/* 👉 AJOUT : On grise le texte si inactif */}
                                                                     <span className={`font-bold uppercase ${c.active === false ? 'text-slate-400' : 'text-car-dark'}`}>
                                                                         {c.lastName} <span className={`font-medium capitalize ${c.active === false ? 'text-slate-400' : 'text-slate-500'}`}>{c.firstName}</span>
                                                                     </span>
-                                                                    {/* 👉 AJOUT : Le petit badge INACTIF */}
                                                                     {c.active === false && (
                                                                         <span className="ml-2 text-[10px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-md tracking-widest">
                                                                             INACTIF
                                                                         </span>
                                                                     )}
                                                                 </div>
-                                                                <button type="button" onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">
-                                                                    + Lier
-                                                                </button>
+                                                                <button type="button" onClick={() => handleAttachChild(c._id, selectedFamily._id)} className="bg-car-green text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:scale-105 transition-transform">+ Lier</button>
                                                             </div>
                                                         ))}
                                                         {filteredUnattached.length === 0 && (
@@ -593,7 +655,9 @@ const FamilyManager = () => {
                                     <div className="bg-white border border-slate-200 p-6 rounded-3xl flex flex-col">
                                         <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
                                             <h3 className="font-black text-car-dark text-sm tracking-widest uppercase flex items-center gap-2"><Banknote size={18} aria-hidden="true"/> Facturation & QF</h3>
-                                            <select className="bg-slate-50 border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-xs" value={editFamily.payeur} onChange={e => setEditFamily({...editFamily, payeur: e.target.value})}>
+                                            <select className="bg-slate-50 border border-slate-200 p-2 rounded-lg outline-none font-bold text-car-dark text-xs" 
+                                                value={editFamily.payeur} 
+                                                onChange={e => { setEditFamily({...editFamily, payeur: e.target.value}); setIsDirty(true); }}>
                                                 <option value="Responsable 1">Facture à Resp. 1</option>
                                                 <option value="Responsable 2">Facture à Resp. 2</option>
                                                 <option value="Autre">Facturation Alternée</option>
@@ -625,10 +689,14 @@ const FamilyManager = () => {
                                             </div>
                                             <div className="flex flex-col gap-3">
                                                 <div className="flex gap-2">
-                                                    <select className={`flex-1 p-2 rounded-lg text-sm font-bold border outline-none ${editFamily.documents?.attestationCAF?.status === 'Valide' ? 'bg-car-green/10 text-car-green border-car-green/20' : 'bg-white text-slate-600 border-slate-200'}`} value={editFamily.documents?.attestationCAF?.status || 'Manquant'} onChange={e => handleDocChange('attestationCAF', 'status', e.target.value)}>
+                                                    <select className={`flex-1 p-2 rounded-lg text-sm font-bold border outline-none ${editFamily.documents?.attestationCAF?.status === 'Valide' ? 'bg-car-green/10 text-car-green border-car-green/20' : 'bg-white text-slate-600 border-slate-200'}`} 
+                                                        value={editFamily.documents?.attestationCAF?.status || 'Manquant'} 
+                                                        onChange={e => handleDocChange('attestationCAF', 'status', e.target.value)}>
                                                         <option value="Manquant">Manquant</option><option value="En attente de validation">En attente de validation</option><option value="Valide">Valide</option><option value="Expiré">Expiré</option>
                                                     </select>
-                                                    <input type="date" className="flex-1 bg-white border border-slate-200 p-2 rounded-lg outline-none focus:border-car-yellow font-medium text-car-dark text-sm" value={editFamily.documents?.attestationCAF?.expiryDate ? editFamily.documents.attestationCAF.expiryDate.split('T')[0] : ''} onChange={e => handleDocChange('attestationCAF', 'expiryDate', e.target.value)} />
+                                                    <input type="date" className="flex-1 bg-white border border-slate-200 p-2 rounded-lg outline-none focus:border-car-yellow font-medium text-car-dark text-sm" 
+                                                        value={editFamily.documents?.attestationCAF?.expiryDate ? editFamily.documents.attestationCAF.expiryDate.split('T')[0] : ''} 
+                                                        onChange={e => handleDocChange('attestationCAF', 'expiryDate', e.target.value)} />
                                                 </div>
                                                 <input type="file" accept=".pdf, image/jpeg, image/png" onChange={(e) => handleFileUpload('attestationCAF', e)} className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-white file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"/>
                                             </div>
@@ -721,7 +789,7 @@ const FamilyManager = () => {
                                     <span className="font-bold text-sm">{editingChild.active !== false ? 'DOSSIER ACTIF' : 'DOSSIER INACTIF'}</span>
                                 </label>
                             </div>
-                            <button type="button" onClick={() => setEditingChild(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer le formulaire enfant"><X size={24} aria-hidden="true"/></button>
+                            <button type="button" onClick={() => setEditingChild(null)} className="bg-slate-100 p-2 rounded-full text-slate-400 hover:text-car-pink" aria-label="Fermer le formulaire"><X size={24} aria-hidden="true"/></button>
                         </div>
                         
                         {editingChild.active === false && (
@@ -746,7 +814,6 @@ const FamilyManager = () => {
                                         <option value="Maternelle">Maternelle</option><option value="Élémentaire">Élémentaire</option>
                                     </select>
 
-                                    {/* SÉLECTEUR DE CLASSE */}
                                     <select className="col-span-2 sm:col-span-4 bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none font-bold text-car-dark" value={editingChild.classGroup} onChange={e => setEditingChild({...editingChild, classGroup: e.target.value})}>
                                         <option value="">-- Sans classe assignée --</option>
                                         {classes.filter(c => c.category === editingChild.category).map(cls => (
@@ -756,7 +823,7 @@ const FamilyManager = () => {
                                 </div>
                             </div>
 
-                            {/* SECTION DOCUMENTS */}
+                            {/* DOCUMENTS ADMINISTRATIFS VACCINS ET RC */}
                             <div>
                                 <h4 className="text-sm font-black text-slate-400 tracking-widest uppercase mb-3">Documents Administratifs</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
