@@ -222,7 +222,7 @@ const FamilyPortal = () => {
                 {activeTab === 'FACTURES' && <TabFactures />}
             </main>
 
-            {childToEdit && <ChildRequestModal child={childToEdit} onClose={() => setChildToEdit(null)} onRefresh={loadParentData} />}
+            {childToEdit && <ChildRequestModal child={childToEdit} siblings={parentData.children} onClose={() => setChildToEdit(null)} onRefresh={loadParentData} />}
             {newsToView && <NewsViewModal news={newsToView} onClose={() => setNewsToView(null)} onImageClick={setZoomedImage} />}
             {zoomedImage && <ImageLightbox src={zoomedImage} onClose={() => setZoomedImage(null)} />}
 

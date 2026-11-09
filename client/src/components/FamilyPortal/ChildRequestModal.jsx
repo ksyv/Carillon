@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Info, CheckCircle, UploadCloud, Loader, Send } from 'lucide-react';
+import { X, Info, CheckCircle, UploadCloud, Loader, Send, Copy } from 'lucide-react';
 import api from '../../api'; // On remonte de deux niveaux pour atteindre src/api
 
-const ChildRequestModal = ({ child, onClose, onRefresh }) => {
+const ChildRequestModal = ({ child, sibling, onClose, onRefresh }) => {
     const [editingChild, setEditingChild] = useState(null);
     const [isSending, setIsSending] = useState(false);
 
@@ -108,6 +108,19 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
         setIsSending(false);
     };
 
+    const handleCopyContacts = () => {
+        const siblingWithContacts = siblings?.find(c => c._id !== child._id && c.personnesAutorisees?.length > 0);
+        if (siblingWithContacts) {
+            // On utilise JSON.parse(stringify) pour copier proprement l'objet
+            setEditingChild({ 
+                ...editingChild, 
+                personnesAutorisees: JSON.parse(JSON.stringify(siblingWithContacts.personnesAutorisees)) 
+            });
+        } else {
+            alert("Aucun autre de vos enfants n'a de contacts renseignés.");
+        }
+    };
+
     if (!editingChild) return null;
 
     return (
@@ -183,7 +196,15 @@ const ChildRequestModal = ({ child, onClose, onRefresh }) => {
                     <div>
                         <div className="flex justify-between items-center mb-3">
                             <h4 className="text-sm font-black text-car-dark tracking-widest uppercase">Personnes Autorisées</h4>
-                            <button type="button" onClick={() => setEditingChild({...editingChild, personnesAutorisees: [...editingChild.personnesAutorisees, {firstName:'', lastName:'', phone:'', isEmergency: false}]})} className="text-xs font-bold text-car-blue bg-car-blue/10 px-3 py-1.5 rounded-lg">+ AJOUTER</button>
+                            <div className="flex gap-2">
+                                {/* 👉 LE BOUTON COPIER POUR LE PARENT */}
+                                {siblings?.length > 1 && (
+                                    <button type="button" onClick={handleCopyContacts} className="text-xs font-bold text-car-purple bg-car-purple/10 px-3 py-1.5 rounded-lg flex items-center gap-1">
+                                        <Copy size={14}/> Copier (Fratrie)
+                                    </button>
+                                )}
+                                <button type="button" onClick={() => setEditingChild({...editingChild, personnesAutorisees: [...editingChild.personnesAutorisees, {firstName:'', lastName:'', phone:'', isEmergency: false}]})} className="text-xs font-bold text-car-blue bg-car-blue/10 px-3 py-1.5 rounded-lg">+ AJOUTER</button>
+                            </div>
                         </div>
                         <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                             {editingChild.personnesAutorisees.map((c, i) => (
